@@ -1,0 +1,57 @@
+version: "3"
+
+vars:
+  BINARY: revu
+  PKG: ./cmd/revu
+  BUILD_DIR: build/bin
+  VERSION:
+    sh: git describe --tags --always --dirty 2>/dev/null || echo dev
+  COMMIT:
+    sh: git rev-parse --short HEAD 2>/dev/null || echo none
+  DATE:
+    sh: date -u +%Y-%m-%dT%H:%M:%SZ
+  LDFLAGS: >-
+    -s -w
+    -X main.version={{.VERSION}}
+    -X main.commit={{.COMMIT}}
+    -X main.date={{.DATE}}
+
+tasks:
+  default:
+    desc: Lista tasks disponíveis
+    cmds:
+      - task --list
+
+  build:
+    desc: Compila binário em build/bin/revu
+    cmds:
+      - mkdir -p {{.BUILD_DIR}}
+      - go build -trimpath -ldflags "{{.LDFLAGS}}" -o {{.BUILD_DIR}}/{{.BINARY}} {{.PKG}}
+    sources:
+      - "**/*.go"
+      - go.mod
+      - go.sum
+    generates:
+      - "{{.BUILD_DIR}}/{{.BINARY}}"
+
+  run:
+    desc: Compila e roda `revu run`
+    deps: [build]
+    cmds:
+      - "{{.BUILD_DIR}}/{{.BINARY}} run"
+
+  test:
+    desc: Roda testes com race detector
+    cmds:
+      - go test -race ./...
+
+  install:
+    desc: Instala binário em ~/.local/bin
+    deps: [build]
+    cmds:
+      - install -Dm755 {{.BUILD_DIR}}/{{.BINARY}} "$HOME/.local/bin/{{.BINARY}}"
+
+  release:
+    desc: Build release com wails (full app)
+    cmds:
+      - wails build -clean -trimpath -ldflags "{{.LDFLAGS}}"

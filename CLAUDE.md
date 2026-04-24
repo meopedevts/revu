@@ -19,26 +19,36 @@ System tray Linux pra PRs com review solicitado no GitHub. Veja `SPEC.md` pra es
 - `libayatana-appindicator`, `webkit2gtk-4.1`
 - Daemon notify freedesktop (`mako`/`dunst`/`swaync`)
 
-## Estrutura alvo (SPEC §10)
+## Estrutura (SPEC §10)
 
 ```
-cmd/revu/main.go
-internal/{app,cli,config,github,notifier,poller,store,tray}/
-frontend/src/
-assets/            # ícones embed via go:embed
+cmd/revu/main.go          # entrypoint, passa ldflags pra cli
+internal/
+  app/                    # Wails wiring (fase 3)
+  cli/                    # cobra: root, run, version, config, doctor
+  config/                 # viper (fase 9)
+  github/                 # wrapper gh CLI
+  notifier/               # notify (D-Bus)
+  poller/                 # goroutine + ticker
+  store/                  # JSON persistence
+  tray/                   # fyne.io/systray
+frontend/src/             # React TS (Wails)
+assets/                   # ícones embed via go:embed
 ```
 
-Scaffold atual = Wails default (`app.go` + `main.go` na raiz). Refatorar pra layout `cmd/` + `internal/` antes da fase 1.
-
-## Comandos
+## Build & Run
 
 ```bash
-wails dev                  # dev server
-wails build                # build release → build/bin/revu
-install -Dm755 build/bin/revu ~/.local/bin/revu
+task build                # build/bin/revu
+task run                  # build + revu run
+task install              # ~/.local/bin/revu
+task test                 # go test -race ./...
+task release              # wails build (app completo com UI)
 ```
 
-CLI alvo: `revu run|version|config|doctor` (cobra).
+CLI: `revu run|version|config|doctor` (cobra). Ldflags injetam
+`main.version`/`main.commit`/`main.date` — forwarded pro pacote
+`internal/cli` via `SetBuildInfo`.
 
 ## Fases (SPEC §11)
 

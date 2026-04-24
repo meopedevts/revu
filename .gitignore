@@ -1,5 +1,20 @@
-build/bin
-frontend/dist
-frontend/node_modules
+# build artifacts
+build/bin/
+frontend/dist/
+frontend/node_modules/
+
+# go
+*.exe
+*.test
+*.out
+coverage.*
+vendor/
+
+# go-task cache
+.task/
+
+# editor / tools
 .idea/
+.vscode/
 .claude/
+.DS_Store
