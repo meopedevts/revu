@@ -12,7 +12,13 @@ import (
 	"syscall"
 
 	"github.com/spf13/cobra"
+	"github.com/wailsapp/wails/v2"
+	"github.com/wailsapp/wails/v2/pkg/options"
+	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	wruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 
+	"github.com/meopedevts/revu/frontend"
+	"github.com/meopedevts/revu/internal/app"
 	"github.com/meopedevts/revu/internal/github"
 	"github.com/meopedevts/revu/internal/notifier"
 	"github.com/meopedevts/revu/internal/poller"
@@ -22,89 +28,119 @@ import (
 
 var runCmd = &cobra.Command{
 	Use:           "run",
-	Short:         "Inicia o app (tray + poller + notifier; janela Wails em fases futuras)",
+	Short:         "Inicia o app (Wails + tray + poller + notifier)",
 	SilenceUsage:  true,
 	SilenceErrors: true,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
-		defer stop()
+	RunE:          runApp,
+}
 
-		log := slog.Default()
-		client := github.NewClient(github.DefaultExecutor())
+func runApp(cmd *cobra.Command, _ []string) error {
+	ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
-		// Fail fast on auth — SPEC §8.2. A future session will move this to
-		// a degraded-tray state instead of aborting.
-		if err := client.AuthStatus(ctx); err != nil {
-			return fmt.Errorf("pré-requisito falhou: %w", err)
+	log := slog.Default()
+	client := github.NewClient(github.DefaultExecutor())
+
+	// Fail fast on auth — later sessions can degrade gracefully into a
+	// tray error state. For now abort so systemd can restart / user sees
+	// the message.
+	if err := client.AuthStatus(ctx); err != nil {
+		return fmt.Errorf("pré-requisito falhou: %w", err)
+	}
+
+	cfgPath, err := configPath()
+	if err != nil {
+		return err
+	}
+	statePath, err := statePath()
+	if err != nil {
+		return err
+	}
+	st := store.New(statePath)
+	if err := st.Load(); err != nil {
+		return fmt.Errorf("carregar store: %w", err)
+	}
+
+	ntf, err := notifier.New()
+	if err != nil {
+		return fmt.Errorf("inicializar notifier: %w", err)
+	}
+	defer ntf.Close()
+
+	p := poller.New(client, st, ntf, poller.WithLogger(log))
+	bridge := app.New(st, p.Trigger, app.WithLogger(log))
+
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if err := p.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
+			log.Warn("poller exit", "err", err)
 		}
+	}()
 
-		cfgPath, err := configPath()
-		if err != nil {
-			return err
-		}
-		statePath, err := statePath()
-		if err != nil {
-			return err
-		}
-		st := store.New(statePath)
-		if err := st.Load(); err != nil {
-			return fmt.Errorf("carregar store: %w", err)
-		}
-
-		ntf, err := notifier.New()
-		if err != nil {
-			return fmt.Errorf("inicializar notifier: %w", err)
-		}
-		defer ntf.Close()
-
-		p := poller.New(client, st, ntf, poller.WithLogger(log))
-
-		// Poller runs in its own goroutine; tray owns the main thread.
-		var wg sync.WaitGroup
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			if err := p.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
-				log.Warn("poller exit", "err", err)
-			}
-		}()
-
-		tr := tray.New(
-			func() {
-				log.Info("tray: refresh requested")
-				p.Trigger()
-			},
-			func() {
-				log.Info("tray: quit requested")
-				stop()
-			},
-			cfgPath,
-			tray.WithLogger(log),
-		)
-
-		// Bridge ctx cancellation (SIGINT, SIGTERM, or Sair) into the systray
-		// loop so the main-thread tray.Start() returns.
-		go func() {
-			<-ctx.Done()
-			tr.Stop()
-		}()
-
-		log.Info("revu started", "state", statePath, "config", cfgPath, "interval", poller.DefaultInterval)
-
-		// Blocks on main thread until the systray loop exits.
+	// fyne.io/systray on Linux SNI does not touch the GTK main thread, so
+	// it coexists fine with Wails (which owns main).
+	tr := tray.New(
+		bridge.ShowWindow,
+		func() {
+			log.Info("tray: refresh requested")
+			p.Trigger()
+		},
+		func() {
+			log.Info("tray: quit requested")
+			stop()
+		},
+		cfgPath,
+		tray.WithLogger(log),
+	)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
 		tr.Start()
+	}()
 
-		// Ensure the ctx is cancelled even if the tray loop exited first for
-		// any reason — defensive, cheap.
-		stop()
-		wg.Wait()
-
-		if saveErr := st.Save(); saveErr != nil {
-			log.Warn("save on shutdown", "err", saveErr)
+	// Bridge ctx cancellation into both the systray loop and the Wails
+	// runtime so Wails.Run (blocking on the main thread) returns.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		<-ctx.Done()
+		tr.Stop()
+		// WailsCtx may be nil if shutdown fires before OnStartup.
+		if wc := bridge.WailsCtx(); wc != nil {
+			wruntime.Quit(wc)
 		}
-		log.Info("revu stopped")
-		return nil
-	},
+	}()
+
+	log.Info("revu started", "state", statePath, "config", cfgPath, "interval", poller.DefaultInterval)
+
+	runErr := wails.Run(&options.App{
+		Title:             "revu",
+		Width:             480,
+		Height:            640,
+		StartHidden:       true,
+		HideWindowOnClose: true,
+		AssetServer: &assetserver.Options{
+			Assets: frontend.AssetsFS(),
+		},
+		OnStartup: bridge.OnStartup,
+		Bind:      []interface{}{bridge},
+	})
+
+	stop()
+	wg.Wait()
+
+	if saveErr := st.Save(); saveErr != nil {
+		log.Warn("save on shutdown", "err", saveErr)
+	}
+	log.Info("revu stopped")
+
+	if runErr != nil {
+		return fmt.Errorf("wails: %w", runErr)
+	}
+	return nil
 }
 
 // statePath resolves ~/.config/revu/state.json consistently with configPath().

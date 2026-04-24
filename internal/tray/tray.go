@@ -17,6 +17,7 @@ import (
 // Start/Stop are designed to be called exactly once per process, per the
 // fyne.io/systray lifecycle.
 type Tray struct {
+	onOpen     func()
 	onRefresh  func()
 	onQuit     func()
 	configPath string
@@ -36,9 +37,11 @@ func WithLogger(l *slog.Logger) Option {
 }
 
 // New wires up the callbacks. configPath is the file opened by the
-// "Configurações" menu item via xdg-open.
-func New(onRefresh, onQuit func(), configPath string, opts ...Option) *Tray {
+// "Configurações" menu item via xdg-open. onOpen may be nil when the Wails
+// window is not available (e.g. headless smoke).
+func New(onOpen, onRefresh, onQuit func(), configPath string, opts ...Option) *Tray {
 	t := &Tray{
+		onOpen:     onOpen,
 		onRefresh:  onRefresh,
 		onQuit:     onQuit,
 		configPath: configPath,
@@ -68,17 +71,26 @@ func (t *Tray) onReady() {
 	systray.SetTitle("revu")
 	systray.SetTooltip("revu — PR review notifier")
 
+	mOpen := systray.AddMenuItem("Abrir", "Mostra a janela do revu")
 	mRefresh := systray.AddMenuItem("Atualizar agora", "Forçar um poll imediato")
 	mConfig := systray.AddMenuItem("Configurações", "Abrir config.json no editor padrão")
 	systray.AddSeparator()
 	mQuit := systray.AddMenuItem("Sair", "Encerra o revu")
 
-	go t.loop(mRefresh, mConfig, mQuit)
+	if t.onOpen == nil {
+		mOpen.Disable()
+	}
+
+	go t.loop(mOpen, mRefresh, mConfig, mQuit)
 }
 
-func (t *Tray) loop(mRefresh, mConfig, mQuit *systray.MenuItem) {
+func (t *Tray) loop(mOpen, mRefresh, mConfig, mQuit *systray.MenuItem) {
 	for {
 		select {
+		case <-mOpen.ClickedCh:
+			if t.onOpen != nil {
+				t.onOpen()
+			}
 		case <-mRefresh.ClickedCh:
 			if t.onRefresh != nil {
 				t.onRefresh()

@@ -23,16 +23,34 @@ tasks:
       - task --list
 
   build:
-    desc: Compila binário em build/bin/revu
+    desc: Compila binário em build/bin/revu (frontend + Wails desktop tags)
+    deps: [build:frontend]
     cmds:
       - mkdir -p {{.BUILD_DIR}}
-      - go build -trimpath -ldflags "{{.LDFLAGS}}" -o {{.BUILD_DIR}}/{{.BINARY}} {{.PKG}}
+      - go build -trimpath -tags desktop,production,webkit2_41 -ldflags "{{.LDFLAGS}}" -o {{.BUILD_DIR}}/{{.BINARY}} {{.PKG}}
     sources:
       - "**/*.go"
       - go.mod
       - go.sum
+      - frontend/dist/**
     generates:
       - "{{.BUILD_DIR}}/{{.BINARY}}"
+
+  build:frontend:
+    desc: Build do frontend React/Vite (gera frontend/dist)
+    dir: frontend
+    cmds:
+      - pnpm run build
+    sources:
+      - src/**
+      - components/**
+      - lib/**
+      - index.html
+      - vite.config.ts
+      - tsconfig.json
+      - package.json
+    generates:
+      - dist/**
 
   run:
     desc: Compila e roda `revu run`
