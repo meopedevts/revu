@@ -6,39 +6,51 @@ package store
 
 const (
 	qSelectPRByID = `SELECT id, number, repo, title, author, url, state, is_draft,
-		additions, deletions, review_pending, first_seen_at, last_seen_at,
+		additions, deletions, review_pending, review_state, first_seen_at, last_seen_at,
 		last_notified_at
 		FROM prs WHERE id = ?`
 
 	qSelectPRsAll = `SELECT id, number, repo, title, author, url, state, is_draft,
-		additions, deletions, review_pending, first_seen_at, last_seen_at,
+		additions, deletions, review_pending, review_state, first_seen_at, last_seen_at,
 		last_notified_at
 		FROM prs ORDER BY last_seen_at DESC, id ASC`
 
+	// qSelectPRsPending / qSelectPRsHistory encode the REV-16 rule: a PR only
+	// leaves the pending tab once the PR is no longer OPEN AND we have already
+	// submitted a review. An approved PR sitting on a queued merge, or a PR
+	// that got closed before we reviewed it, both stay in pending — losing
+	// that would drop visibility on the two most common "waiting" cases.
 	qSelectPRsPending = `SELECT id, number, repo, title, author, url, state, is_draft,
-		additions, deletions, review_pending, first_seen_at, last_seen_at,
+		additions, deletions, review_pending, review_state, first_seen_at, last_seen_at,
 		last_notified_at
-		FROM prs WHERE review_pending = 1
+		FROM prs
+		WHERE state IN ('OPEN', '') OR review_state = 'PENDING'
 		ORDER BY last_seen_at DESC, id ASC`
 
 	qSelectPRsHistory = `SELECT id, number, repo, title, author, url, state, is_draft,
-		additions, deletions, review_pending, first_seen_at, last_seen_at,
+		additions, deletions, review_pending, review_state, first_seen_at, last_seen_at,
 		last_notified_at
-		FROM prs WHERE review_pending = 0
+		FROM prs
+		WHERE state NOT IN ('OPEN', '') AND review_state != 'PENDING'
 		ORDER BY last_seen_at DESC, id ASC`
 
 	qInsertPR = `INSERT INTO prs (
 		id, number, repo, title, author, url, state, is_draft,
-		additions, deletions, review_pending, first_seen_at, last_seen_at,
+		additions, deletions, review_pending, review_state, first_seen_at, last_seen_at,
 		last_notified_at, profile_id
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 	// qUpdatePRMutable rewrites the fields that may legitimately change
 	// between polls. first_seen_at is intentionally absent — it stays frozen
-	// at the initial sighting.
+	// at the initial sighting. When the PR re-enters the search after having
+	// dropped out (review_pending was 0), reset review_state to PENDING: GitHub
+	// only surfaces a PR under review-requested when a fresh review is
+	// expected, so whatever state lingered from the previous round is stale.
 	qUpdatePRMutable = `UPDATE prs
 		SET title = ?, author = ?, url = ?, repo = ?, is_draft = ?,
-			review_pending = 1, last_seen_at = ?,
+			review_pending = 1,
+			review_state = CASE WHEN review_pending = 0 THEN 'PENDING' ELSE review_state END,
+			last_seen_at = ?,
 			state = CASE WHEN state = '' THEN 'OPEN' ELSE state END
 		WHERE id = ?`
 
@@ -47,7 +59,7 @@ const (
 	qMarkNotPendingAll = `UPDATE prs SET review_pending = 0 WHERE review_pending = 1`
 
 	qUpdatePRStatus = `UPDATE prs
-		SET additions = ?, deletions = ?, is_draft = ?, state = ?
+		SET additions = ?, deletions = ?, is_draft = ?, state = ?, review_state = ?
 		WHERE id = ?`
 
 	// qDeleteRetention drops non-OPEN history older than the cutoff. state=''
@@ -56,13 +68,12 @@ const (
 	qDeleteRetention = `DELETE FROM prs
 		WHERE state NOT IN ('OPEN', '') AND last_seen_at < ?`
 
-	// qClearHistory wipes finalized rows (merged / closed) from the history.
-	// Rows still at state='OPEN' but review_pending=0 survive on purpose:
-	// the PR is alive on GitHub and a future re-request needs the prior
-	// record to be detected as a transition instead of a brand-new sighting
-	// (SPEC re-request detection). state='' legacy rows are also spared for
-	// the same reason.
-	qClearHistory = `DELETE FROM prs WHERE review_pending = 0 AND state NOT IN ('OPEN', '')`
+	// qClearHistory wipes rows that satisfy the REV-16 history rule: the PR
+	// is finalized AND we have already submitted a review. Rows that are
+	// non-OPEN but still PENDING on our side survive — user may want to
+	// still acknowledge them before they're purged.
+	qClearHistory = `DELETE FROM prs
+		WHERE state NOT IN ('OPEN', '') AND review_state != 'PENDING'`
 
 	qGetMeta = `SELECT value FROM meta WHERE key = ?`
 
@@ -70,8 +81,10 @@ const (
 		ON CONFLICT(key) DO UPDATE SET value = excluded.value`
 
 	qCountPRs        = `SELECT COUNT(*) FROM prs`
-	qCountPRsPending = `SELECT COUNT(*) FROM prs WHERE review_pending = 1`
-	qCountPRsHistory = `SELECT COUNT(*) FROM prs WHERE review_pending = 0`
+	qCountPRsPending = `SELECT COUNT(*) FROM prs
+		WHERE state IN ('OPEN', '') OR review_state = 'PENDING'`
+	qCountPRsHistory = `SELECT COUNT(*) FROM prs
+		WHERE state NOT IN ('OPEN', '') AND review_state != 'PENDING'`
 )
 
 // Meta keys persisted by the store.

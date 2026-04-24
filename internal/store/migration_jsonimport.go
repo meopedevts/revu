@@ -97,9 +97,9 @@ func runJSONImportTx(ctx context.Context, db *sql.DB, snap jsonImportSnapshot, n
 
 	stmt, err := tx.PrepareContext(ctx, `INSERT OR IGNORE INTO prs (
 		id, number, repo, title, author, url, state, is_draft,
-		additions, deletions, review_pending, first_seen_at, last_seen_at,
+		additions, deletions, review_pending, review_state, first_seen_at, last_seen_at,
 		last_notified_at
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		return 0, fmt.Errorf("prepare insert: %w", err)
 	}
@@ -119,10 +119,21 @@ func runJSONImportTx(ctx context.Context, db *sql.DB, snap jsonImportSnapshot, n
 		if lastSeen.IsZero() {
 			lastSeen = now
 		}
+		// Legacy JSON never carried review_state. Mirror the migration 00004
+		// backfill rule: pending rows become PENDING, non-pending rows become
+		// COMMENTED so the REV-16 history predicate accepts them.
+		reviewState := rec.ReviewState
+		if reviewState == "" {
+			if rec.ReviewPending {
+				reviewState = "PENDING"
+			} else {
+				reviewState = "COMMENTED"
+			}
+		}
 		if _, err := stmt.ExecContext(ctx,
 			rec.ID, rec.Number, rec.Repo, rec.Title, rec.Author, rec.URL,
 			state, boolToInt(rec.IsDraft), rec.Additions, rec.Deletions,
-			boolToInt(rec.ReviewPending), formatTime(firstSeen), formatTime(lastSeen),
+			boolToInt(rec.ReviewPending), reviewState, formatTime(firstSeen), formatTime(lastSeen),
 			formatTimePtr(rec.LastNotifiedAt),
 		); err != nil {
 			return 0, fmt.Errorf("insert pr %s: %w", rec.ID, err)

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 )
 
 // Client is the surface used by the poller and by `revu doctor`.
@@ -13,6 +14,28 @@ type Client interface {
 	AuthStatus(ctx context.Context) error
 	ListReviewRequested(ctx context.Context) ([]PRSummary, error)
 	GetPRDetails(ctx context.Context, url string) (*PRDetails, error)
+}
+
+// reviewStateFor picks the review state for login among latestReviews and
+// normalizes it to the four-value domain persisted by the store. Any review
+// in states GitHub doesn't expose here (PENDING, DISMISSED) collapses into
+// "PENDING" so the UI can show "still yours to review".
+func reviewStateFor(login string, reviews []rawLatestReview) string {
+	if login == "" {
+		return "PENDING"
+	}
+	for _, r := range reviews {
+		if r.Author.Login != login {
+			continue
+		}
+		switch r.State {
+		case "APPROVED", "CHANGES_REQUESTED", "COMMENTED":
+			return r.State
+		default:
+			return "PENDING"
+		}
+	}
+	return "PENDING"
 }
 
 // TokenProvider returns the PAT for the currently active profile, or "" when
@@ -33,6 +56,13 @@ func (noopTokenProvider) TokenForActive(context.Context) (string, error) { retur
 type ghClient struct {
 	exec   Executor
 	tokens TokenProvider
+
+	// whoMu guards the cache of `gh api user --jq .login` results keyed by
+	// token. A per-token cache is required because REV-15 lets the user
+	// switch active profiles — each profile's token resolves to a different
+	// login and the enrichment needs "which review is mine" at poll time.
+	whoMu sync.Mutex
+	who   map[string]string
 }
 
 // NewClient wires a Client around the given Executor. The optional tokens
@@ -43,7 +73,7 @@ func NewClient(e Executor, tokens ...TokenProvider) Client {
 	if len(tokens) > 0 && tokens[0] != nil {
 		tp = tokens[0]
 	}
-	return &ghClient{exec: e, tokens: tp}
+	return &ghClient{exec: e, tokens: tp, who: make(map[string]string)}
 }
 
 func (c *ghClient) AuthStatus(ctx context.Context) error {
@@ -91,16 +121,56 @@ func (c *ghClient) ListReviewRequested(ctx context.Context) ([]PRSummary, error)
 func (c *ghClient) GetPRDetails(ctx context.Context, url string) (*PRDetails, error) {
 	stdout, stderr, err := c.runGH(ctx,
 		"pr", "view", url,
-		"--json", "additions,deletions,state,mergedAt,isDraft",
+		"--json", "additions,deletions,state,mergedAt,isDraft,latestReviews",
 	)
 	if err != nil {
 		return nil, classify(stderr, err)
 	}
-	var d PRDetails
-	if err := json.Unmarshal(stdout, &d); err != nil {
+	var raw rawPRView
+	if err := json.Unmarshal(stdout, &raw); err != nil {
 		return nil, fmt.Errorf("decode pr view: %w", err)
 	}
-	return &d, nil
+	login, _ := c.whoAmI(ctx) // best-effort; failure just collapses to PENDING
+	return &PRDetails{
+		Additions:   raw.Additions,
+		Deletions:   raw.Deletions,
+		State:       raw.State,
+		MergedAt:    raw.MergedAt,
+		IsDraft:     raw.IsDraft,
+		ReviewState: reviewStateFor(login, raw.LatestReviews),
+	}, nil
+}
+
+// whoAmI returns the login associated with the currently active profile's
+// token, caching the result per-token. A failure is returned as ("", err)
+// and callers fall back to treating the review as PENDING — missing this
+// field never breaks polling.
+func (c *ghClient) whoAmI(ctx context.Context) (string, error) {
+	token, err := c.tokens.TokenForActive(ctx)
+	if err != nil {
+		return "", fmt.Errorf("resolve token for whoami: %w", err)
+	}
+	key := token
+	if key == "" {
+		key = "__ambient__"
+	}
+	c.whoMu.Lock()
+	if cached, ok := c.who[key]; ok {
+		c.whoMu.Unlock()
+		return cached, nil
+	}
+	c.whoMu.Unlock()
+
+	stdout, stderr, err := c.runGH(ctx, "api", "user", "--jq", ".login")
+	if err != nil {
+		return "", classify(stderr, err)
+	}
+	login := strings.TrimSpace(string(stdout))
+
+	c.whoMu.Lock()
+	c.who[key] = login
+	c.whoMu.Unlock()
+	return login, nil
 }
 
 // runGH resolves the active token, builds the env override, and invokes gh.

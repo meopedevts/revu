@@ -8,8 +8,9 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import { ReviewBadge } from '@/components/review-badge'
 import { StatusBadge } from '@/components/status-badge'
-import { type PRRecord, statusOf } from '@/src/lib/types'
+import { type PRRecord, reviewStateOf, statusOf } from '@/src/lib/types'
 
 interface PRCardProps {
   pr: PRRecord
@@ -18,6 +19,7 @@ interface PRCardProps {
 
 export function PRCard({ pr, onOpen }: PRCardProps) {
   const status = statusOf(pr)
+  const review = reviewStateOf(pr)
 
   function handleClick() {
     onOpen(pr.url)
@@ -49,8 +51,9 @@ export function PRCard({ pr, onOpen }: PRCardProps) {
           <span aria-hidden="true">·</span>
           <span>@{pr.author}</span>
         </CardDescription>
-        <CardAction>
+        <CardAction className="flex flex-col items-end gap-1">
           <StatusBadge status={status} />
+          <ReviewBadge state={review} />
         </CardAction>
       </CardHeader>
       <CardContent className="flex items-center justify-between gap-2 text-xs text-muted-foreground">

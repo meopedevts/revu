@@ -17,7 +17,7 @@ type Store interface {
 	GetAll() []PRRecord
 	GetPending() []PRRecord
 	GetHistory() []PRRecord
-	UpdateFromPoll(prs []github.PRSummary) (novos []PRRecord)
+	UpdateFromPoll(prs []github.PRSummary) (novos, vanished []PRRecord)
 	RefreshPRStatus(id string, details github.PRDetails) error
 	SetRetentionDays(days int)
 	SetActiveProfileID(id string)

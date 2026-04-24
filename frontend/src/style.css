@@ -47,6 +47,14 @@
     --color-status-merged-foreground: var(--status-merged-foreground);
     --color-status-closed: var(--status-closed);
     --color-status-closed-foreground: var(--status-closed-foreground);
+    --color-review-pending: var(--review-pending);
+    --color-review-pending-foreground: var(--review-pending-foreground);
+    --color-review-approved: var(--review-approved);
+    --color-review-approved-foreground: var(--review-approved-foreground);
+    --color-review-changes: var(--review-changes);
+    --color-review-changes-foreground: var(--review-changes-foreground);
+    --color-review-commented: var(--review-commented);
+    --color-review-commented-foreground: var(--review-commented-foreground);
     --radius-sm: calc(var(--radius) * 0.6);
     --radius-md: calc(var(--radius) * 0.8);
     --radius-lg: var(--radius);
@@ -98,6 +106,17 @@
     --status-merged-foreground: oklch(0.977 0.014 308.299);
     --status-closed: oklch(0.62 0.22 27);
     --status-closed-foreground: oklch(0.985 0 0);
+    /* REV-16 — review state colors. Chosen to read distinctly from PR state:
+       amber = still owed, green = done/positive, orange = blocking, blue =
+       neutral commentary. */
+    --review-pending: oklch(0.82 0.15 85);
+    --review-pending-foreground: oklch(0.21 0.006 285.885);
+    --review-approved: oklch(0.72 0.18 145);
+    --review-approved-foreground: oklch(0.985 0 0);
+    --review-changes: oklch(0.68 0.2 45);
+    --review-changes-foreground: oklch(0.985 0 0);
+    --review-commented: oklch(0.7 0.14 240);
+    --review-commented-foreground: oklch(0.985 0 0);
 }
 
 .dark {
@@ -141,6 +160,14 @@
     --status-merged-foreground: oklch(0.977 0.014 308.299);
     --status-closed: oklch(0.55 0.22 27);
     --status-closed-foreground: oklch(0.985 0 0);
+    --review-pending: oklch(0.7 0.14 85);
+    --review-pending-foreground: oklch(0.21 0.006 285.885);
+    --review-approved: oklch(0.62 0.16 145);
+    --review-approved-foreground: oklch(0.985 0 0);
+    --review-changes: oklch(0.6 0.18 45);
+    --review-changes-foreground: oklch(0.985 0 0);
+    --review-commented: oklch(0.58 0.12 240);
+    --review-commented-foreground: oklch(0.985 0 0);
 }
 
 @layer base {

@@ -160,17 +160,27 @@ func (s *sqliteStore) ClearHistory() (int, error) {
 // UpdateFromPoll merges a fresh `gh search prs` result into the store in a
 // single transaction. Retention runs at the end of the same tx so evicted
 // records never linger.
-func (s *sqliteStore) UpdateFromPoll(prs []github.PRSummary) []PRRecord {
+//
+// Returns two slices:
+//   - novos: PRs that are new on this poll or that just came back into the
+//     search after having dropped out (re-request). The poller enriches and
+//     notifies these.
+//   - vanished: PRs that were in review_pending=1 before this poll but are
+//     absent from the current search result. Under REV-16 these still need
+//     re-enrichment so state + review_state converge with GitHub (the PR may
+//     have been merged/closed, or our review may have just been submitted).
+//     Callers must not notify on these — they're not new work.
+func (s *sqliteStore) UpdateFromPoll(prs []github.PRSummary) ([]PRRecord, []PRRecord) {
 	db := s.handle()
 	if db == nil {
-		return nil
+		return nil, nil
 	}
 	ctx := context.Background()
 	now := s.now().UTC()
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
-		return nil
+		return nil, nil
 	}
 	committed := false
 	defer func() {
@@ -179,12 +189,18 @@ func (s *sqliteStore) UpdateFromPoll(prs []github.PRSummary) []PRRecord {
 		}
 	}()
 
-	var novos []PRRecord
+	var novos, vanished []PRRecord
 	polledIDs := make(map[string]struct{}, len(prs))
-
 	for _, pr := range prs {
 		polledIDs[pr.ID] = struct{}{}
+	}
 
+	vanishedIDs, err := selectVanishedIDs(ctx, tx, polledIDs)
+	if err != nil {
+		return nil, nil
+	}
+
+	for _, pr := range prs {
 		var prevPending int
 		err := tx.QueryRowContext(ctx, `SELECT review_pending FROM prs WHERE id = ?`, pr.ID).
 			Scan(&prevPending)
@@ -200,6 +216,7 @@ func (s *sqliteStore) UpdateFromPoll(prs []github.PRSummary) []PRRecord {
 				State:         "OPEN",
 				IsDraft:       pr.IsDraft,
 				ReviewPending: true,
+				ReviewState:   "PENDING",
 				FirstSeenAt:   now,
 				LastSeenAt:    now,
 			}
@@ -209,21 +226,22 @@ func (s *sqliteStore) UpdateFromPoll(prs []github.PRSummary) []PRRecord {
 			if _, err := tx.ExecContext(ctx, qInsertPR,
 				rec.ID, rec.Number, rec.Repo, rec.Title, rec.Author, rec.URL,
 				rec.State, boolToInt(rec.IsDraft), rec.Additions, rec.Deletions,
-				boolToInt(rec.ReviewPending), formatTime(rec.FirstSeenAt),
+				boolToInt(rec.ReviewPending), rec.ReviewState,
+				formatTime(rec.FirstSeenAt),
 				formatTime(rec.LastSeenAt), formatTimePtr(rec.LastNotifiedAt),
 				profID,
 			); err != nil {
-				return nil
+				return nil, nil
 			}
 			novos = append(novos, rec)
 		case err != nil:
-			return nil
+			return nil, nil
 		default:
 			if _, err := tx.ExecContext(ctx, qUpdatePRMutable,
 				pr.Title, pr.Author, pr.URL, pr.Repo, boolToInt(pr.IsDraft),
 				formatTime(now), pr.ID,
 			); err != nil {
-				return nil
+				return nil, nil
 			}
 			if prevPending == 0 {
 				rec, ok := loadRecordTx(ctx, tx, pr.ID)
@@ -236,7 +254,7 @@ func (s *sqliteStore) UpdateFromPoll(prs []github.PRSummary) []PRRecord {
 
 	if len(polledIDs) == 0 {
 		if _, err := tx.ExecContext(ctx, qMarkNotPendingAll); err != nil {
-			return nil
+			return nil, nil
 		}
 	} else {
 		ids := make([]any, 0, len(polledIDs))
@@ -248,7 +266,13 @@ func (s *sqliteStore) UpdateFromPoll(prs []github.PRSummary) []PRRecord {
 		q := `UPDATE prs SET review_pending = 0
 			WHERE review_pending = 1 AND id NOT IN (` + strings.Join(placeholders, ",") + `)`
 		if _, err := tx.ExecContext(ctx, q, ids...); err != nil {
-			return nil
+			return nil, nil
+		}
+	}
+
+	for _, id := range vanishedIDs {
+		if rec, ok := loadRecordTx(ctx, tx, id); ok {
+			vanished = append(vanished, rec)
 		}
 	}
 
@@ -258,23 +282,59 @@ func (s *sqliteStore) UpdateFromPoll(prs []github.PRSummary) []PRRecord {
 	if retention > 0 {
 		cutoff := now.AddDate(0, 0, -retention)
 		if _, err := tx.ExecContext(ctx, qDeleteRetention, formatTime(cutoff)); err != nil {
-			return nil
+			return nil, nil
 		}
 	}
 
 	if _, err := tx.ExecContext(ctx, qSetMeta, metaLastPollAt, formatTime(now)); err != nil {
-		return nil
+		return nil, nil
 	}
 
 	if err := tx.Commit(); err != nil {
-		return nil
+		return nil, nil
 	}
 	committed = true
-	return novos
+	return novos, vanished
+}
+
+// selectVanishedIDs returns the ids of PRs currently flagged review_pending=1
+// that are absent from the incoming poll result. Must be called before the
+// "mark not pending" UPDATE so the set is not diluted.
+func selectVanishedIDs(ctx context.Context, tx *sql.Tx, polled map[string]struct{}) ([]string, error) {
+	var q string
+	var args []any
+	if len(polled) == 0 {
+		q = `SELECT id FROM prs WHERE review_pending = 1`
+	} else {
+		placeholders := make([]string, 0, len(polled))
+		args = make([]any, 0, len(polled))
+		for id := range polled {
+			placeholders = append(placeholders, "?")
+			args = append(args, id)
+		}
+		q = `SELECT id FROM prs WHERE review_pending = 1 AND id NOT IN (` + strings.Join(placeholders, ",") + `)`
+	}
+	rows, err := tx.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, fmt.Errorf("select vanished: %w", err)
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scan vanished: %w", err)
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
 }
 
 // RefreshPRStatus applies enrichment details to a tracked PR. Preserves the
 // MERGED-override semantics: a non-nil MergedAt always wins over state.
+// Empty details.ReviewState leaves the stored value untouched, so callers that
+// only care about diff/status fields (legacy sites, tests) don't accidentally
+// reset the review flag.
 func (s *sqliteStore) RefreshPRStatus(id string, details github.PRDetails) error {
 	db := s.handle()
 	if db == nil {
@@ -297,8 +357,11 @@ func (s *sqliteStore) RefreshPRStatus(id string, details github.PRDetails) error
 	if details.MergedAt != nil {
 		rec.State = "MERGED"
 	}
+	if details.ReviewState != "" {
+		rec.ReviewState = details.ReviewState
+	}
 	if _, err := db.ExecContext(ctx, qUpdatePRStatus,
-		rec.Additions, rec.Deletions, boolToInt(rec.IsDraft), rec.State, rec.ID,
+		rec.Additions, rec.Deletions, boolToInt(rec.IsDraft), rec.State, rec.ReviewState, rec.ID,
 	); err != nil {
 		return fmt.Errorf("update status: %w", err)
 	}
@@ -338,7 +401,7 @@ func scanRow(row interface {
 	err := row.Scan(
 		&rec.ID, &rec.Number, &rec.Repo, &rec.Title, &rec.Author, &rec.URL,
 		&rec.State, &isDraft, &rec.Additions, &rec.Deletions,
-		&pend, &firstSeen, &lastSeen, &lastNotifiedRaw,
+		&pend, &rec.ReviewState, &firstSeen, &lastSeen, &lastNotifiedRaw,
 	)
 	if err != nil {
 		return PRRecord{}, err

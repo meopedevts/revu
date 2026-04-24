@@ -33,13 +33,13 @@ func TestSQLite_UpdateFromPoll_InsertsAndIsIdempotent(t *testing.T) {
 		mkSummary("octocat/hello#1", "octocat/hello", 1, "feat: foo", "alice", false),
 		mkSummary("acme/widgets#7", "acme/widgets", 7, "chore: bump", "bob", true),
 	}
-	novos := s.UpdateFromPoll(prs)
+	novos, _ := s.UpdateFromPoll(prs)
 	if len(novos) != 2 {
 		t.Fatalf("first poll: want 2 novos, got %d", len(novos))
 	}
 
 	*tp = tp.Add(5 * time.Minute)
-	novos = s.UpdateFromPoll(prs)
+	novos, _ = s.UpdateFromPoll(prs)
 	if len(novos) != 0 {
 		t.Fatalf("second poll with same PRs: want 0 novos, got %d", len(novos))
 	}
@@ -53,13 +53,22 @@ func TestSQLite_UpdateFromPoll_ReRequestDetected(t *testing.T) {
 	s := newMemoryStore(t, WithClock(clock))
 
 	pr := mkSummary("octocat/hello#1", "octocat/hello", 1, "feat: foo", "alice", false)
-	if novos := s.UpdateFromPoll([]github.PRSummary{pr}); len(novos) != 1 {
+	if novos, _ := s.UpdateFromPoll([]github.PRSummary{pr}); len(novos) != 1 {
 		t.Fatalf("initial insert: want 1 novo, got %d", len(novos))
+	}
+	// Simulate a review being submitted so the re-request branch has to reset
+	// review_state back to PENDING to signal the fresh request.
+	if err := s.RefreshPRStatus(pr.ID, github.PRDetails{State: "OPEN", ReviewState: "APPROVED"}); err != nil {
+		t.Fatalf("refresh approved: %v", err)
 	}
 
 	*tp = tp.Add(5 * time.Minute)
-	if novos := s.UpdateFromPoll(nil); len(novos) != 0 {
+	novos, vanished := s.UpdateFromPoll(nil)
+	if len(novos) != 0 {
 		t.Fatalf("empty poll: want 0 novos, got %d", len(novos))
+	}
+	if len(vanished) != 1 || vanished[0].ID != pr.ID {
+		t.Fatalf("want pr in vanished, got %+v", vanished)
 	}
 	all := s.GetAll()
 	if len(all) != 1 || all[0].ReviewPending {
@@ -67,12 +76,15 @@ func TestSQLite_UpdateFromPoll_ReRequestDetected(t *testing.T) {
 	}
 
 	*tp = tp.Add(5 * time.Minute)
-	novos := s.UpdateFromPoll([]github.PRSummary{pr})
+	novos, _ = s.UpdateFromPoll([]github.PRSummary{pr})
 	if len(novos) != 1 {
 		t.Fatalf("re-request: want 1 novo, got %d", len(novos))
 	}
 	if novos[0].ID != pr.ID {
 		t.Fatalf("wrong id in novos: %s", novos[0].ID)
+	}
+	if novos[0].ReviewState != "PENDING" {
+		t.Fatalf("re-request should reset review_state to PENDING, got %q", novos[0].ReviewState)
 	}
 	pending := s.GetPending()
 	if len(pending) != 1 || !pending[0].ReviewPending {
@@ -183,7 +195,12 @@ func TestSQLite_GetPendingAndHistoryPartition(t *testing.T) {
 	prA := mkSummary("a/b#1", "a/b", 1, "A", "x", false)
 	prB := mkSummary("a/b#2", "a/b", 2, "B", "x", false)
 	s.UpdateFromPoll([]github.PRSummary{prA, prB})
-	// B drops out of review.
+	// B is reviewed (approved) and then the author merges it. Under REV-16
+	// only the combination "state != OPEN" AND "review submitted" lands in
+	// history; apply both so the test actually exercises the history tab.
+	if err := s.RefreshPRStatus(prB.ID, github.PRDetails{State: "MERGED", ReviewState: "APPROVED"}); err != nil {
+		t.Fatalf("refresh prB: %v", err)
+	}
 	s.UpdateFromPoll([]github.PRSummary{prA})
 
 	pending := s.GetPending()
@@ -193,6 +210,42 @@ func TestSQLite_GetPendingAndHistoryPartition(t *testing.T) {
 	}
 	if len(history) != 1 || history[0].ID != prB.ID {
 		t.Fatalf("history mismatch: %+v", history)
+	}
+}
+
+func TestSQLite_HistoryRule_REV16(t *testing.T) {
+	clock, _ := newClock(time.Date(2026, 4, 23, 10, 0, 0, 0, time.UTC))
+	s := newMemoryStore(t, WithClock(clock))
+
+	prOpenApproved := mkSummary("a/b#1", "a/b", 1, "open-approved", "x", false)
+	prMergedPending := mkSummary("a/b#2", "a/b", 2, "merged-pending", "x", false)
+	prMergedApproved := mkSummary("a/b#3", "a/b", 3, "merged-approved", "x", false)
+	prClosedCommented := mkSummary("a/b#4", "a/b", 4, "closed-commented", "x", false)
+	s.UpdateFromPoll([]github.PRSummary{
+		prOpenApproved, prMergedPending, prMergedApproved, prClosedCommented,
+	})
+
+	mustRefresh(t, s, prOpenApproved.ID, "OPEN", "APPROVED")
+	mustRefresh(t, s, prMergedPending.ID, "MERGED", "PENDING")
+	mustRefresh(t, s, prMergedApproved.ID, "MERGED", "APPROVED")
+	mustRefresh(t, s, prClosedCommented.ID, "CLOSED", "COMMENTED")
+
+	pending := sortedIDs(s.GetPending())
+	history := sortedIDs(s.GetHistory())
+	wantPending := sortedIDs([]PRRecord{{ID: prOpenApproved.ID}, {ID: prMergedPending.ID}})
+	wantHistory := sortedIDs([]PRRecord{{ID: prMergedApproved.ID}, {ID: prClosedCommented.ID}})
+	if !reflect.DeepEqual(pending, wantPending) {
+		t.Fatalf("pending mismatch: got %v, want %v", pending, wantPending)
+	}
+	if !reflect.DeepEqual(history, wantHistory) {
+		t.Fatalf("history mismatch: got %v, want %v", history, wantHistory)
+	}
+}
+
+func mustRefresh(t *testing.T, s *sqliteStore, id, state, review string) {
+	t.Helper()
+	if err := s.RefreshPRStatus(id, github.PRDetails{State: state, ReviewState: review}); err != nil {
+		t.Fatalf("refresh %s: %v", id, err)
 	}
 }
 
@@ -289,29 +342,34 @@ func TestSQLite_ClearHistory_DropsEveryHistoryRow(t *testing.T) {
 	prClosed := mkSummary("a/b#3", "a/b", 3, "closed", "x", false)
 	prDropped := mkSummary("a/b#4", "a/b", 4, "dropped-from-search", "x", false)
 	s.UpdateFromPoll([]github.PRSummary{prStillPending, prMerged, prClosed, prDropped})
-	if err := s.RefreshPRStatus(prMerged.ID, github.PRDetails{State: "MERGED"}); err != nil {
+	// Apply REV-16 history combinations: merged+approved and closed+commented
+	// are the two that actually belong in history. prDropped stays PENDING
+	// (review never submitted) so survives ClearHistory.
+	if err := s.RefreshPRStatus(prMerged.ID, github.PRDetails{State: "MERGED", ReviewState: "APPROVED"}); err != nil {
 		t.Fatalf("refresh merged: %v", err)
 	}
-	if err := s.RefreshPRStatus(prClosed.ID, github.PRDetails{State: "CLOSED"}); err != nil {
+	if err := s.RefreshPRStatus(prClosed.ID, github.PRDetails{State: "CLOSED", ReviewState: "COMMENTED"}); err != nil {
 		t.Fatalf("refresh closed: %v", err)
 	}
 
 	// Next poll keeps only prStillPending — the other three fall out of the
 	// search and flip to review_pending=0. prDropped stays state='OPEN'
-	// because RefreshPRStatus never ran for it; it nonetheless belongs to
-	// the Histórico tab.
+	// AND review_state='PENDING' (never enriched); under REV-16 it remains
+	// in pending since the review was never submitted.
 	*tp = tp.Add(1 * time.Minute)
 	s.UpdateFromPoll([]github.PRSummary{prStillPending})
 
-	if pending := s.GetPending(); len(pending) != 1 || pending[0].ID != prStillPending.ID {
-		t.Fatalf("want only prStillPending in pending, got %+v", pending)
+	pending := sortedIDs(s.GetPending())
+	wantPending := sortedIDs([]PRRecord{{ID: prStillPending.ID}, {ID: prDropped.ID}})
+	if !reflect.DeepEqual(pending, wantPending) {
+		t.Fatalf("want %v in pending, got %v", wantPending, pending)
 	}
-	if history := s.GetHistory(); len(history) != 3 {
-		t.Fatalf("want 3 rows in history, got %d: %+v", len(history), history)
+	if history := s.GetHistory(); len(history) != 2 {
+		t.Fatalf("want 2 rows in history, got %d: %+v", len(history), history)
 	}
 
-	// Only merged/closed rows vanish; prDropped (state='OPEN', pending=0)
-	// survives so re-request detection keeps working if review comes back.
+	// Only rows satisfying the REV-16 history rule vanish; prDropped and
+	// prStillPending (both still PENDING on our side) survive.
 	n, err := s.ClearHistory()
 	if err != nil {
 		t.Fatalf("clear history: %v", err)

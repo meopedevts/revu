@@ -3,5 +3,9 @@
   "deletions": 37,
   "state": "OPEN",
   "mergedAt": null,
-  "isDraft": false
+  "isDraft": false,
+  "latestReviews": [
+    {"author": {"login": "bob"}, "state": "COMMENTED"},
+    {"author": {"login": "alice"}, "state": "APPROVED"}
+  ]
 }

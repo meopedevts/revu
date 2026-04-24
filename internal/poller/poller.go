@@ -165,7 +165,7 @@ func (p *Poller) tick(ctx context.Context) {
 	}
 	p.resetBackoff()
 
-	novos := p.store.UpdateFromPoll(summaries)
+	novos, vanished := p.store.UpdateFromPoll(summaries)
 	for i := range novos {
 		rec := novos[i]
 		enriched := p.enrich(ctx, rec)
@@ -174,6 +174,13 @@ func (p *Poller) tick(ctx context.Context) {
 		}
 		prCopy := enriched
 		p.emit(Event{Kind: EventPRNew, PR: &prCopy})
+	}
+	// REV-16: PRs that dropped from the search need a fresh enrich so PR state
+	// + review_state converge with GitHub. These are not new work — no notify,
+	// no pr:new event. The enrich itself emits pr:status-changed when the
+	// stored state flips (e.g. OPEN → MERGED).
+	for i := range vanished {
+		p.enrich(ctx, vanished[i])
 	}
 	if err := p.store.Save(); err != nil {
 		p.log.Warn("save store", "err", err)
@@ -202,6 +209,9 @@ func (p *Poller) enrich(ctx context.Context, rec store.PRRecord) store.PRRecord 
 		rec.State = "MERGED"
 	} else if details.State != "" {
 		rec.State = details.State
+	}
+	if details.ReviewState != "" {
+		rec.ReviewState = details.ReviewState
 	}
 	if prevState != "" && prevState != rec.State {
 		prCopy := rec

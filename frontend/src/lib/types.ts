@@ -12,6 +12,7 @@ export interface PRRecord {
   additions: number
   deletions: number
   review_pending: boolean
+  review_state: string
   first_seen_at: string
   last_seen_at: string
   last_notified_at?: string
@@ -19,11 +20,31 @@ export interface PRRecord {
 
 export type PRState = 'OPEN' | 'DRAFT' | 'MERGED' | 'CLOSED'
 
+export type ReviewState =
+  | 'PENDING'
+  | 'APPROVED'
+  | 'CHANGES_REQUESTED'
+  | 'COMMENTED'
+
 export function statusOf(pr: PRRecord): PRState {
   if (pr.state === 'MERGED') return 'MERGED'
   if (pr.state === 'CLOSED') return 'CLOSED'
   if (pr.is_draft) return 'DRAFT'
   return 'OPEN'
+}
+
+// reviewStateOf normalizes the raw review_state string coming off the bridge
+// into the closed vocabulary the UI understands. Unknown values collapse to
+// PENDING so the badge never disappears.
+export function reviewStateOf(pr: PRRecord): ReviewState {
+  switch (pr.review_state) {
+    case 'APPROVED':
+    case 'CHANGES_REQUESTED':
+    case 'COMMENTED':
+      return pr.review_state
+    default:
+      return 'PENDING'
+  }
 }
 
 // Mirrors internal/config.Config 1:1 (snake_case JSON tags on the Go side).

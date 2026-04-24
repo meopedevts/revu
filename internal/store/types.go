@@ -18,6 +18,7 @@ type PRRecord struct {
 	Additions      int        `json:"additions"`
 	Deletions      int        `json:"deletions"`
 	ReviewPending  bool       `json:"review_pending"`
+	ReviewState    string     `json:"review_state"`
 	FirstSeenAt    time.Time  `json:"first_seen_at"`
 	LastSeenAt     time.Time  `json:"last_seen_at"`
 	LastNotifiedAt *time.Time `json:"last_notified_at,omitempty"`

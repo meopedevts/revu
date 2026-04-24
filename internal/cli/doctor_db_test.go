@@ -11,9 +11,10 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-// writeTestDB creates a minimal SQLite file at path with the same shape as
-// revu's schema so the doctor checks exercise real SQL. Used instead of the
-// full store package to avoid a test-time import cycle.
+// writeTestDB creates a minimal SQLite file at path with the columns the
+// doctor queries read. Pending rows get state='OPEN' and PENDING review;
+// history rows get state='MERGED' and a submitted review so they satisfy
+// the REV-16 history predicate.
 func writeTestDB(t *testing.T, path string, prs int, pending int) {
 	t.Helper()
 	db, err := sql.Open("sqlite", "file:"+path)
@@ -22,7 +23,12 @@ func writeTestDB(t *testing.T, path string, prs int, pending int) {
 	}
 	defer db.Close()
 	stmts := []string{
-		`CREATE TABLE prs (id TEXT PRIMARY KEY, review_pending INTEGER NOT NULL)`,
+		`CREATE TABLE prs (
+			id TEXT PRIMARY KEY,
+			review_pending INTEGER NOT NULL,
+			state TEXT NOT NULL,
+			review_state TEXT NOT NULL
+		)`,
 		`CREATE TABLE goose_db_version (version_id INTEGER NOT NULL)`,
 		`INSERT INTO goose_db_version (version_id) VALUES (0), (1)`,
 	}
@@ -32,12 +38,17 @@ func writeTestDB(t *testing.T, path string, prs int, pending int) {
 		}
 	}
 	for i := 0; i < prs; i++ {
-		p := 0
+		reviewPending := 0
+		state := "MERGED"
+		review := "APPROVED"
 		if i < pending {
-			p = 1
+			reviewPending = 1
+			state = "OPEN"
+			review = "PENDING"
 		}
-		if _, err := db.Exec(`INSERT INTO prs (id, review_pending) VALUES (?, ?)`,
-			fmt.Sprintf("id-%d", i), p); err != nil {
+		if _, err := db.Exec(
+			`INSERT INTO prs (id, review_pending, state, review_state) VALUES (?, ?, ?, ?)`,
+			fmt.Sprintf("id-%d", i), reviewPending, state, review); err != nil {
 			t.Fatal(err)
 		}
 	}

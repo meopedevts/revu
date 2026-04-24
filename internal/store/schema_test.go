@@ -18,6 +18,7 @@ func TestSchema_TablesAndIndexesExist(t *testing.T) {
 		"idx_prs_pending":         "index",
 		"idx_prs_state":           "index",
 		"idx_prs_profile_pending": "index",
+		"idx_prs_review_state":    "index",
 		"idx_profiles_active":     "index",
 		"goose_db_version":        "table",
 	}
@@ -71,7 +72,7 @@ func TestSchema_PRsColumns(t *testing.T) {
 	}
 	for _, name := range []string{
 		"id", "number", "repo", "title", "author", "url", "state",
-		"is_draft", "additions", "deletions", "review_pending",
+		"is_draft", "additions", "deletions", "review_pending", "review_state",
 		"first_seen_at", "last_seen_at", "last_notified_at", "profile_id",
 	} {
 		if !cols[name] {

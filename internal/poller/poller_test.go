@@ -362,6 +362,41 @@ func TestTick_EmitsStatusChanged(t *testing.T) {
 	}
 }
 
+func TestTick_VanishedPRGetsEnriched(t *testing.T) {
+	pr := []github.PRSummary{
+		{ID: "a/b#1", Number: 1, Repo: "a/b", Title: "t", Author: "x", URL: "u"},
+	}
+	fc := &fakeClient{
+		listResponses: []listResponse{
+			{prs: pr},  // tick 1: PR visible, not yet reviewed
+			{prs: nil}, // tick 2: PR vanished from search — poller re-enriches
+		},
+	}
+	fn := &fakeNotifier{}
+	s := freshStore(t)
+	p := New(fc, s, fn, WithLogger(quietLogger()))
+
+	// Tick 1 enrich → PR stays PENDING + OPEN.
+	fc.detailsResponse = github.PRDetails{State: "OPEN", ReviewState: "PENDING"}
+	p.tick(context.Background())
+
+	// Tick 2 enrich → PR was merged after I approved it; under REV-16 it
+	// should flip into the history tab.
+	fc.detailsResponse = github.PRDetails{State: "MERGED", ReviewState: "APPROVED"}
+	p.tick(context.Background())
+
+	history := s.GetHistory()
+	if len(history) != 1 || history[0].ID != "a/b#1" {
+		t.Fatalf("vanished PR should be in history, got %+v", history)
+	}
+	if history[0].State != "MERGED" || history[0].ReviewState != "APPROVED" {
+		t.Fatalf("history row not fully enriched: %+v", history[0])
+	}
+	if len(fn.sent) != 1 {
+		t.Fatalf("vanished path must not notify; sent=%d", len(fn.sent))
+	}
+}
+
 func TestTrigger_ForcesImmediatePoll(t *testing.T) {
 	fc := &fakeClient{
 		listResponses: []listResponse{

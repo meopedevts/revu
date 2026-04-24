@@ -10,25 +10,52 @@ import (
 	"time"
 )
 
+type fakeCall struct {
+	name string
+	args []string
+	env  []string
+}
+
 type fakeExec struct {
-	stdout  []byte
-	stderr  []byte
-	err     error
+	stdout []byte
+	stderr []byte
+	err    error
+
+	// loginStdout overrides stdout for `gh api user --jq .login` invocations;
+	// lets tests exercise GetPRDetails (which internally calls whoAmI) without
+	// polluting the primary stdout fixture.
+	loginStdout []byte
+
+	calls []fakeCall
+
+	// Back-compat mirrors of the LAST call — existing tests that issue a
+	// single call continue to read gotName/gotArgs/gotEnv unchanged.
 	gotName string
 	gotArgs []string
 	gotEnv  []string
 }
 
 func (f *fakeExec) Run(_ context.Context, name string, args ...string) ([]byte, []byte, error) {
+	c := fakeCall{name: name, args: append([]string(nil), args...)}
+	f.calls = append(f.calls, c)
 	f.gotName = name
-	f.gotArgs = append([]string(nil), args...)
-	return f.stdout, f.stderr, f.err
+	f.gotArgs = c.args
+	return f.responseFor(args)
 }
 
 func (f *fakeExec) RunEnv(_ context.Context, env []string, name string, args ...string) ([]byte, []byte, error) {
+	c := fakeCall{name: name, args: append([]string(nil), args...), env: append([]string(nil), env...)}
+	f.calls = append(f.calls, c)
 	f.gotName = name
-	f.gotArgs = append([]string(nil), args...)
-	f.gotEnv = append([]string(nil), env...)
+	f.gotArgs = c.args
+	f.gotEnv = c.env
+	return f.responseFor(args)
+}
+
+func (f *fakeExec) responseFor(args []string) ([]byte, []byte, error) {
+	if f.loginStdout != nil && len(args) >= 2 && args[0] == "api" && args[1] == "user" {
+		return f.loginStdout, nil, nil
+	}
 	return f.stdout, f.stderr, f.err
 }
 
@@ -162,20 +189,59 @@ func TestListReviewRequested_MalformedJSON(t *testing.T) {
 }
 
 func TestGetPRDetails_Happy(t *testing.T) {
-	fe := &fakeExec{stdout: loadFixture(t, "pr_view.json")}
+	fe := &fakeExec{
+		stdout:      loadFixture(t, "pr_view.json"),
+		loginStdout: []byte("alice\n"),
+	}
 	c := NewClient(fe)
 	url := "https://github.com/octocat/hello-world/pull/142"
 	got, err := c.GetPRDetails(context.Background(), url)
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}
-	want := &PRDetails{Additions: 142, Deletions: 37, State: "OPEN", MergedAt: nil, IsDraft: false}
+	want := &PRDetails{
+		Additions:   142,
+		Deletions:   37,
+		State:       "OPEN",
+		MergedAt:    nil,
+		IsDraft:     false,
+		ReviewState: "APPROVED",
+	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("want %+v, got %+v", want, got)
 	}
-	wantArgs := []string{"pr", "view", url, "--json", "additions,deletions,state,mergedAt,isDraft"}
-	if !reflect.DeepEqual(fe.gotArgs, wantArgs) {
-		t.Fatalf("args mismatch:\nwant %v\ngot  %v", wantArgs, fe.gotArgs)
+	wantPRView := []string{"pr", "view", url, "--json", "additions,deletions,state,mergedAt,isDraft,latestReviews"}
+	if len(fe.calls) < 1 || !reflect.DeepEqual(fe.calls[0].args, wantPRView) {
+		t.Fatalf("pr view call mismatch:\nwant %v\ngot calls %+v", wantPRView, fe.calls)
+	}
+	// Second call is the whoami lookup feeding ReviewState.
+	if len(fe.calls) < 2 || fe.calls[1].args[0] != "api" || fe.calls[1].args[1] != "user" {
+		t.Fatalf("expected whoami call, got %+v", fe.calls)
+	}
+}
+
+func TestGetPRDetails_ReviewStateCachesLogin(t *testing.T) {
+	fe := &fakeExec{
+		stdout:      loadFixture(t, "pr_view.json"),
+		loginStdout: []byte("alice\n"),
+	}
+	c := NewClient(fe)
+	url := "https://github.com/octocat/hello-world/pull/142"
+	if _, err := c.GetPRDetails(context.Background(), url); err != nil {
+		t.Fatalf("first: %v", err)
+	}
+	if _, err := c.GetPRDetails(context.Background(), url); err != nil {
+		t.Fatalf("second: %v", err)
+	}
+	// 2 pr-view calls + 1 whoami call. Second enrich must read login from cache.
+	whoami := 0
+	for _, c := range fe.calls {
+		if len(c.args) >= 2 && c.args[0] == "api" && c.args[1] == "user" {
+			whoami++
+		}
+	}
+	if whoami != 1 {
+		t.Fatalf("whoami must be cached across calls, got %d invocations", whoami)
 	}
 }
 
