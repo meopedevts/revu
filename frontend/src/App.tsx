@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
-import { RefreshCw } from 'lucide-react'
+import { useCallback } from 'react'
+import { AlertCircle, RefreshCw } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -11,42 +11,30 @@ import {
 import { EmptyState } from '@/components/empty-state'
 import { PRCard } from '@/components/pr-card'
 
-import {
-  listHistoryPRs,
-  listPendingPRs,
-  openPRInBrowser,
-  refreshNow,
-} from '@/src/lib/bridge'
-import type { PRRecord } from '@/src/lib/types'
+import { openPRInBrowser, refreshNow } from '@/src/lib/bridge'
+import { usePRs } from '@/src/lib/hooks/use-prs'
 
-type Tab = 'pending' | 'history'
+function formatSince(d: Date | null): string {
+  if (!d) return 'ainda não atualizado'
+  const diff = Date.now() - d.getTime()
+  const s = Math.floor(diff / 1000)
+  if (s < 10) return 'atualizado agora'
+  if (s < 60) return `atualizado há ${s}s`
+  const m = Math.floor(s / 60)
+  if (m < 60) return `atualizado há ${m}min`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `atualizado há ${h}h`
+  const days = Math.floor(h / 24)
+  return `atualizado há ${days}d`
+}
 
 function App() {
-  const [pending, setPending] = useState<PRRecord[]>([])
-  const [history, setHistory] = useState<PRRecord[]>([])
-  const [loading, setLoading] = useState(false)
-  const [tab, setTab] = useState<Tab>('pending')
-
-  const reload = useCallback(async () => {
-    setLoading(true)
-    try {
-      const [p, h] = await Promise.all([listPendingPRs(), listHistoryPRs()])
-      setPending(p ?? [])
-      setHistory(h ?? [])
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    void reload()
-    // Periodic re-read of the store. Real reactive updates land in REV-8.
-    const iv = setInterval(reload, 30_000)
-    return () => clearInterval(iv)
-  }, [reload])
+  const { pending, history, lastPollAt, lastPollErr, loading, reload } = usePRs()
 
   const handleRefresh = useCallback(async () => {
     await refreshNow()
+    // poll:completed will update lastPollAt; reload() covers the edge case
+    // where the user hit Refresh before OnStartup wired the event bus.
     setTimeout(() => {
       void reload()
     }, 600)
@@ -54,13 +42,19 @@ function App() {
 
   return (
     <div className="flex h-screen flex-col gap-3 bg-background p-3 text-foreground">
-      <header className="flex items-center justify-between gap-2">
+      <header className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="font-heading text-base font-medium">revu</div>
           <div className="truncate text-xs text-muted-foreground">
             {pending.length} pendente{pending.length === 1 ? '' : 's'} ·{' '}
-            {history.length} no histórico
+            {history.length} no histórico · {formatSince(lastPollAt)}
           </div>
+          {lastPollErr && (
+            <div className="mt-0.5 flex items-center gap-1 text-xs text-destructive">
+              <AlertCircle className="size-3" aria-hidden="true" />
+              último poll falhou: {lastPollErr}
+            </div>
+          )}
         </div>
         <Button
           size="sm"
@@ -74,8 +68,7 @@ function App() {
       </header>
 
       <Tabs
-        value={tab}
-        onValueChange={(v) => setTab(v as Tab)}
+        defaultValue="pending"
         className="flex flex-1 flex-col overflow-hidden"
       >
         <TabsList>

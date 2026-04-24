@@ -11,6 +11,7 @@ import (
 
 	wruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 
+	"github.com/meopedevts/revu/internal/poller"
 	"github.com/meopedevts/revu/internal/store"
 )
 
@@ -37,6 +38,9 @@ func WithLogger(l *slog.Logger) Option {
 }
 
 // New wires the bridge. onRefresh is called by RefreshNow to ping the poller.
+// The callback can be rewired post-construction via SetOnRefresh to break the
+// cyclic dep between App and Poller (App needs poller.Trigger; Poller needs
+// App.OnPollEvent).
 func New(s store.Store, onRefresh func(), opts ...Option) *App {
 	a := &App{
 		store:     s,
@@ -47,6 +51,14 @@ func New(s store.Store, onRefresh func(), opts ...Option) *App {
 		opt(a)
 	}
 	return a
+}
+
+// SetOnRefresh replaces the refresh callback. Safe to call after New but
+// before Wails runtime is serving requests.
+func (a *App) SetOnRefresh(fn func()) {
+	a.mu.Lock()
+	a.onRefresh = fn
+	a.mu.Unlock()
 }
 
 // OnStartup is the Wails lifecycle hook fired when the runtime is ready.
@@ -95,8 +107,11 @@ func (a *App) OpenPRInBrowser(url string) {
 
 // RefreshNow asks the poller to run an out-of-schedule tick.
 func (a *App) RefreshNow() {
-	if a.onRefresh != nil {
-		a.onRefresh()
+	a.mu.RLock()
+	fn := a.onRefresh
+	a.mu.RUnlock()
+	if fn != nil {
+		fn()
 	}
 }
 
@@ -119,4 +134,16 @@ func (a *App) HideWindow() {
 		return
 	}
 	wruntime.WindowHide(ctx)
+}
+
+// OnPollEvent is the EventHandler wired into the poller. It forwards each
+// event to the Wails event bus so the frontend can react live. Events emitted
+// before OnStartup (i.e. before the Wails runtime is up) are dropped — the
+// frontend will pick up the current state on its initial fetch.
+func (a *App) OnPollEvent(e poller.Event) {
+	ctx := a.getCtx()
+	if ctx == nil {
+		return
+	}
+	wruntime.EventsEmit(ctx, e.Kind, e)
 }

@@ -67,8 +67,13 @@ func runApp(cmd *cobra.Command, _ []string) error {
 	}
 	defer ntf.Close()
 
-	p := poller.New(client, st, ntf, poller.WithLogger(log))
-	bridge := app.New(st, p.Trigger, app.WithLogger(log))
+	bridge := app.New(st, func() {}, app.WithLogger(log))
+	p := poller.New(client, st, ntf,
+		poller.WithLogger(log),
+		poller.WithEventHandler(bridge.OnPollEvent),
+	)
+	// Re-wire the refresh callback now that we have the poller.
+	bridge.SetOnRefresh(p.Trigger)
 
 	var wg sync.WaitGroup
 

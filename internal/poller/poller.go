@@ -27,9 +27,10 @@ type Poller struct {
 	notifier notifier.Notifier
 	log      *slog.Logger
 
-	interval  time.Duration
-	backoff   time.Duration // current backoff (0 when healthy)
-	triggerCh chan struct{} // capacity 1; Trigger coalesces bursts
+	interval     time.Duration
+	backoff      time.Duration // current backoff (0 when healthy)
+	triggerCh    chan struct{} // capacity 1; Trigger coalesces bursts
+	eventHandler EventHandler  // nil = no emission
 }
 
 // Option customizes the poller.
@@ -107,36 +108,44 @@ func (p *Poller) Run(ctx context.Context) error {
 
 // tick executes one poll cycle. Errors are logged and applied to backoff but
 // never propagated out of Run — we keep polling through transient failures.
+// Every call ends with a poll:completed emission so the frontend can refresh
+// a "last updated" indicator even on empty polls.
 func (p *Poller) tick(ctx context.Context) {
 	summaries, err := p.client.ListReviewRequested(ctx)
 	if err != nil {
 		p.handlePollError(err)
+		p.emit(Event{Kind: EventPollCompleted, Err: err.Error()})
 		return
 	}
 	p.resetBackoff()
 
 	novos := p.store.UpdateFromPoll(summaries)
-	for _, rec := range novos {
+	for i := range novos {
+		rec := novos[i]
 		enriched := p.enrich(ctx, rec)
 		if err := p.notifier.Notify(enriched); err != nil {
 			p.log.Warn("notify failed", "pr", rec.ID, "err", err)
-			continue
 		}
+		prCopy := enriched
+		p.emit(Event{Kind: EventPRNew, PR: &prCopy})
 	}
 	if err := p.store.Save(); err != nil {
 		p.log.Warn("save store", "err", err)
 	}
+	p.emit(Event{Kind: EventPollCompleted})
 }
 
 // enrich fetches additions/deletions for a new PR. On failure it returns
 // the record unchanged — SPEC §9 says "notify without diff rather than
-// skipping".
+// skipping". If the state of a non-OPEN PR changes (e.g. CLOSED → MERGED
+// after a merge), emits pr:status-changed.
 func (p *Poller) enrich(ctx context.Context, rec store.PRRecord) store.PRRecord {
 	details, err := p.client.GetPRDetails(ctx, rec.URL)
 	if err != nil {
 		p.log.Warn("enrich failed; notifying without diff", "pr", rec.ID, "err", err)
 		return rec
 	}
+	prevState := rec.State
 	if err := p.store.RefreshPRStatus(rec.ID, *details); err != nil {
 		p.log.Warn("refresh status", "pr", rec.ID, "err", err)
 	}
@@ -147,6 +156,10 @@ func (p *Poller) enrich(ctx context.Context, rec store.PRRecord) store.PRRecord 
 		rec.State = "MERGED"
 	} else if details.State != "" {
 		rec.State = details.State
+	}
+	if prevState != "" && prevState != rec.State {
+		prCopy := rec
+		p.emit(Event{Kind: EventPRStatusChanged, PR: &prCopy})
 	}
 	return rec
 }
