@@ -1,0 +1,36 @@
+{
+  "number": 142,
+  "title": "feat: add foo",
+  "body": "## Summary\n\nAdds foo so bar works.\n\n- [x] added tests\n- [ ] updated docs\n\n```go\nfoo := 1\n```",
+  "url": "https://github.com/octocat/hello-world/pull/142",
+  "state": "OPEN",
+  "isDraft": false,
+  "author": {"login": "alice"},
+  "additions": 142,
+  "deletions": 37,
+  "changedFiles": 3,
+  "labels": [
+    {"name": "feature", "color": "0052cc"},
+    {"name": "needs-review", "color": "fbca04"}
+  ],
+  "reviews": [
+    {"author": {"login": "bob"}, "state": "COMMENTED", "submittedAt": "2026-04-23T10:00:00Z"},
+    {"author": {"login": "carol"}, "state": "APPROVED", "submittedAt": "2026-04-23T11:15:00Z"}
+  ],
+  "statusCheckRollup": [
+    {"__typename": "CheckRun", "name": "build", "status": "COMPLETED", "conclusion": "SUCCESS", "detailsUrl": "https://github.com/octocat/hello-world/runs/1"},
+    {"__typename": "CheckRun", "name": "test", "status": "IN_PROGRESS", "conclusion": "", "detailsUrl": "https://github.com/octocat/hello-world/runs/2"},
+    {"__typename": "StatusContext", "context": "ci/circle", "state": "SUCCESS", "targetUrl": "https://circleci.com/gh/octocat/hello-world/42"}
+  ],
+  "files": [
+    {"path": "cmd/foo/main.go", "additions": 80, "deletions": 10},
+    {"path": "internal/foo/foo.go", "additions": 50, "deletions": 20},
+    {"path": "internal/foo/foo_test.go", "additions": 12, "deletions": 7}
+  ],
+  "mergeable": "MERGEABLE",
+  "baseRefName": "main",
+  "headRefName": "feature/foo",
+  "createdAt": "2026-04-23T09:00:00Z",
+  "updatedAt": "2026-04-23T12:00:00Z",
+  "mergedAt": null
+}

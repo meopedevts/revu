@@ -1,4 +1,12 @@
-import type { AppConfig, AuthMethod, PRRecord, Profile, ProfileUpdate } from './types'
+import type {
+  AppConfig,
+  AuthMethod,
+  MergeMethod,
+  PRFullDetails,
+  PRRecord,
+  Profile,
+  ProfileUpdate,
+} from './types'
 
 interface CreateProfileRequest {
   name: string
@@ -28,6 +36,9 @@ interface WailsBridge {
   GetConfig(): Promise<AppConfig>
   UpdateConfig(c: AppConfig): Promise<void>
   ClearHistory(): Promise<number>
+  GetPRDetails?(prID: string): Promise<PRFullDetails>
+  GetPRDiff?(prID: string): Promise<string>
+  MergePR?(prID: string, method: MergeMethod): Promise<void>
   ListProfiles?(): Promise<Profile[]>
   GetActiveProfile?(): Promise<Profile>
   CreateProfile?(req: CreateProfileRequest): Promise<Profile>
@@ -91,6 +102,29 @@ export async function clearHistory(): Promise<number> {
   const b = bridge()
   if (!b) return 0
   return b.ClearHistory()
+}
+
+// ===== PR details (REV-13) =====
+
+export async function getPRDetails(prID: string): Promise<PRFullDetails> {
+  const b = bridge()
+  if (!b?.GetPRDetails) throw new Error('bridge unavailable')
+  return b.GetPRDetails(prID)
+}
+
+export async function getPRDiff(prID: string): Promise<string> {
+  const b = bridge()
+  if (!b?.GetPRDiff) throw new Error('bridge unavailable')
+  return b.GetPRDiff(prID)
+}
+
+export async function mergePR(
+  prID: string,
+  method: MergeMethod,
+): Promise<void> {
+  const b = bridge()
+  if (!b?.MergePR) throw new Error('bridge unavailable')
+  await b.MergePR(prID, method)
 }
 
 // ===== Profiles =====

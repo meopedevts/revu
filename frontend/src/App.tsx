@@ -11,16 +11,18 @@ import {
   TabsTrigger,
 } from '@/components/ui/tabs'
 import { Toaster } from '@/components/ui/sonner'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { EmptyState } from '@/components/empty-state'
 import { PRCard } from '@/components/pr-card'
+import { PRDetailsView } from '@/components/pr-details-view'
 
-import { openPRInBrowser, refreshNow } from '@/src/lib/bridge'
+import { refreshNow } from '@/src/lib/bridge'
 import { usePRs } from '@/src/lib/hooks/use-prs'
 import { SettingsView } from '@/src/components/settings-view'
 import { MainHeaderProfileBadge } from '@/src/components/main-header-profile-badge'
 import type { SettingsSection } from '@/src/components/settings/settings-sidebar'
 
-type View = 'main' | 'settings'
+type View = 'main' | 'settings' | 'pr-details'
 
 function formatSince(d: Date | null): string {
   if (!d) return 'ainda não atualizado'
@@ -38,9 +40,10 @@ function formatSince(d: Date | null): string {
 
 interface MainViewProps {
   onOpenSettings: (section?: SettingsSection) => void
+  onOpenPR: (prID: string) => void
 }
 
-function MainView({ onOpenSettings }: MainViewProps) {
+function MainView({ onOpenSettings, onOpenPR }: MainViewProps) {
   const { pending, history, lastPollAt, lastPollErr, loading, reload } = usePRs()
 
   const handleRefresh = useCallback(async () => {
@@ -114,7 +117,7 @@ function MainView({ onOpenSettings }: MainViewProps) {
           ) : (
             <div className="flex flex-col gap-2">
               {pending.map((pr) => (
-                <PRCard key={pr.id} pr={pr} onOpen={openPRInBrowser} />
+                <PRCard key={pr.id} pr={pr} onOpen={onOpenPR} />
               ))}
             </div>
           )}
@@ -126,7 +129,7 @@ function MainView({ onOpenSettings }: MainViewProps) {
           ) : (
             <div className="flex flex-col gap-2">
               {history.map((pr) => (
-                <PRCard key={pr.id} pr={pr} onOpen={openPRInBrowser} />
+                <PRCard key={pr.id} pr={pr} onOpen={onOpenPR} />
               ))}
             </div>
           )}
@@ -141,6 +144,7 @@ function App() {
   const [settingsSection, setSettingsSection] = useState<
     SettingsSection | undefined
   >(undefined)
+  const [selectedPRId, setSelectedPRId] = useState<string | null>(null)
 
   useEffect(() => {
     EventsOn('ui:navigate', (target: string) => {
@@ -161,18 +165,29 @@ function App() {
     setView('settings')
   }, [])
 
+  const openPR = useCallback((prID: string) => {
+    setSelectedPRId(prID)
+    setView('pr-details')
+  }, [])
+
+  const backToMain = useCallback(() => {
+    setView('main')
+  }, [])
+
   return (
-    <>
-      {view === 'settings' ? (
+    <TooltipProvider delayDuration={300}>
+      {view === 'pr-details' && selectedPRId ? (
+        <PRDetailsView prID={selectedPRId} onBack={backToMain} />
+      ) : view === 'settings' ? (
         <SettingsView
-          onBack={() => setView('main')}
+          onBack={backToMain}
           initialSection={settingsSection}
         />
       ) : (
-        <MainView onOpenSettings={openSettings} />
+        <MainView onOpenSettings={openSettings} onOpenPR={openPR} />
       )}
       <Toaster />
-    </>
+    </TooltipProvider>
   )
 }
 

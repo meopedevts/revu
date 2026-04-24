@@ -108,3 +108,61 @@ export interface ProfileUpdate {
   auth_method?: AuthMethod
   token?: string
 }
+
+// ===== PR details (REV-13) =====
+//
+// Mirror of github.PRFullDetails / supporting types. JSON tags on the Go
+// side use camelCase for gh-CLI-derived fields and snake_case for fields
+// we shape ourselves; the Wails binding passes payloads through verbatim,
+// so TS mirrors the JSON keys exactly.
+
+export interface Label {
+  name: string
+  color: string
+}
+
+export interface Review {
+  author: string
+  state: string
+  submittedAt: string
+}
+
+export interface StatusCheck {
+  name: string
+  status: string
+  conclusion: string
+  url: string
+}
+
+export interface ChangedFile {
+  path: string
+  additions: number
+  deletions: number
+}
+
+export type MergeableStatus = 'MERGEABLE' | 'CONFLICTING' | 'UNKNOWN'
+
+export type MergeMethod = 'squash' | 'merge'
+
+export interface PRFullDetails {
+  number: number
+  title: string
+  body: string
+  url: string
+  state: string
+  isDraft: boolean
+  author: string
+  additions: number
+  deletions: number
+  changedFiles: number
+  labels: Label[]
+  reviews: Review[]
+  statusChecks: StatusCheck[]
+  files: ChangedFile[]
+  mergeable: string
+  baseRefName: string
+  headRefName: string
+  createdAt: string
+  updatedAt: string
+  mergedAt: string | null
+}

@@ -1,4 +1,4 @@
-import { ExternalLink } from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
 
 import {
   Card,
@@ -14,7 +14,7 @@ import { type PRRecord, reviewStateOf, statusOf } from '@/src/lib/types'
 
 interface PRCardProps {
   pr: PRRecord
-  onOpen: (url: string) => void
+  onOpen: (prID: string) => void
 }
 
 export function PRCard({ pr, onOpen }: PRCardProps) {
@@ -22,13 +22,13 @@ export function PRCard({ pr, onOpen }: PRCardProps) {
   const review = reviewStateOf(pr)
 
   function handleClick() {
-    onOpen(pr.url)
+    onOpen(pr.id)
   }
 
   function handleKey(e: React.KeyboardEvent<HTMLDivElement>) {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault()
-      onOpen(pr.url)
+      onOpen(pr.id)
     }
   }
 
@@ -67,7 +67,7 @@ export function PRCard({ pr, onOpen }: PRCardProps) {
         </div>
         <div className="flex items-center gap-1">
           <span>visto {relTime(pr.last_seen_at)}</span>
-          <ExternalLink className="size-3" aria-hidden="true" />
+          <ChevronRight className="size-3" aria-hidden="true" />
         </div>
       </CardContent>
     </Card>

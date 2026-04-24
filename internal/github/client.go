@@ -7,14 +7,25 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 )
 
-// Client is the surface used by the poller and by `revu doctor`.
+// Client is the surface used by the poller, the app bindings, and by
+// `revu doctor`.
 type Client interface {
 	AuthStatus(ctx context.Context) error
 	ListReviewRequested(ctx context.Context) ([]PRSummary, error)
 	GetPRDetails(ctx context.Context, url string) (*PRDetails, error)
+	GetPRFullDetails(ctx context.Context, url string) (*PRFullDetails, error)
+	GetPRDiff(ctx context.Context, url string) (string, error)
+	MergePR(ctx context.Context, url string, method MergeMethod) error
 }
+
+// detailsCacheTTL is how long GetPRFullDetails / GetPRDiff results stay cached
+// in memory. Short enough that stale mergeable state / review counts don't
+// linger past a realistic "click around the details view" session, long
+// enough to absorb double-clicks and back-and-forth navigation.
+const detailsCacheTTL = 30 * time.Second
 
 // reviewStateFor picks the review state for login among latestReviews and
 // normalizes it to the four-value domain persisted by the store. Any review
@@ -63,6 +74,11 @@ type ghClient struct {
 	// login and the enrichment needs "which review is mine" at poll time.
 	whoMu sync.Mutex
 	who   map[string]string
+
+	// cache stores GetPRFullDetails and GetPRDiff results keyed by
+	// "namespace:url" so repeat views in the details screen don't re-hit
+	// `gh`. Invalidated after a successful MergePR.
+	cache *memCache
 }
 
 // NewClient wires a Client around the given Executor. The optional tokens
@@ -73,7 +89,12 @@ func NewClient(e Executor, tokens ...TokenProvider) Client {
 	if len(tokens) > 0 && tokens[0] != nil {
 		tp = tokens[0]
 	}
-	return &ghClient{exec: e, tokens: tp, who: make(map[string]string)}
+	return &ghClient{
+		exec:   e,
+		tokens: tp,
+		who:    make(map[string]string),
+		cache:  newMemCache(detailsCacheTTL),
+	}
 }
 
 func (c *ghClient) AuthStatus(ctx context.Context) error {
@@ -139,6 +160,153 @@ func (c *ghClient) GetPRDetails(ctx context.Context, url string) (*PRDetails, er
 		IsDraft:     raw.IsDraft,
 		ReviewState: reviewStateFor(login, raw.LatestReviews),
 	}, nil
+}
+
+// fullDetailsJSONFields enumerates the columns fetched by GetPRFullDetails.
+// Kept as a package var so the test suite can assert on the exact gh args.
+var fullDetailsJSONFields = "number,title,body,state,isDraft,author,url,additions,deletions,changedFiles,labels,reviews,statusCheckRollup,files,createdAt,updatedAt,mergedAt,mergeable,baseRefName,headRefName"
+
+// GetPRFullDetails fetches the full metadata set the in-app details view
+// needs. Cached for detailsCacheTTL so rapid back-and-forth navigation in
+// the UI hits `gh` at most once per PR per TTL window.
+func (c *ghClient) GetPRFullDetails(ctx context.Context, url string) (*PRFullDetails, error) {
+	key := "details:" + url
+	if v, ok := c.cache.get(key); ok {
+		if cached, ok := v.(*PRFullDetails); ok {
+			return cached, nil
+		}
+	}
+	stdout, stderr, err := c.runGH(ctx,
+		"pr", "view", url,
+		"--json", fullDetailsJSONFields,
+	)
+	if err != nil {
+		return nil, classify(stderr, err)
+	}
+	var raw rawPRFullView
+	if err := json.Unmarshal(stdout, &raw); err != nil {
+		return nil, fmt.Errorf("decode pr view full: %w", err)
+	}
+	out := &PRFullDetails{
+		Number:       raw.Number,
+		Title:        raw.Title,
+		Body:         raw.Body,
+		URL:          raw.URL,
+		State:        raw.State,
+		IsDraft:      raw.IsDraft,
+		Author:       raw.Author.Login,
+		Additions:    raw.Additions,
+		Deletions:    raw.Deletions,
+		ChangedFiles: raw.ChangedFiles,
+		Labels:       flattenLabels(raw.Labels),
+		Reviews:      flattenReviews(raw.Reviews),
+		StatusChecks: flattenStatusChecks(raw.StatusCheck),
+		Files:        raw.Files,
+		Mergeable:    raw.Mergeable,
+		BaseRefName:  raw.BaseRefName,
+		HeadRefName:  raw.HeadRefName,
+		CreatedAt:    raw.CreatedAt,
+		UpdatedAt:    raw.UpdatedAt,
+		MergedAt:     raw.MergedAt,
+	}
+	c.cache.set(key, out)
+	return out, nil
+}
+
+// GetPRDiff returns the raw unified diff as produced by `gh pr diff`. The
+// result is cached for detailsCacheTTL — diff bodies can be sizeable and
+// shouldn't be re-fetched on every scroll-into-view.
+func (c *ghClient) GetPRDiff(ctx context.Context, url string) (string, error) {
+	key := "diff:" + url
+	if v, ok := c.cache.get(key); ok {
+		if cached, ok := v.(string); ok {
+			return cached, nil
+		}
+	}
+	stdout, stderr, err := c.runGH(ctx, "pr", "diff", url)
+	if err != nil {
+		return "", classify(stderr, err)
+	}
+	s := string(stdout)
+	c.cache.set(key, s)
+	return s, nil
+}
+
+// MergePR invokes `gh pr merge <url> --squash|--merge` and invalidates the
+// cache entries for this PR so the next GetPRFullDetails / GetPRDiff sees
+// fresh state. `--delete-branch=false` is pinned so we never touch the
+// user's branch-cleanup preference implicitly.
+func (c *ghClient) MergePR(ctx context.Context, url string, method MergeMethod) error {
+	var methodFlag string
+	switch method {
+	case MergeMethodSquash:
+		methodFlag = "--squash"
+	case MergeMethodMerge:
+		methodFlag = "--merge"
+	default:
+		return fmt.Errorf("unsupported merge method: %q", method)
+	}
+	_, stderr, err := c.runGH(ctx, "pr", "merge", url, methodFlag, "--delete-branch=false")
+	if err != nil {
+		return classify(stderr, err)
+	}
+	c.cache.invalidate(url)
+	return nil
+}
+
+func flattenLabels(in []rawLabel) []Label {
+	out := make([]Label, 0, len(in))
+	for _, l := range in {
+		out = append(out, Label{Name: l.Name, Color: l.Color})
+	}
+	return out
+}
+
+func flattenReviews(in []rawReview) []Review {
+	out := make([]Review, 0, len(in))
+	for _, r := range in {
+		out = append(out, Review{
+			Author:      r.Author.Login,
+			State:       r.State,
+			SubmittedAt: r.SubmittedAt,
+		})
+	}
+	return out
+}
+
+// flattenStatusChecks normalizes the heterogeneous entries of
+// statusCheckRollup (CheckRun | StatusContext) into a single shape the UI
+// can render without case analysis.
+func flattenStatusChecks(in []rawStatusCheck) []StatusCheck {
+	out := make([]StatusCheck, 0, len(in))
+	for _, r := range in {
+		name := r.Name
+		if name == "" {
+			name = r.Context
+		}
+		status := r.Status
+		if status == "" && r.State != "" {
+			// StatusContext has no Status/Conclusion split — its State IS
+			// the outcome. Surface it as "COMPLETED" so the UI treats it
+			// like a finished check.
+			status = "COMPLETED"
+		}
+		conclusion := r.Conclusion
+		if conclusion == "" {
+			conclusion = r.State
+		}
+		url := r.DetailsURL
+		if url == "" {
+			url = r.TargetURL
+		}
+		out = append(out, StatusCheck{
+			Name:       name,
+			Status:     status,
+			Conclusion: conclusion,
+			URL:        url,
+		})
+	}
+	return out
 }
 
 // whoAmI returns the login associated with the currently active profile's
@@ -213,6 +381,21 @@ func classify(stderr []byte, runErr error) error {
 		strings.Contains(lower, "connection refused"),
 		strings.Contains(lower, "timeout"):
 		return ErrTransient
+	case strings.Contains(lower, "merge conflict"),
+		strings.Contains(lower, "conflicts with"),
+		strings.Contains(lower, "not mergeable"):
+		// "not mergeable" can come from either a real conflict or an unmet
+		// protected-branch rule; the UI treats both as "not mergeable" so
+		// routing both to ErrMergeConflict is fine for MVP feedback.
+		return ErrMergeConflict
+	case strings.Contains(lower, "must have admin rights"),
+		strings.Contains(lower, "does not have permission"),
+		strings.Contains(lower, "requires write access"),
+		strings.Contains(lower, "resource not accessible"):
+		return ErrMergePermission
+	case strings.Contains(lower, "pull request is in draft"),
+		strings.Contains(lower, "pull request is closed"):
+		return ErrNotMergeable
 	}
 	if runErr == nil {
 		runErr = fmt.Errorf("gh failed")

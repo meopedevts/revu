@@ -120,6 +120,14 @@ func (s *sqliteStore) GetHistory() []PRRecord {
 	return mustScan(db, qSelectPRsHistory)
 }
 
+func (s *sqliteStore) GetByID(id string) (PRRecord, bool) {
+	rec, ok, err := s.loadRecord(context.Background(), id)
+	if err != nil || !ok {
+		return PRRecord{}, false
+	}
+	return rec, true
+}
+
 // SetRetentionDays updates the retention window. Takes effect on the next
 // UpdateFromPoll — non-positive disables retention.
 func (s *sqliteStore) SetRetentionDays(days int) {

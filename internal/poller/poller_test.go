@@ -55,6 +55,16 @@ func (f *fakeClient) GetPRDetails(_ context.Context, _ string) (*github.PRDetail
 	return &d, nil
 }
 
+func (f *fakeClient) GetPRFullDetails(_ context.Context, _ string) (*github.PRFullDetails, error) {
+	return nil, nil
+}
+
+func (f *fakeClient) GetPRDiff(_ context.Context, _ string) (string, error) { return "", nil }
+
+func (f *fakeClient) MergePR(_ context.Context, _ string, _ github.MergeMethod) error {
+	return nil
+}
+
 type fakeNotifier struct {
 	mu   sync.Mutex
 	sent []store.PRRecord

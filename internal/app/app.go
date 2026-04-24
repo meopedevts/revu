@@ -6,6 +6,7 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os/exec"
 	"sync"
@@ -13,10 +14,17 @@ import (
 	wruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 
 	appconfig "github.com/meopedevts/revu/internal/config"
+	"github.com/meopedevts/revu/internal/github"
 	"github.com/meopedevts/revu/internal/poller"
 	"github.com/meopedevts/revu/internal/profiles"
 	"github.com/meopedevts/revu/internal/store"
 )
+
+// detailsDiffLimit caps the (additions+deletions) a PR can have before the
+// inline diff view is skipped. Matches the REV-13 decision to always fall
+// back to "open in GitHub" on large PRs instead of blocking the UI while a
+// huge diff loads.
+const detailsDiffLimit = 500
 
 // EventProfilesActiveChanged is emitted on the Wails bus whenever the active
 // profile changes. Frontend listens to refresh the header badge.
@@ -27,6 +35,7 @@ type App struct {
 	store     store.Store
 	cfgMgr    *appconfig.Manager
 	profiles  *profiles.Service
+	gh        github.Client
 	onRefresh func()
 	log       *slog.Logger
 
@@ -51,6 +60,16 @@ func WithLogger(l *slog.Logger) Option {
 func WithProfiles(p *profiles.Service) Option {
 	return func(a *App) {
 		a.profiles = p
+	}
+}
+
+// WithGitHubClient injects the gh-backed client used by the PR details
+// bindings. When nil, GetPRDetails/GetPRDiff/MergePR return an explicit
+// error so the frontend can surface "feature unavailable" instead of
+// panicking.
+func WithGitHubClient(c github.Client) Option {
+	return func(a *App) {
+		a.gh = c
 	}
 }
 
@@ -190,6 +209,80 @@ func (a *App) UpdateConfig(c appconfig.Config) error {
 // Used by the settings "Limpar histórico agora" button.
 func (a *App) ClearHistory() (int, error) {
 	return a.store.ClearHistory()
+}
+
+// errGitHubUnavailable is returned when a PR-details binding is called
+// without a gh client wired. Clean error for smoke/test builds.
+var errGitHubUnavailable = errors.New("github client not available")
+
+// errPRNotFound signals that the frontend referenced an id the store no
+// longer tracks — e.g. history was cleared between list and click.
+var errPRNotFound = errors.New("pr not tracked")
+
+// GetPRDetails fetches the full metadata for the PR view. prID is the
+// store-side id (owner/repo#number); the URL is resolved server-side so
+// the frontend never has to learn the gh command shape.
+func (a *App) GetPRDetails(prID string) (*github.PRFullDetails, error) {
+	if a.gh == nil {
+		return nil, errGitHubUnavailable
+	}
+	rec, ok := a.store.GetByID(prID)
+	if !ok {
+		return nil, errPRNotFound
+	}
+	return a.gh.GetPRFullDetails(a.callCtx(), rec.URL)
+}
+
+// GetPRDiff returns the raw unified diff for the PR, or an empty string if
+// (additions+deletions) exceeds the configured detailsDiffLimit. The
+// frontend treats "" as "PR too big, show the open-in-GitHub fallback".
+func (a *App) GetPRDiff(prID string) (string, error) {
+	if a.gh == nil {
+		return "", errGitHubUnavailable
+	}
+	rec, ok := a.store.GetByID(prID)
+	if !ok {
+		return "", errPRNotFound
+	}
+	if rec.Additions+rec.Deletions > detailsDiffLimit {
+		return "", nil
+	}
+	return a.gh.GetPRDiff(a.callCtx(), rec.URL)
+}
+
+// MergePR runs `gh pr merge` with the chosen method. On success it nudges
+// the poller so the next tick re-enriches the PR — the store then detects
+// MergedAt != nil and flips state to MERGED, which moves the PR into the
+// history tab via the existing pr:status-changed event path.
+func (a *App) MergePR(prID string, method string) error {
+	if a.gh == nil {
+		return errGitHubUnavailable
+	}
+	rec, ok := a.store.GetByID(prID)
+	if !ok {
+		return errPRNotFound
+	}
+	var m github.MergeMethod
+	switch method {
+	case "squash":
+		m = github.MergeMethodSquash
+	case "merge":
+		m = github.MergeMethodMerge
+	default:
+		return fmt.Errorf("unsupported merge method: %q", method)
+	}
+	if err := a.gh.MergePR(a.callCtx(), rec.URL, m); err != nil {
+		return err
+	}
+	// Nudge the poller out-of-schedule so the newly-merged state is picked
+	// up right away instead of waiting for the next tick.
+	a.mu.RLock()
+	fn := a.onRefresh
+	a.mu.RUnlock()
+	if fn != nil {
+		fn()
+	}
+	return nil
 }
 
 // OnPollEvent is the EventHandler wired into the poller. It forwards each

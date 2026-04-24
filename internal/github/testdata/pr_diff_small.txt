@@ -1,0 +1,22 @@
+diff --git a/cmd/foo/main.go b/cmd/foo/main.go
+index 0000000..1111111 100644
+--- a/cmd/foo/main.go
++++ b/cmd/foo/main.go
+@@ -1,5 +1,6 @@
+ package main
+
+ func main() {
++	foo()
+ 	println("hello")
+ }
+diff --git a/internal/foo/foo.go b/internal/foo/foo.go
+index 2222222..3333333 100644
+--- a/internal/foo/foo.go
++++ b/internal/foo/foo.go
+@@ -1,3 +1,6 @@
+ package foo
+
+-// placeholder
++func Foo() int {
++	return 42
++}

@@ -104,7 +104,14 @@ func runApp(cmd *cobra.Command, _ []string) error {
 	ntf.SetEnabled(cfg.NotificationsEnabled)
 	defer ntf.Close()
 
-	bridge := app.New(st, cfgMgr, func() {}, app.WithLogger(log), app.WithProfiles(profSvc))
+	bridge := app.New(
+		st,
+		cfgMgr,
+		func() {},
+		app.WithLogger(log),
+		app.WithProfiles(profSvc),
+		app.WithGitHubClient(client),
+	)
 
 	// fyne.io/systray on Linux SNI does not touch the GTK main thread, so
 	// it coexists fine with Wails (which owns main).

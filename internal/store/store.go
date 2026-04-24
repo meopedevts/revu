@@ -17,6 +17,10 @@ type Store interface {
 	GetAll() []PRRecord
 	GetPending() []PRRecord
 	GetHistory() []PRRecord
+	// GetByID returns the record with the given id, or (zero, false) if the
+	// store does not track it. Used by the app bridge to resolve a PR id
+	// coming off the frontend into the URL needed for gh-backed calls.
+	GetByID(id string) (PRRecord, bool)
 	UpdateFromPoll(prs []github.PRSummary) (novos, vanished []PRRecord)
 	RefreshPRStatus(id string, details github.PRDetails) error
 	SetRetentionDays(days int)

@@ -26,6 +26,17 @@ type fakeExec struct {
 	// polluting the primary stdout fixture.
 	loginStdout []byte
 
+	// diffStdout, if non-nil, is returned for `gh pr diff` invocations so
+	// tests can mix a view fixture on stdout with a diff fixture on the
+	// same fake without routing by global state.
+	diffStdout []byte
+
+	// mergeStderr/mergeErr, when set, override stderr/err for `gh pr merge`
+	// invocations — lets a single fake drive both happy-path view fetches
+	// and a merge failure response.
+	mergeStderr []byte
+	mergeErr    error
+
 	calls []fakeCall
 
 	// Back-compat mirrors of the LAST call — existing tests that issue a
@@ -55,6 +66,12 @@ func (f *fakeExec) RunEnv(_ context.Context, env []string, name string, args ...
 func (f *fakeExec) responseFor(args []string) ([]byte, []byte, error) {
 	if f.loginStdout != nil && len(args) >= 2 && args[0] == "api" && args[1] == "user" {
 		return f.loginStdout, nil, nil
+	}
+	if f.diffStdout != nil && len(args) >= 2 && args[0] == "pr" && args[1] == "diff" {
+		return f.diffStdout, nil, nil
+	}
+	if len(args) >= 2 && args[0] == "pr" && args[1] == "merge" {
+		return nil, f.mergeStderr, f.mergeErr
 	}
 	return f.stdout, f.stderr, f.err
 }
@@ -346,4 +363,229 @@ func contains(s, sub string) bool {
 		}
 	}
 	return false
+}
+
+func TestGetPRFullDetails_Happy(t *testing.T) {
+	fe := &fakeExec{stdout: loadFixture(t, "pr_full_view.json")}
+	c := NewClient(fe)
+	url := "https://github.com/octocat/hello-world/pull/142"
+	got, err := c.GetPRFullDetails(context.Background(), url)
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if got.Number != 142 || got.Title != "feat: add foo" {
+		t.Fatalf("basic fields mismatch: %+v", got)
+	}
+	if got.Author != "alice" {
+		t.Fatalf("author flatten failed: %q", got.Author)
+	}
+	if got.Additions != 142 || got.Deletions != 37 || got.ChangedFiles != 3 {
+		t.Fatalf("counters mismatch: %+v", got)
+	}
+	if got.Mergeable != "MERGEABLE" {
+		t.Fatalf("mergeable: %q", got.Mergeable)
+	}
+	if got.BaseRefName != "main" || got.HeadRefName != "feature/foo" {
+		t.Fatalf("refs mismatch: %s ← %s", got.BaseRefName, got.HeadRefName)
+	}
+	if len(got.Labels) != 2 || got.Labels[0].Name != "feature" {
+		t.Fatalf("labels mismatch: %+v", got.Labels)
+	}
+	if len(got.Reviews) != 2 || got.Reviews[0].Author != "bob" || got.Reviews[1].State != "APPROVED" {
+		t.Fatalf("reviews mismatch: %+v", got.Reviews)
+	}
+	if len(got.Files) != 3 || got.Files[0].Path != "cmd/foo/main.go" {
+		t.Fatalf("files mismatch: %+v", got.Files)
+	}
+	// StatusChecks: CheckRun build/SUCCESS, CheckRun test/in-progress with no
+	// conclusion, StatusContext ci/circle mapped via State.
+	if len(got.StatusChecks) != 3 {
+		t.Fatalf("status checks count: %d", len(got.StatusChecks))
+	}
+	if got.StatusChecks[0].Name != "build" || got.StatusChecks[0].Conclusion != "SUCCESS" {
+		t.Fatalf("check[0]: %+v", got.StatusChecks[0])
+	}
+	if got.StatusChecks[1].Status != "IN_PROGRESS" {
+		t.Fatalf("check[1] status: %+v", got.StatusChecks[1])
+	}
+	if got.StatusChecks[2].Name != "ci/circle" || got.StatusChecks[2].Conclusion != "SUCCESS" {
+		t.Fatalf("check[2] (StatusContext) flatten failed: %+v", got.StatusChecks[2])
+	}
+	wantArgs := []string{"pr", "view", url, "--json", fullDetailsJSONFields}
+	if !reflect.DeepEqual(fe.gotArgs, wantArgs) {
+		t.Fatalf("args mismatch:\nwant %v\ngot  %v", wantArgs, fe.gotArgs)
+	}
+}
+
+func TestGetPRFullDetails_Cache(t *testing.T) {
+	fe := &fakeExec{stdout: loadFixture(t, "pr_full_view.json")}
+	c := NewClient(fe)
+	url := "https://github.com/octocat/hello-world/pull/142"
+	if _, err := c.GetPRFullDetails(context.Background(), url); err != nil {
+		t.Fatalf("first: %v", err)
+	}
+	if _, err := c.GetPRFullDetails(context.Background(), url); err != nil {
+		t.Fatalf("second: %v", err)
+	}
+	views := 0
+	for _, call := range fe.calls {
+		if len(call.args) >= 2 && call.args[0] == "pr" && call.args[1] == "view" {
+			views++
+		}
+	}
+	if views != 1 {
+		t.Fatalf("want 1 pr view call (cache), got %d", views)
+	}
+}
+
+func TestGetPRFullDetails_Errors(t *testing.T) {
+	tests := []struct {
+		name    string
+		stderr  []byte
+		wantErr error
+	}{
+		{"auth expired", []byte("You are not logged in"), ErrAuthExpired},
+		{"rate limit", []byte("API rate limit exceeded"), ErrRateLimited},
+		{"transient", []byte("connection refused"), ErrTransient},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fe := &fakeExec{stderr: tt.stderr, err: errors.New("exit 1")}
+			c := NewClient(fe)
+			_, err := c.GetPRFullDetails(context.Background(), "x")
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("want errors.Is(%v), got %v", tt.wantErr, err)
+			}
+		})
+	}
+}
+
+func TestGetPRDiff_Happy(t *testing.T) {
+	fe := &fakeExec{diffStdout: loadFixture(t, "pr_diff_small.txt")}
+	c := NewClient(fe)
+	url := "https://github.com/octocat/hello-world/pull/142"
+	got, err := c.GetPRDiff(context.Background(), url)
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if !contains(got, "diff --git a/cmd/foo/main.go") {
+		t.Fatalf("diff content not returned verbatim: %q", got[:min(80, len(got))])
+	}
+	wantArgs := []string{"pr", "diff", url}
+	if !reflect.DeepEqual(fe.gotArgs, wantArgs) {
+		t.Fatalf("args mismatch:\nwant %v\ngot  %v", wantArgs, fe.gotArgs)
+	}
+}
+
+func TestGetPRDiff_Cache(t *testing.T) {
+	fe := &fakeExec{diffStdout: loadFixture(t, "pr_diff_small.txt")}
+	c := NewClient(fe)
+	url := "https://github.com/octocat/hello-world/pull/142"
+	if _, err := c.GetPRDiff(context.Background(), url); err != nil {
+		t.Fatalf("first: %v", err)
+	}
+	if _, err := c.GetPRDiff(context.Background(), url); err != nil {
+		t.Fatalf("second: %v", err)
+	}
+	diffs := 0
+	for _, call := range fe.calls {
+		if len(call.args) >= 2 && call.args[0] == "pr" && call.args[1] == "diff" {
+			diffs++
+		}
+	}
+	if diffs != 1 {
+		t.Fatalf("want 1 pr diff call (cache), got %d", diffs)
+	}
+}
+
+func TestMergePR_Squash(t *testing.T) {
+	fe := &fakeExec{}
+	c := NewClient(fe)
+	url := "https://github.com/octocat/hello-world/pull/142"
+	if err := c.MergePR(context.Background(), url, MergeMethodSquash); err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	wantArgs := []string{"pr", "merge", url, "--squash", "--delete-branch=false"}
+	if !reflect.DeepEqual(fe.gotArgs, wantArgs) {
+		t.Fatalf("args mismatch:\nwant %v\ngot  %v", wantArgs, fe.gotArgs)
+	}
+}
+
+func TestMergePR_Merge(t *testing.T) {
+	fe := &fakeExec{}
+	c := NewClient(fe)
+	url := "https://github.com/octocat/hello-world/pull/142"
+	if err := c.MergePR(context.Background(), url, MergeMethodMerge); err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	wantArgs := []string{"pr", "merge", url, "--merge", "--delete-branch=false"}
+	if !reflect.DeepEqual(fe.gotArgs, wantArgs) {
+		t.Fatalf("args mismatch:\nwant %v\ngot  %v", wantArgs, fe.gotArgs)
+	}
+}
+
+func TestMergePR_InvalidMethod(t *testing.T) {
+	fe := &fakeExec{}
+	c := NewClient(fe)
+	err := c.MergePR(context.Background(), "x", MergeMethod("rebase"))
+	if err == nil {
+		t.Fatal("want error for unsupported method")
+	}
+	if len(fe.calls) != 0 {
+		t.Fatalf("must not invoke gh for invalid method, got %+v", fe.calls)
+	}
+}
+
+func TestMergePR_ErrorClassification(t *testing.T) {
+	tests := []struct {
+		name    string
+		stderr  []byte
+		wantErr error
+	}{
+		{"conflict", []byte("Pull request is not mergeable: the merge commit cannot be cleanly created"), ErrMergeConflict},
+		{"permission", []byte("Resource not accessible by personal access token"), ErrMergePermission},
+		{"draft", []byte("Pull request is in draft state"), ErrNotMergeable},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fe := &fakeExec{mergeStderr: tt.stderr, mergeErr: errors.New("exit 1")}
+			c := NewClient(fe)
+			err := c.MergePR(context.Background(), "x", MergeMethodSquash)
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("want errors.Is(%v), got %v", tt.wantErr, err)
+			}
+		})
+	}
+}
+
+func TestMergePR_InvalidatesCache(t *testing.T) {
+	fe := &fakeExec{stdout: loadFixture(t, "pr_full_view.json")}
+	c := NewClient(fe)
+	url := "https://github.com/octocat/hello-world/pull/142"
+	if _, err := c.GetPRFullDetails(context.Background(), url); err != nil {
+		t.Fatalf("warmup: %v", err)
+	}
+	if err := c.MergePR(context.Background(), url, MergeMethodSquash); err != nil {
+		t.Fatalf("merge: %v", err)
+	}
+	// Post-merge fetch must hit gh again since the cache was invalidated.
+	if _, err := c.GetPRFullDetails(context.Background(), url); err != nil {
+		t.Fatalf("post-merge fetch: %v", err)
+	}
+	views := 0
+	for _, call := range fe.calls {
+		if len(call.args) >= 2 && call.args[0] == "pr" && call.args[1] == "view" {
+			views++
+		}
+	}
+	if views != 2 {
+		t.Fatalf("cache invalidation failed: want 2 pr view calls, got %d", views)
+	}
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
