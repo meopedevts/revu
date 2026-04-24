@@ -84,10 +84,9 @@ tasks:
   icons:
     desc: Regera PNGs da tray/notifier/janela a partir dos SVGs (8-bit RGBA — GTK/webkit2gtk quebram em 16-bit)
     cmds:
-      - magick -background none assets/icons/tray-idle.svg     -resize 32x32   -depth 8 -define png:color-type=6 PNG32:assets/icons/tray-idle-32.png
-      - magick -background none assets/icons/tray-pending.svg  -resize 32x32   -depth 8 -define png:color-type=6 PNG32:assets/icons/tray-pending-32.png
-      - magick -background none assets/icons/tray-error.svg    -resize 32x32   -depth 8 -define png:color-type=6 PNG32:assets/icons/tray-error-32.png
+      - magick -background none assets/icons/tray-idle.svg     -resize 64x64   -depth 8 -define png:color-type=6 PNG32:assets/icons/tray-idle-64.png
       - magick -background none assets/icons/tray-pending.svg  -resize 64x64   -depth 8 -define png:color-type=6 PNG32:assets/icons/tray-pending-64.png
+      - magick -background none assets/icons/tray-error.svg    -resize 64x64   -depth 8 -define png:color-type=6 PNG32:assets/icons/tray-error-64.png
       - magick -background none assets/icons/tray-pending.svg  -resize 256x256 -depth 8 -define png:color-type=6 PNG32:assets/icons/tray-pending-256.png
     sources:
       - assets/icons/*.svg

@@ -7,15 +7,17 @@ package assets
 
 import _ "embed"
 
-// Tray icons (32px — upscaled by Waybar / SNI consumers).
+// Tray icons (64px — downscaled by Waybar / SNI consumers; fyne.io/systray
+// only exposes a single-buffer SetIcon, so we bake a size large enough for
+// HiDPI bars and let consumers downscale).
 
-//go:embed icons/tray-idle-32.png
+//go:embed icons/tray-idle-64.png
 var TrayIdle []byte
 
-//go:embed icons/tray-pending-32.png
+//go:embed icons/tray-pending-64.png
 var TrayPending []byte
 
-//go:embed icons/tray-error-32.png
+//go:embed icons/tray-error-64.png
 var TrayError []byte
 
 // NotifierIcon is the default icon rendered next to D-Bus notifications.
