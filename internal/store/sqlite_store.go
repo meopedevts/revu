@@ -124,6 +124,26 @@ func (s *sqliteStore) SetRetentionDays(days int) {
 	s.mu.Unlock()
 }
 
+// ClearHistory removes every non-OPEN record from the store, regardless of
+// age. Returns the number of rows deleted. Backs the "Limpar histórico
+// agora" action in the settings UI.
+func (s *sqliteStore) ClearHistory() (int, error) {
+	db := s.handle()
+	if db == nil {
+		return 0, errors.New("store is not loaded")
+	}
+	ctx := context.Background()
+	res, err := db.ExecContext(ctx, qClearHistory)
+	if err != nil {
+		return 0, fmt.Errorf("clear history: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("clear history rows affected: %w", err)
+	}
+	return int(n), nil
+}
+
 // UpdateFromPoll merges a fresh `gh search prs` result into the store in a
 // single transaction. Retention runs at the end of the same tx so evicted
 // records never linger.

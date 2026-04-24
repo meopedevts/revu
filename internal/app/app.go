@@ -5,12 +5,14 @@ package app
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"os/exec"
 	"sync"
 
 	wruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 
+	appconfig "github.com/meopedevts/revu/internal/config"
 	"github.com/meopedevts/revu/internal/poller"
 	"github.com/meopedevts/revu/internal/store"
 )
@@ -18,6 +20,7 @@ import (
 // App is the exported type Wails generates TS/JS bindings for.
 type App struct {
 	store     store.Store
+	cfgMgr    *appconfig.Manager
 	onRefresh func()
 	log       *slog.Logger
 
@@ -40,10 +43,12 @@ func WithLogger(l *slog.Logger) Option {
 // New wires the bridge. onRefresh is called by RefreshNow to ping the poller.
 // The callback can be rewired post-construction via SetOnRefresh to break the
 // cyclic dep between App and Poller (App needs poller.Trigger; Poller needs
-// App.OnPollEvent).
-func New(s store.Store, onRefresh func(), opts ...Option) *App {
+// App.OnPollEvent). cfgMgr may be nil in smoke builds — the settings-related
+// bindings degrade to defaults / sentinel errors in that case.
+func New(s store.Store, cfgMgr *appconfig.Manager, onRefresh func(), opts ...Option) *App {
 	a := &App{
 		store:     s,
+		cfgMgr:    cfgMgr,
 		onRefresh: onRefresh,
 		log:       slog.Default(),
 	}
@@ -134,6 +139,43 @@ func (a *App) HideWindow() {
 		return
 	}
 	wruntime.WindowHide(ctx)
+}
+
+// ShowSettings shows the window (if hidden) and emits ui:navigate so the
+// frontend switches to the settings view. Wired from the tray "Configurações"
+// item.
+func (a *App) ShowSettings() {
+	ctx := a.getCtx()
+	if ctx == nil {
+		return
+	}
+	wruntime.WindowShow(ctx)
+	wruntime.EventsEmit(ctx, "ui:navigate", "settings")
+}
+
+// GetConfig returns the current runtime configuration. Falls back to the
+// spec baseline when no Manager is wired (smoke path).
+func (a *App) GetConfig() appconfig.Config {
+	if a.cfgMgr == nil {
+		return appconfig.Defaults()
+	}
+	return a.cfgMgr.Current()
+}
+
+// UpdateConfig persists c to disk after strict validation. Returns
+// *appconfig.ValidationError on bad input, wrapped I/O errors on disk
+// failure, or a sentinel when no Manager is wired.
+func (a *App) UpdateConfig(c appconfig.Config) error {
+	if a.cfgMgr == nil {
+		return errors.New("config manager not available")
+	}
+	return a.cfgMgr.Update(c)
+}
+
+// ClearHistory deletes every non-OPEN record and returns the row count.
+// Used by the settings "Limpar histórico agora" button.
+func (a *App) ClearHistory() (int, error) {
+	return a.store.ClearHistory()
 }
 
 // OnPollEvent is the EventHandler wired into the poller. It forwards each

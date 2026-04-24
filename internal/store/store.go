@@ -19,6 +19,7 @@ type Store interface {
 	UpdateFromPoll(prs []github.PRSummary) (novos []PRRecord)
 	RefreshPRStatus(id string, details github.PRDetails) error
 	SetRetentionDays(days int)
+	ClearHistory() (int, error)
 }
 
 // ErrNotFound is returned by RefreshPRStatus when the id is unknown.

@@ -280,6 +280,63 @@ func TestSQLite_Save_NoOp(t *testing.T) {
 	}
 }
 
+func TestSQLite_ClearHistory_DropsEveryHistoryRow(t *testing.T) {
+	clock, tp := newClock(time.Date(2026, 4, 23, 10, 0, 0, 0, time.UTC))
+	s := newMemoryStore(t, WithClock(clock))
+
+	prStillPending := mkSummary("a/b#1", "a/b", 1, "pending", "x", false)
+	prMerged := mkSummary("a/b#2", "a/b", 2, "merged", "x", false)
+	prClosed := mkSummary("a/b#3", "a/b", 3, "closed", "x", false)
+	prDropped := mkSummary("a/b#4", "a/b", 4, "dropped-from-search", "x", false)
+	s.UpdateFromPoll([]github.PRSummary{prStillPending, prMerged, prClosed, prDropped})
+	if err := s.RefreshPRStatus(prMerged.ID, github.PRDetails{State: "MERGED"}); err != nil {
+		t.Fatalf("refresh merged: %v", err)
+	}
+	if err := s.RefreshPRStatus(prClosed.ID, github.PRDetails{State: "CLOSED"}); err != nil {
+		t.Fatalf("refresh closed: %v", err)
+	}
+
+	// Next poll keeps only prStillPending — the other three fall out of the
+	// search and flip to review_pending=0. prDropped stays state='OPEN'
+	// because RefreshPRStatus never ran for it; it nonetheless belongs to
+	// the Histórico tab.
+	*tp = tp.Add(1 * time.Minute)
+	s.UpdateFromPoll([]github.PRSummary{prStillPending})
+
+	if pending := s.GetPending(); len(pending) != 1 || pending[0].ID != prStillPending.ID {
+		t.Fatalf("want only prStillPending in pending, got %+v", pending)
+	}
+	if history := s.GetHistory(); len(history) != 3 {
+		t.Fatalf("want 3 rows in history, got %d: %+v", len(history), history)
+	}
+
+	// Only merged/closed rows vanish; prDropped (state='OPEN', pending=0)
+	// survives so re-request detection keeps working if review comes back.
+	n, err := s.ClearHistory()
+	if err != nil {
+		t.Fatalf("clear history: %v", err)
+	}
+	if n != 2 {
+		t.Fatalf("want 2 finalized rows cleared, got %d", n)
+	}
+
+	all := s.GetAll()
+	ids := sortedIDs(all)
+	want := sortedIDs([]PRRecord{{ID: prStillPending.ID}, {ID: prDropped.ID}})
+	if !reflect.DeepEqual(ids, want) {
+		t.Fatalf("want [prStillPending, prDropped] left, got %+v", ids)
+	}
+
+	// Idempotent: nothing else to finalize.
+	n, err = s.ClearHistory()
+	if err != nil {
+		t.Fatalf("clear history second: %v", err)
+	}
+	if n != 0 {
+		t.Fatalf("second clear should remove 0 rows, got %d", n)
+	}
+}
+
 func sortedIDs(rs []PRRecord) []string {
 	out := make([]string, len(rs))
 	for i, r := range rs {

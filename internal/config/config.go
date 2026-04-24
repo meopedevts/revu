@@ -5,11 +5,13 @@
 package config
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/fsnotify/fsnotify"
@@ -51,12 +53,40 @@ func Defaults() Config {
 // Manager owns a viper instance and broadcasts validated changes to
 // subscribers. Safe for concurrent readers and one-shot Subscribe.
 type Manager struct {
-	log *slog.Logger
-	v   *viper.Viper
+	log  *slog.Logger
+	v    *viper.Viper
+	path string
 
 	mu          sync.RWMutex
 	current     Config
 	subscribers []func(Config)
+}
+
+// FieldError describes a single validation failure for a config field.
+// Serialized as-is across the Wails bridge so the frontend can attach each
+// message to its form input.
+type FieldError struct {
+	Field string `json:"field"`
+	Msg   string `json:"msg"`
+}
+
+// ValidationError aggregates FieldError values from a strict validation
+// pass. Returned by Manager.Update so callers can distinguish invalid input
+// from I/O failures.
+type ValidationError struct {
+	Errors []FieldError `json:"errors"`
+}
+
+// Error implements error. Concatenates field messages for logs.
+func (v *ValidationError) Error() string {
+	if v == nil || len(v.Errors) == 0 {
+		return "config validation failed"
+	}
+	parts := make([]string, 0, len(v.Errors))
+	for _, e := range v.Errors {
+		parts = append(parts, e.Field+": "+e.Msg)
+	}
+	return "config validation failed: " + strings.Join(parts, "; ")
 }
 
 // Option customizes the Manager.
@@ -83,6 +113,7 @@ func Load(path string, opts ...Option) (*Manager, error) {
 	for _, opt := range opts {
 		opt(m)
 	}
+	m.path = path
 	m.applyDefaults()
 	m.v.SetConfigFile(path)
 	m.v.SetConfigType("json")
@@ -142,6 +173,49 @@ func (m *Manager) Subscribe(fn func(Config)) func() {
 	}
 }
 
+// Update validates c with strict bounds and writes it atomically to disk.
+// The viper watcher picks up the rename and fires subscribers via onChange;
+// m.current is also updated inline so the next Current() call does not race
+// the fsnotify goroutine. Returns *ValidationError on invalid input, or a
+// wrapped I/O error when persistence fails.
+func (m *Manager) Update(c Config) error {
+	if err := validateStrict(&c); err != nil {
+		return err
+	}
+	if m.path == "" {
+		return errors.New("update config: manager has no persistent path")
+	}
+
+	data, err := json.MarshalIndent(c, "", "  ")
+	if err != nil {
+		return fmt.Errorf("update config: marshal: %w", err)
+	}
+
+	dir := filepath.Dir(m.path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("update config: mkdir: %w", err)
+	}
+	tmp := m.path + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+		return fmt.Errorf("update config: write tmp: %w", err)
+	}
+	if err := os.Rename(tmp, m.path); err != nil {
+		_ = os.Remove(tmp)
+		return fmt.Errorf("update config: rename: %w", err)
+	}
+
+	m.mu.Lock()
+	prev := m.current
+	m.current = c
+	subs := append([]func(Config){}, m.subscribers...)
+	m.mu.Unlock()
+
+	if prev != c {
+		m.broadcast(subs, c)
+	}
+	return nil
+}
+
 func (m *Manager) onChange() {
 	c, err := m.decodeAndValidate()
 	if err != nil {
@@ -156,6 +230,10 @@ func (m *Manager) onChange() {
 	if prev == c {
 		return
 	}
+	m.broadcast(subs, c)
+}
+
+func (m *Manager) broadcast(subs []func(Config), c Config) {
 	for _, fn := range subs {
 		if fn == nil {
 			continue
@@ -187,6 +265,36 @@ func (m *Manager) applyDefaults() {
 	m.v.SetDefault("start_hidden", d.StartHidden)
 	m.v.SetDefault("window.width", d.Window.Width)
 	m.v.SetDefault("window.height", d.Window.Height)
+}
+
+// validateStrict enforces UI-facing bounds and returns a *ValidationError
+// listing every offending field. Used by Update so the frontend can render
+// inline messages instead of silently coercing values. Ranges intentionally
+// match the zod schema on the frontend — keep them in sync.
+func validateStrict(c *Config) error {
+	var fe []FieldError
+	if c.PollingIntervalSeconds < 30 || c.PollingIntervalSeconds > 3600 {
+		fe = append(fe, FieldError{Field: "polling_interval_seconds", Msg: "deve estar entre 30 e 3600 segundos"})
+	}
+	if c.NotificationTimeoutSeconds < 1 || c.NotificationTimeoutSeconds > 30 {
+		fe = append(fe, FieldError{Field: "notification_timeout_seconds", Msg: "deve estar entre 1 e 30 segundos"})
+	}
+	if c.StatusRefreshEveryNTicks < 1 || c.StatusRefreshEveryNTicks > 1000 {
+		fe = append(fe, FieldError{Field: "status_refresh_every_n_ticks", Msg: "deve estar entre 1 e 1000 ticks"})
+	}
+	if c.HistoryRetentionDays < 1 || c.HistoryRetentionDays > 365 {
+		fe = append(fe, FieldError{Field: "history_retention_days", Msg: "deve estar entre 1 e 365 dias"})
+	}
+	if c.Window.Width < 240 || c.Window.Width > 3840 {
+		fe = append(fe, FieldError{Field: "window.width", Msg: "deve estar entre 240 e 3840 pixels"})
+	}
+	if c.Window.Height < 240 || c.Window.Height > 2160 {
+		fe = append(fe, FieldError{Field: "window.height", Msg: "deve estar entre 240 e 2160 pixels"})
+	}
+	if len(fe) > 0 {
+		return &ValidationError{Errors: fe}
+	}
+	return nil
 }
 
 // validate coerces obviously-broken values back into safe defaults. Total

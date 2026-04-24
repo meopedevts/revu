@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"sync"
@@ -121,6 +122,124 @@ func TestSubscribe_FiresOnFileChange(t *testing.T) {
 	last := received[len(received)-1]
 	if last.PollingIntervalSeconds != 120 {
 		t.Fatalf("subscriber got stale polling value: %d", last.PollingIntervalSeconds)
+	}
+}
+
+func TestUpdate_WritesAtomicallyAndReloads(t *testing.T) {
+	path := tempPath(t)
+	m, err := Load(path)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+
+	c := m.Current()
+	c.PollingIntervalSeconds = 120
+	c.NotificationsEnabled = false
+	c.HistoryRetentionDays = 45
+	c.Window.Width = 700
+	c.Window.Height = 800
+
+	if err := m.Update(c); err != nil {
+		t.Fatalf("update: %v", err)
+	}
+
+	// Current() returns the new value without waiting for the watcher.
+	got := m.Current()
+	if got.PollingIntervalSeconds != 120 || got.NotificationsEnabled || got.HistoryRetentionDays != 45 {
+		t.Fatalf("current stale after update: %+v", got)
+	}
+	if got.Window.Width != 700 || got.Window.Height != 800 {
+		t.Fatalf("window stale after update: %+v", got.Window)
+	}
+
+	// File content matches.
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read after update: %v", err)
+	}
+	var onDisk map[string]any
+	if err := json.Unmarshal(b, &onDisk); err != nil {
+		t.Fatalf("unmarshal after update: %v", err)
+	}
+	if v, ok := onDisk["polling_interval_seconds"].(float64); !ok || int(v) != 120 {
+		t.Fatalf("polling on disk wrong: %v", onDisk["polling_interval_seconds"])
+	}
+
+	// No leftover .tmp file.
+	if _, err := os.Stat(path + ".tmp"); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("tmp file not removed: err=%v", err)
+	}
+}
+
+func TestUpdate_RejectsInvalid(t *testing.T) {
+	path := tempPath(t)
+	m, err := Load(path)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	c := m.Current()
+	c.PollingIntervalSeconds = 10    // below 30
+	c.NotificationTimeoutSeconds = 0 // below 1
+	c.HistoryRetentionDays = 0       // below 1
+
+	err = m.Update(c)
+	if err == nil {
+		t.Fatal("expected validation error, got nil")
+	}
+	var ve *ValidationError
+	if !errors.As(err, &ve) {
+		t.Fatalf("expected *ValidationError, got %T: %v", err, err)
+	}
+	if len(ve.Errors) < 3 {
+		t.Fatalf("expected at least 3 field errors, got %d: %+v", len(ve.Errors), ve.Errors)
+	}
+	fields := map[string]bool{}
+	for _, fe := range ve.Errors {
+		fields[fe.Field] = true
+	}
+	for _, required := range []string{"polling_interval_seconds", "notification_timeout_seconds", "history_retention_days"} {
+		if !fields[required] {
+			t.Fatalf("missing field %q in errors: %+v", required, ve.Errors)
+		}
+	}
+
+	// Current() unchanged on rejection.
+	if m.Current().PollingIntervalSeconds != Defaults().PollingIntervalSeconds {
+		t.Fatalf("current mutated after rejected update: %+v", m.Current())
+	}
+}
+
+func TestUpdate_NotifiesSubscribers(t *testing.T) {
+	path := tempPath(t)
+	m, err := Load(path)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+
+	ch := make(chan Config, 2)
+	m.Subscribe(func(c Config) {
+		select {
+		case ch <- c:
+		default:
+		}
+	})
+
+	// Give watcher time to attach.
+	time.Sleep(100 * time.Millisecond)
+
+	c := m.Current()
+	c.PollingIntervalSeconds = 90
+	if err := m.Update(c); err != nil {
+		t.Fatalf("update: %v", err)
+	}
+
+	select {
+	case got := <-ch:
+		if got.PollingIntervalSeconds != 90 {
+			t.Fatalf("subscriber got stale polling: %d", got.PollingIntervalSeconds)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("subscriber never fired after Update")
 	}
 }
 

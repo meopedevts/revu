@@ -1,4 +1,4 @@
-import type { PRRecord } from './types'
+import type { AppConfig, PRRecord } from './types'
 
 // Wails v2 injects Go bindings under window.go.<package>.<Struct>. This
 // module isolates that runtime contract so the rest of the app does not
@@ -11,6 +11,9 @@ interface WailsBridge {
   RefreshNow(): Promise<void>
   ShowWindow(): Promise<void>
   HideWindow(): Promise<void>
+  GetConfig(): Promise<AppConfig>
+  UpdateConfig(c: AppConfig): Promise<void>
+  ClearHistory(): Promise<number>
 }
 
 declare global {
@@ -49,4 +52,22 @@ export async function refreshNow(): Promise<void> {
 
 export async function hideWindow(): Promise<void> {
   await bridge()?.HideWindow()
+}
+
+export async function getConfig(): Promise<AppConfig | null> {
+  const b = bridge()
+  if (!b) return null
+  return b.GetConfig()
+}
+
+export async function updateConfig(c: AppConfig): Promise<void> {
+  const b = bridge()
+  if (!b) throw new Error('bridge unavailable')
+  await b.UpdateConfig(c)
+}
+
+export async function clearHistory(): Promise<number> {
+  const b = bridge()
+  if (!b) return 0
+  return b.ClearHistory()
 }

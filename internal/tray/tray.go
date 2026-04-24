@@ -6,7 +6,6 @@ package tray
 
 import (
 	"log/slog"
-	"os/exec"
 	"sync"
 
 	"fyne.io/systray"
@@ -31,8 +30,8 @@ const (
 type Tray struct {
 	onOpen     func()
 	onRefresh  func()
+	onSettings func()
 	onQuit     func()
-	configPath string
 	log        *slog.Logger
 
 	mu      sync.Mutex
@@ -52,15 +51,15 @@ func WithLogger(l *slog.Logger) Option {
 	}
 }
 
-// New wires up the callbacks. configPath is the file opened by the
-// "Configurações" menu item via xdg-open. onOpen may be nil when the Wails
-// window is not available (e.g. headless smoke).
-func New(onOpen, onRefresh, onQuit func(), configPath string, opts ...Option) *Tray {
+// New wires up the callbacks. onSettings opens the in-app settings view
+// (Wails window + ui:navigate event). onOpen/onSettings may be nil when the
+// Wails window is not available (e.g. headless smoke).
+func New(onOpen, onRefresh, onSettings, onQuit func(), opts ...Option) *Tray {
 	t := &Tray{
 		onOpen:     onOpen,
 		onRefresh:  onRefresh,
+		onSettings: onSettings,
 		onQuit:     onQuit,
-		configPath: configPath,
 		log:        slog.Default(),
 	}
 	for _, opt := range opts {
@@ -128,12 +127,15 @@ func (t *Tray) onReady() {
 
 	mOpen := systray.AddMenuItem("Abrir", "Mostra a janela do revu")
 	mRefresh := systray.AddMenuItem("Atualizar agora", "Forçar um poll imediato")
-	mConfig := systray.AddMenuItem("Configurações", "Abrir config.json no editor padrão")
+	mConfig := systray.AddMenuItem("Configurações", "Abrir tela de configurações")
 	systray.AddSeparator()
 	mQuit := systray.AddMenuItem("Sair", "Encerra o revu")
 
 	if t.onOpen == nil {
 		mOpen.Disable()
+	}
+	if t.onSettings == nil {
+		mConfig.Disable()
 	}
 
 	go t.loop(mOpen, mRefresh, mConfig, mQuit)
@@ -151,7 +153,9 @@ func (t *Tray) loop(mOpen, mRefresh, mConfig, mQuit *systray.MenuItem) {
 				fn()
 			}
 		case <-mConfig.ClickedCh:
-			t.openConfig()
+			if fn := t.getOnSettings(); fn != nil {
+				fn()
+			}
 		case <-mQuit.ClickedCh:
 			if fn := t.getOnQuit(); fn != nil {
 				fn()
@@ -180,20 +184,10 @@ func (t *Tray) getOnQuit() func() {
 	return t.onQuit
 }
 
-// openConfig launches xdg-open on the config path. MVP does not block nor
-// report failures back to the menu — any error is logged only.
-func (t *Tray) openConfig() {
-	if t.configPath == "" {
-		t.log.Warn("no config path set")
-		return
-	}
-	cmd := exec.Command("xdg-open", t.configPath)
-	if err := cmd.Start(); err != nil {
-		t.log.Warn("xdg-open failed", "path", t.configPath, "err", err)
-		return
-	}
-	// Let the child outlive us — nothing to wait on.
-	go func() { _ = cmd.Wait() }()
+func (t *Tray) getOnSettings() func() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.onSettings
 }
 
 func (t *Tray) onExit() {

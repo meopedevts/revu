@@ -56,6 +56,14 @@ const (
 	qDeleteRetention = `DELETE FROM prs
 		WHERE state NOT IN ('OPEN', '') AND last_seen_at < ?`
 
+	// qClearHistory wipes finalized rows (merged / closed) from the history.
+	// Rows still at state='OPEN' but review_pending=0 survive on purpose:
+	// the PR is alive on GitHub and a future re-request needs the prior
+	// record to be detected as a transition instead of a brand-new sighting
+	// (SPEC re-request detection). state='' legacy rows are also spared for
+	// the same reason.
+	qClearHistory = `DELETE FROM prs WHERE review_pending = 0 AND state NOT IN ('OPEN', '')`
+
 	qGetMeta = `SELECT value FROM meta WHERE key = ?`
 
 	qSetMeta = `INSERT INTO meta (key, value) VALUES (?, ?)

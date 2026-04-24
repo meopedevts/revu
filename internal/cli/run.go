@@ -93,18 +93,18 @@ func runApp(cmd *cobra.Command, _ []string) error {
 	ntf.SetEnabled(cfg.NotificationsEnabled)
 	defer ntf.Close()
 
-	bridge := app.New(st, func() {}, app.WithLogger(log))
+	bridge := app.New(st, cfgMgr, func() {}, app.WithLogger(log))
 
 	// fyne.io/systray on Linux SNI does not touch the GTK main thread, so
 	// it coexists fine with Wails (which owns main).
 	tr := tray.New(
 		bridge.ShowWindow,
 		nil, // refresh wired after poller exists
+		bridge.ShowSettings,
 		func() {
 			log.Info("tray: quit requested")
 			stop()
 		},
-		cfgPath,
 		tray.WithLogger(log),
 	)
 	// Seed initial state from the already-loaded store; saves one icon

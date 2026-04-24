@@ -1,5 +1,7 @@
-import { useCallback } from 'react'
-import { AlertCircle, RefreshCw } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import { AlertCircle, RefreshCw, Settings } from 'lucide-react'
+
+import { EventsOff, EventsOn } from '@/wailsjs/runtime/runtime'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -8,11 +10,15 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/components/ui/tabs'
+import { Toaster } from '@/components/ui/sonner'
 import { EmptyState } from '@/components/empty-state'
 import { PRCard } from '@/components/pr-card'
 
 import { openPRInBrowser, refreshNow } from '@/src/lib/bridge'
 import { usePRs } from '@/src/lib/hooks/use-prs'
+import { SettingsView } from '@/src/components/settings-view'
+
+type View = 'main' | 'settings'
 
 function formatSince(d: Date | null): string {
   if (!d) return 'ainda não atualizado'
@@ -28,13 +34,15 @@ function formatSince(d: Date | null): string {
   return `atualizado há ${days}d`
 }
 
-function App() {
+interface MainViewProps {
+  onOpenSettings: () => void
+}
+
+function MainView({ onOpenSettings }: MainViewProps) {
   const { pending, history, lastPollAt, lastPollErr, loading, reload } = usePRs()
 
   const handleRefresh = useCallback(async () => {
     await refreshNow()
-    // poll:completed will update lastPollAt; reload() covers the edge case
-    // where the user hit Refresh before OnStartup wired the event bus.
     setTimeout(() => {
       void reload()
     }, 600)
@@ -56,15 +64,25 @@ function App() {
             </div>
           )}
         </div>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={handleRefresh}
-          disabled={loading}
-        >
-          <RefreshCw data-icon="inline-start" />
-          Atualizar
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={onOpenSettings}
+            aria-label="Configurações"
+          >
+            <Settings />
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleRefresh}
+            disabled={loading}
+          >
+            <RefreshCw data-icon="inline-start" />
+            Atualizar
+          </Button>
+        </div>
       </header>
 
       <Tabs
@@ -108,6 +126,31 @@ function App() {
         </TabsContent>
       </Tabs>
     </div>
+  )
+}
+
+function App() {
+  const [view, setView] = useState<View>('main')
+
+  useEffect(() => {
+    EventsOn('ui:navigate', (target: string) => {
+      if (target === 'settings') setView('settings')
+      else if (target === 'main') setView('main')
+    })
+    return () => {
+      EventsOff('ui:navigate')
+    }
+  }, [])
+
+  return (
+    <>
+      {view === 'settings' ? (
+        <SettingsView onBack={() => setView('main')} />
+      ) : (
+        <MainView onOpenSettings={() => setView('settings')} />
+      )}
+      <Toaster />
+    </>
   )
 }
 
