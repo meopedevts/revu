@@ -211,6 +211,32 @@ func (a *App) ClearHistory() (int, error) {
 	return a.store.ClearHistory()
 }
 
+// GetTheme returns the persisted UI theme ("light" or "dark"). Falls back to
+// "light" when no Manager is wired (smoke path) or the value on disk is
+// unexpected — keeps the frontend boot deterministic.
+func (a *App) GetTheme() string {
+	if a.cfgMgr == nil {
+		return "light"
+	}
+	t := a.cfgMgr.Current().Theme
+	if t != "light" && t != "dark" {
+		return "light"
+	}
+	return t
+}
+
+// SetTheme persists the new theme atomically via the config manager. Returns
+// *appconfig.ValidationError on unsupported values, wrapped I/O errors on
+// disk failure, or a sentinel when no Manager is wired.
+func (a *App) SetTheme(theme string) error {
+	if a.cfgMgr == nil {
+		return errors.New("config manager not available")
+	}
+	c := a.cfgMgr.Current()
+	c.Theme = theme
+	return a.cfgMgr.Update(c)
+}
+
 // errGitHubUnavailable is returned when a PR-details binding is called
 // without a gh client wired. Clean error for smoke/test builds.
 var errGitHubUnavailable = errors.New("github client not available")

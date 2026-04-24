@@ -237,6 +237,7 @@ func runApp(cmd *cobra.Command, _ []string) error {
 		Height:            cfg.Window.Height,
 		StartHidden:       cfg.StartHidden,
 		HideWindowOnClose: true,
+		BackgroundColour:  themeBackgroundColour(cfg.Theme),
 		AssetServer: &assetserver.Options{
 			Assets: frontend.AssetsFS(),
 		},
@@ -262,6 +263,17 @@ func runApp(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("wails: %w", runErr)
 	}
 	return nil
+}
+
+// themeBackgroundColour maps the persisted theme to the webview's initial
+// chrome colour so the window does not flash white while the bundle parses.
+// Values are pulled from frontend/src/style.css (`--background`) and
+// converted to sRGB. Unknown themes fall back to light.
+func themeBackgroundColour(theme string) *options.RGBA {
+	if theme == "dark" {
+		return &options.RGBA{R: 0x13, G: 0x13, B: 0x16, A: 255}
+	}
+	return &options.RGBA{R: 0xff, G: 0xff, B: 0xff, A: 255}
 }
 
 // dbPath resolves ~/.config/revu/revu.db consistently with configPath().

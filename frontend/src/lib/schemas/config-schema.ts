@@ -38,4 +38,5 @@ export const configSchema = z.object({
       .min(240, 'mínimo 240 pixels')
       .max(2160, 'máximo 2160 pixels'),
   }),
+  theme: z.enum(['light', 'dark']),
 })

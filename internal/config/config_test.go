@@ -36,6 +36,7 @@ func TestLoad_FromExistingFile(t *testing.T) {
 		"notifications_enabled":    false,
 		"history_retention_days":   15,
 		"window":                   map[string]any{"width": 720, "height": 900},
+		"theme":                    "dark",
 	})
 	m, err := Load(path)
 	if err != nil {
@@ -47,6 +48,9 @@ func TestLoad_FromExistingFile(t *testing.T) {
 	}
 	if c.Window.Width != 720 || c.Window.Height != 900 {
 		t.Fatalf("window not honored: %+v", c.Window)
+	}
+	if c.Theme != "dark" {
+		t.Fatalf("theme not honored: %q", c.Theme)
 	}
 	// Unset field falls back to default.
 	if c.NotificationTimeoutSeconds != Defaults().NotificationTimeoutSeconds {
@@ -61,6 +65,7 @@ func TestValidate_CoercesInsaneValues(t *testing.T) {
 		"notification_timeout_seconds": -1,
 		"status_refresh_every_n_ticks": 0,
 		"window":                       map[string]any{"width": 10, "height": -1},
+		"theme":                        "system", // unsupported in MVP → coerced to default
 	})
 	m, err := Load(path)
 	if err != nil {
@@ -79,6 +84,38 @@ func TestValidate_CoercesInsaneValues(t *testing.T) {
 	}
 	if c.Window.Width != d.Window.Width || c.Window.Height != d.Window.Height {
 		t.Fatalf("window not coerced: %+v", c.Window)
+	}
+	if c.Theme != d.Theme {
+		t.Fatalf("theme not coerced to default: %q", c.Theme)
+	}
+}
+
+func TestUpdate_RejectsUnsupportedTheme(t *testing.T) {
+	path := tempPath(t)
+	m, err := Load(path)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	c := m.Current()
+	c.Theme = "system"
+
+	err = m.Update(c)
+	if err == nil {
+		t.Fatal("expected validation error, got nil")
+	}
+	var ve *ValidationError
+	if !errors.As(err, &ve) {
+		t.Fatalf("expected *ValidationError, got %T: %v", err, err)
+	}
+	var found bool
+	for _, fe := range ve.Errors {
+		if fe.Field == "theme" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected theme field error, got: %+v", ve.Errors)
 	}
 }
 

@@ -6,6 +6,7 @@ import type {
   PRRecord,
   Profile,
   ProfileUpdate,
+  Theme,
 } from './types'
 
 interface CreateProfileRequest {
@@ -35,6 +36,8 @@ interface WailsBridge {
   HideWindow(): Promise<void>
   GetConfig(): Promise<AppConfig>
   UpdateConfig(c: AppConfig): Promise<void>
+  GetTheme?(): Promise<string>
+  SetTheme?(theme: string): Promise<void>
   ClearHistory(): Promise<number>
   GetPRDetails?(prID: string): Promise<PRFullDetails>
   GetPRDiff?(prID: string): Promise<string>
@@ -96,6 +99,19 @@ export async function updateConfig(c: AppConfig): Promise<void> {
   const b = bridge()
   if (!b) throw new Error('bridge unavailable')
   await b.UpdateConfig(c)
+}
+
+export async function getTheme(): Promise<Theme> {
+  const b = bridge()
+  if (!b?.GetTheme) return 'light'
+  const t = await b.GetTheme()
+  return t === 'dark' ? 'dark' : 'light'
+}
+
+export async function setTheme(theme: Theme): Promise<void> {
+  const b = bridge()
+  if (!b?.SetTheme) throw new Error('bridge unavailable')
+  await b.SetTheme(theme)
 }
 
 export async function clearHistory(): Promise<number> {

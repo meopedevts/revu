@@ -28,6 +28,7 @@ type Config struct {
 	HistoryRetentionDays       int          `mapstructure:"history_retention_days" json:"history_retention_days"`
 	StartHidden                bool         `mapstructure:"start_hidden" json:"start_hidden"`
 	Window                     WindowConfig `mapstructure:"window" json:"window"`
+	Theme                      string       `mapstructure:"theme" json:"theme"`
 }
 
 // WindowConfig carries the initial Wails window geometry.
@@ -47,6 +48,7 @@ func Defaults() Config {
 		HistoryRetentionDays:       30,
 		StartHidden:                true,
 		Window:                     WindowConfig{Width: 480, Height: 640},
+		Theme:                      "light",
 	}
 }
 
@@ -265,6 +267,7 @@ func (m *Manager) applyDefaults() {
 	m.v.SetDefault("start_hidden", d.StartHidden)
 	m.v.SetDefault("window.width", d.Window.Width)
 	m.v.SetDefault("window.height", d.Window.Height)
+	m.v.SetDefault("theme", d.Theme)
 }
 
 // validateStrict enforces UI-facing bounds and returns a *ValidationError
@@ -290,6 +293,9 @@ func validateStrict(c *Config) error {
 	}
 	if c.Window.Height < 240 || c.Window.Height > 2160 {
 		fe = append(fe, FieldError{Field: "window.height", Msg: "deve estar entre 240 e 2160 pixels"})
+	}
+	if c.Theme != "light" && c.Theme != "dark" {
+		fe = append(fe, FieldError{Field: "theme", Msg: "deve ser light ou dark"})
 	}
 	if len(fe) > 0 {
 		return &ValidationError{Errors: fe}
@@ -319,6 +325,9 @@ func validate(c *Config) error {
 	}
 	if c.Window.Height < 240 {
 		c.Window.Height = d.Window.Height
+	}
+	if c.Theme != "light" && c.Theme != "dark" {
+		c.Theme = d.Theme
 	}
 	return nil
 }

@@ -53,6 +53,8 @@ export interface WindowConfig {
   height: number
 }
 
+export type Theme = 'light' | 'dark'
+
 export interface AppConfig {
   polling_interval_seconds: number
   notifications_enabled: boolean
@@ -61,6 +63,7 @@ export interface AppConfig {
   history_retention_days: number
   start_hidden: boolean
   window: WindowConfig
+  theme: Theme
 }
 
 // Mirrors internal/config.FieldError.
@@ -84,6 +87,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   history_retention_days: 30,
   start_hidden: true,
   window: { width: 480, height: 640 },
+  theme: 'light',
 }
 
 // Mirrors internal/profiles.AuthMethod. The frontend never needs to look at
