@@ -173,6 +173,12 @@ func runApp(cmd *cobra.Command, _ []string) error {
 		Linux: &linux.Options{
 			Icon:        assets.WindowIcon,
 			ProgramName: "revu",
+			// Wails defaults this to Never only when options.Linux is nil
+			// (https://github.com/wailsapp/wails/issues/2977). Passing a
+			// non-nil Options flips it to "Always" — that path crashes
+			// webkit2gtk on Wayland/Hyprland with "Error 71 (Protocol
+			// error)". Keep it Never.
+			WebviewGpuPolicy: linux.WebviewGpuPolicyNever,
 		},
 		OnStartup: bridge.OnStartup,
 		Bind:      []interface{}{bridge},
