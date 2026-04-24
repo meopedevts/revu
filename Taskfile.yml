@@ -52,6 +52,11 @@ tasks:
     generates:
       - dist/**
 
+  dev:
+    desc: Hot-reload com wails dev (frontend + backend)
+    cmds:
+      - wails dev -tags wailsdev
+
   run:
     desc: Compila e roda `revu run`
     deps: [build]
