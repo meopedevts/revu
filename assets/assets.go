@@ -7,24 +7,24 @@ package assets
 
 import _ "embed"
 
-// Tray icons (128px — downscaled by Waybar / SNI consumers; fyne.io/systray
+// Tray icons (256px — downscaled by Waybar / SNI consumers; fyne.io/systray
 // only exposes a single-buffer SetIcon, so we bake a size large enough for
 // HiDPI bars and let consumers downscale).
 
-//go:embed icons/tray-idle-128.png
+//go:embed icons/tray-idle-256.png
 var TrayIdle []byte
 
-//go:embed icons/tray-pending-128.png
+//go:embed icons/tray-pending-256.png
 var TrayPending []byte
 
-//go:embed icons/tray-error-128.png
+//go:embed icons/tray-error-256.png
 var TrayError []byte
 
 // NotifierIcon is the default icon rendered next to D-Bus notifications.
 // SPEC §5.4 mandates AppIcon be an absolute file path — caller extracts
 // these bytes to a tempfile at boot.
 //
-//go:embed icons/tray-pending-128.png
+//go:embed icons/tray-pending-256.png
 var NotifierIcon []byte
 
 // WindowIcon is the 256×256 bitmap used for the Wails title bar /
