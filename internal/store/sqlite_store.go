@@ -27,7 +27,8 @@ type sqliteStore struct {
 	dbMu sync.Mutex // guards db handle lifecycle (Load/Close)
 	db   *sql.DB
 
-	mu sync.RWMutex // guards retentionDays
+	mu              sync.RWMutex // guards retentionDays + activeProfileID
+	activeProfileID string
 }
 
 // Load opens the underlying SQLite database, applies pending migrations, and
@@ -92,6 +93,9 @@ func (s *sqliteStore) handle() *sql.DB {
 	return s.db
 }
 
+// DB satisfies Store.DB — see Store interface doc.
+func (s *sqliteStore) DB() *sql.DB { return s.handle() }
+
 func (s *sqliteStore) GetAll() []PRRecord {
 	db := s.handle()
 	if db == nil {
@@ -121,6 +125,15 @@ func (s *sqliteStore) GetHistory() []PRRecord {
 func (s *sqliteStore) SetRetentionDays(days int) {
 	s.mu.Lock()
 	s.retentionDays = days
+	s.mu.Unlock()
+}
+
+// SetActiveProfileID records the profile id that new prs should be tagged
+// with. The poller sets it at startup and whenever the user switches
+// profiles. Empty string = legacy / untagged inserts (migration default).
+func (s *sqliteStore) SetActiveProfileID(id string) {
+	s.mu.Lock()
+	s.activeProfileID = id
 	s.mu.Unlock()
 }
 
@@ -190,11 +203,15 @@ func (s *sqliteStore) UpdateFromPoll(prs []github.PRSummary) []PRRecord {
 				FirstSeenAt:   now,
 				LastSeenAt:    now,
 			}
+			s.mu.RLock()
+			profID := s.activeProfileID
+			s.mu.RUnlock()
 			if _, err := tx.ExecContext(ctx, qInsertPR,
 				rec.ID, rec.Number, rec.Repo, rec.Title, rec.Author, rec.URL,
 				rec.State, boolToInt(rec.IsDraft), rec.Additions, rec.Deletions,
 				boolToInt(rec.ReviewPending), formatTime(rec.FirstSeenAt),
 				formatTime(rec.LastSeenAt), formatTimePtr(rec.LastNotifiedAt),
+				profID,
 			); err != nil {
 				return nil
 			}

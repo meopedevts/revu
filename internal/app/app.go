@@ -14,13 +14,19 @@ import (
 
 	appconfig "github.com/meopedevts/revu/internal/config"
 	"github.com/meopedevts/revu/internal/poller"
+	"github.com/meopedevts/revu/internal/profiles"
 	"github.com/meopedevts/revu/internal/store"
 )
+
+// EventProfilesActiveChanged is emitted on the Wails bus whenever the active
+// profile changes. Frontend listens to refresh the header badge.
+const EventProfilesActiveChanged = "profiles:active-changed"
 
 // App is the exported type Wails generates TS/JS bindings for.
 type App struct {
 	store     store.Store
 	cfgMgr    *appconfig.Manager
+	profiles  *profiles.Service
 	onRefresh func()
 	log       *slog.Logger
 
@@ -37,6 +43,14 @@ func WithLogger(l *slog.Logger) Option {
 		if l != nil {
 			a.log = l
 		}
+	}
+}
+
+// WithProfiles injects the profile service so the bridge can expose CRUD
+// handlers to the frontend.
+func WithProfiles(p *profiles.Service) Option {
+	return func(a *App) {
+		a.profiles = p
 	}
 }
 
@@ -188,4 +202,116 @@ func (a *App) OnPollEvent(e poller.Event) {
 		return
 	}
 	wruntime.EventsEmit(ctx, e.Kind, e)
+}
+
+// EmitActiveProfileChanged relays an active-profile change from the profiles
+// service to the frontend. Wiring is done by main via SubscribeActive.
+func (a *App) EmitActiveProfileChanged(p profiles.Profile) {
+	ctx := a.getCtx()
+	if ctx == nil {
+		return
+	}
+	wruntime.EventsEmit(ctx, EventProfilesActiveChanged, p)
+}
+
+// ===== Profiles bindings =====
+//
+// Every binding below degrades to a clear error when a.profiles is nil so the
+// smoke path (no DB wired) still boots; the frontend treats nil as "profiles
+// feature disabled".
+
+var errProfilesUnavailable = errors.New("profiles service not available")
+
+// ListProfiles returns every profile known to the store.
+func (a *App) ListProfiles() ([]profiles.Profile, error) {
+	if a.profiles == nil {
+		return nil, errProfilesUnavailable
+	}
+	return a.profiles.List(a.callCtx())
+}
+
+// GetActiveProfile returns the currently-active profile.
+func (a *App) GetActiveProfile() (profiles.Profile, error) {
+	if a.profiles == nil {
+		return profiles.Profile{}, errProfilesUnavailable
+	}
+	return a.profiles.GetActive(a.callCtx())
+}
+
+// CreateProfileRequest is the frontend-facing shape of CreateProfile's input.
+type CreateProfileRequest struct {
+	Name       string `json:"name"`
+	Method     string `json:"auth_method"`
+	Token      string `json:"token"`
+	MakeActive bool   `json:"make_active"`
+}
+
+// CreateProfile validates inputs, stores the token in the keyring when
+// applicable, and persists the profile.
+func (a *App) CreateProfile(req CreateProfileRequest) (profiles.Profile, error) {
+	if a.profiles == nil {
+		return profiles.Profile{}, errProfilesUnavailable
+	}
+	return a.profiles.Create(a.callCtx(), profiles.CreateParams{
+		Name:       req.Name,
+		Method:     profiles.AuthMethod(req.Method),
+		Token:      req.Token,
+		MakeActive: req.MakeActive,
+	})
+}
+
+// UpdateProfileRequest carries partial updates. Empty/omitted fields are
+// left untouched; token="" means "do not rotate".
+type UpdateProfileRequest struct {
+	ID     string  `json:"id"`
+	Name   *string `json:"name,omitempty"`
+	Method *string `json:"auth_method,omitempty"`
+	Token  *string `json:"token,omitempty"`
+}
+
+// UpdateProfile applies a partial update.
+func (a *App) UpdateProfile(req UpdateProfileRequest) (profiles.Profile, error) {
+	if a.profiles == nil {
+		return profiles.Profile{}, errProfilesUnavailable
+	}
+	u := profiles.Update{Name: req.Name, Token: req.Token}
+	if req.Method != nil {
+		m := profiles.AuthMethod(*req.Method)
+		u.Method = &m
+	}
+	return a.profiles.Update(a.callCtx(), req.ID, u)
+}
+
+// DeleteProfile removes a profile. Rejects the active one and the last.
+func (a *App) DeleteProfile(id string) error {
+	if a.profiles == nil {
+		return errProfilesUnavailable
+	}
+	return a.profiles.Delete(a.callCtx(), id)
+}
+
+// SetActiveProfile flips which profile is active.
+func (a *App) SetActiveProfile(id string) error {
+	if a.profiles == nil {
+		return errProfilesUnavailable
+	}
+	return a.profiles.SetActive(a.callCtx(), id)
+}
+
+// ValidateToken asks GitHub who owns the PAT. Returns the GitHub login on
+// success; never logs the token.
+func (a *App) ValidateToken(token string) (string, error) {
+	if a.profiles == nil {
+		return "", errProfilesUnavailable
+	}
+	return a.profiles.ValidateToken(a.callCtx(), token)
+}
+
+// callCtx returns the Wails runtime context if ready, else Background.
+// Wails bindings always have a ctx but during smoke/testing it may be nil.
+func (a *App) callCtx() context.Context {
+	if c := a.getCtx(); c != nil {
+		return c
+	}
+	return context.Background()
 }

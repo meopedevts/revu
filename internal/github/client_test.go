@@ -16,12 +16,29 @@ type fakeExec struct {
 	err     error
 	gotName string
 	gotArgs []string
+	gotEnv  []string
 }
 
 func (f *fakeExec) Run(_ context.Context, name string, args ...string) ([]byte, []byte, error) {
 	f.gotName = name
 	f.gotArgs = append([]string(nil), args...)
 	return f.stdout, f.stderr, f.err
+}
+
+func (f *fakeExec) RunEnv(_ context.Context, env []string, name string, args ...string) ([]byte, []byte, error) {
+	f.gotName = name
+	f.gotArgs = append([]string(nil), args...)
+	f.gotEnv = append([]string(nil), env...)
+	return f.stdout, f.stderr, f.err
+}
+
+type staticTokens struct {
+	token string
+	err   error
+}
+
+func (s staticTokens) TokenForActive(context.Context) (string, error) {
+	return s.token, s.err
 }
 
 func loadFixture(t *testing.T, name string) []byte {
@@ -204,6 +221,56 @@ func TestClassify_UnknownStderrWrapsRunErr(t *testing.T) {
 	if got := err.Error(); !contains(got, "something weird happened") {
 		t.Fatalf("want first stderr line in msg, got %q", got)
 	}
+}
+
+func TestRunGH_InjectsGHToken(t *testing.T) {
+	fe := &fakeExec{stdout: []byte(`[]`)}
+	c := NewClient(fe, staticTokens{token: "ghp_test_token"})
+
+	_, err := c.ListReviewRequested(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if !containsEnv(fe.gotEnv, "GH_TOKEN=ghp_test_token") {
+		t.Fatalf("GH_TOKEN missing from env: %v", fe.gotEnv)
+	}
+	// Also ensure ambient vars were preserved (at least PATH usually exists).
+	if len(fe.gotEnv) < 2 {
+		t.Errorf("env appears truncated: %v", fe.gotEnv)
+	}
+}
+
+func TestRunGH_NoTokenUsesAmbientEnv(t *testing.T) {
+	fe := &fakeExec{stdout: []byte(`[]`)}
+	c := NewClient(fe, staticTokens{token: ""})
+
+	_, err := c.ListReviewRequested(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if fe.gotEnv != nil {
+		t.Fatalf("expected RunEnv to be bypassed when token empty, got env %v", fe.gotEnv)
+	}
+}
+
+func TestAuthStatus_DoesNotInjectToken(t *testing.T) {
+	fe := &fakeExec{}
+	c := NewClient(fe, staticTokens{token: "ghp_should_not_be_passed"})
+	if err := c.AuthStatus(context.Background()); err != nil {
+		t.Fatalf("AuthStatus: %v", err)
+	}
+	if fe.gotEnv != nil {
+		t.Errorf("auth status must use ambient env, got %v", fe.gotEnv)
+	}
+}
+
+func containsEnv(env []string, want string) bool {
+	for _, kv := range env {
+		if kv == want {
+			return true
+		}
+	}
+	return false
 }
 
 func contains(s, sub string) bool {

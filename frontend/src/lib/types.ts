@@ -64,3 +64,26 @@ export const DEFAULT_CONFIG: AppConfig = {
   start_hidden: true,
   window: { width: 480, height: 640 },
 }
+
+// Mirrors internal/profiles.AuthMethod. The frontend never needs to look at
+// keyring_ref directly — tokens stay on the Go side.
+export type AuthMethod = 'gh-cli' | 'keyring'
+
+// Mirrors internal/profiles.Profile — the JSON tags on Go flatten to
+// snake_case, so we mirror them verbatim.
+export interface Profile {
+  id: string
+  name: string
+  auth_method: AuthMethod
+  keyring_ref?: string
+  github_username?: string
+  is_active: boolean
+  created_at: string
+  last_validated_at?: string
+}
+
+export interface ProfileUpdate {
+  name?: string
+  auth_method?: AuthMethod
+  token?: string
+}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 )
 
@@ -14,15 +15,40 @@ type Client interface {
 	GetPRDetails(ctx context.Context, url string) (*PRDetails, error)
 }
 
-type ghClient struct {
-	exec Executor
+// TokenProvider returns the PAT for the currently active profile, or "" when
+// the profile defers to the ambient `gh auth login` session. The client
+// resolves it per call so switching profiles takes effect immediately, and
+// so tokens never live on a long-lived struct field.
+type TokenProvider interface {
+	TokenForActive(ctx context.Context) (string, error)
 }
 
-// NewClient wires a Client around the given Executor. Tests inject a fake
-// Executor; production callers pass DefaultExecutor().
-func NewClient(e Executor) Client { return &ghClient{exec: e} }
+// noopTokenProvider satisfies TokenProvider by always returning "". Used when
+// the caller has no profile service wired (e.g., unit tests of unrelated
+// flows, or `gh auth status` bootstrap).
+type noopTokenProvider struct{}
+
+func (noopTokenProvider) TokenForActive(context.Context) (string, error) { return "", nil }
+
+type ghClient struct {
+	exec   Executor
+	tokens TokenProvider
+}
+
+// NewClient wires a Client around the given Executor. The optional tokens
+// argument enables per-call GH_TOKEN injection (keyring profiles). Pass nil
+// to rely entirely on the ambient gh CLI session.
+func NewClient(e Executor, tokens ...TokenProvider) Client {
+	var tp TokenProvider = noopTokenProvider{}
+	if len(tokens) > 0 && tokens[0] != nil {
+		tp = tokens[0]
+	}
+	return &ghClient{exec: e, tokens: tp}
+}
 
 func (c *ghClient) AuthStatus(ctx context.Context) error {
+	// AuthStatus is only meaningful for the gh-cli session; never inject a
+	// token here — that would mask a broken ambient login.
 	_, stderr, err := c.exec.Run(ctx, "gh", "auth", "status")
 	if err != nil {
 		return classify(stderr, err)
@@ -38,7 +64,7 @@ func (c *ghClient) ListReviewRequested(ctx context.Context) ([]PRSummary, error)
 		"--json", "number,title,url,repository,author,isDraft,updatedAt",
 		"--limit", "100",
 	}
-	stdout, stderr, err := c.exec.Run(ctx, "gh", args...)
+	stdout, stderr, err := c.runGH(ctx, args...)
 	if err != nil {
 		return nil, classify(stderr, err)
 	}
@@ -63,7 +89,7 @@ func (c *ghClient) ListReviewRequested(ctx context.Context) ([]PRSummary, error)
 }
 
 func (c *ghClient) GetPRDetails(ctx context.Context, url string) (*PRDetails, error) {
-	stdout, stderr, err := c.exec.Run(ctx, "gh",
+	stdout, stderr, err := c.runGH(ctx,
 		"pr", "view", url,
 		"--json", "additions,deletions,state,mergedAt,isDraft",
 	)
@@ -75,6 +101,28 @@ func (c *ghClient) GetPRDetails(ctx context.Context, url string) (*PRDetails, er
 		return nil, fmt.Errorf("decode pr view: %w", err)
 	}
 	return &d, nil
+}
+
+// runGH resolves the active token, builds the env override, and invokes gh.
+// When the token is empty (gh-cli profile) the ambient env is used untouched.
+// The token variable goes out of scope immediately after the child process
+// exits — no struct fields, no logs.
+func (c *ghClient) runGH(ctx context.Context, args ...string) ([]byte, []byte, error) {
+	token, err := c.tokens.TokenForActive(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("resolve token: %w", err)
+	}
+	if token == "" {
+		return c.exec.Run(ctx, "gh", args...)
+	}
+	env := append(os.Environ(), "GH_TOKEN="+token)
+	if envRunner, ok := c.exec.(EnvExecutor); ok {
+		return envRunner.RunEnv(ctx, env, "gh", args...)
+	}
+	// Executor does not support env injection. Caller passed a non-env-aware
+	// impl despite wiring a TokenProvider — surface a clear error instead of
+	// silently falling back to ambient.
+	return nil, nil, fmt.Errorf("executor does not support GH_TOKEN injection")
 }
 
 // classify maps the stderr of a failed `gh` invocation to a sentinel error.

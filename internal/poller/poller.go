@@ -20,6 +20,12 @@ const (
 	MaxBackoff = 30 * time.Minute
 )
 
+// ActiveProfileProvider is the subset of profiles.Service the poller needs.
+// Kept as a local interface so the poller package does not import profiles.
+type ActiveProfileProvider interface {
+	ActiveProfileID(ctx context.Context) (string, error)
+}
+
 // Poller ticks the gh search, enriches new PRs, notifies, and persists.
 // Life-cycle is owned by Run; callers cancel the ctx to stop.
 type Poller struct {
@@ -27,6 +33,7 @@ type Poller struct {
 	store    store.Store
 	notifier notifier.Notifier
 	log      *slog.Logger
+	profiles ActiveProfileProvider
 
 	mu           sync.RWMutex
 	interval     time.Duration
@@ -54,6 +61,15 @@ func WithLogger(l *slog.Logger) Option {
 		if l != nil {
 			p.log = l
 		}
+	}
+}
+
+// WithActiveProfile injects the profile provider. When set, every tick tags
+// inserts with the current active profile id via store.SetActiveProfileID.
+// Passing nil disables the feature.
+func WithActiveProfile(pp ActiveProfileProvider) Option {
+	return func(p *Poller) {
+		p.profiles = pp
 	}
 }
 
@@ -134,6 +150,13 @@ func (p *Poller) SetInterval(d time.Duration) {
 // Every call ends with a poll:completed emission so the frontend can refresh
 // a "last updated" indicator even on empty polls.
 func (p *Poller) tick(ctx context.Context) {
+	if p.profiles != nil {
+		if id, err := p.profiles.ActiveProfileID(ctx); err == nil && id != "" {
+			p.store.SetActiveProfileID(id)
+		} else if err != nil {
+			p.log.Warn("resolve active profile", "err", err)
+		}
+	}
 	summaries, err := p.client.ListReviewRequested(ctx)
 	if err != nil {
 		p.handlePollError(err)

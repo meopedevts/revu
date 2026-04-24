@@ -24,19 +24,43 @@ const (
 	StateError
 )
 
+// ProfileItem is the minimal shape the tray needs to render the "Trocar
+// conta" submenu without importing the profiles package. Populated by the
+// caller via WithProfileList.
+type ProfileItem struct {
+	ID       string
+	Name     string
+	IsActive bool
+}
+
+// ProfileLister returns the current list of profiles, with IsActive set on
+// the selected row. Called on menu build — should be cheap.
+type ProfileLister func() []ProfileItem
+
+// ProfileSelector is called when the user clicks a profile in the submenu.
+type ProfileSelector func(id string)
+
 // Tray holds the wiring for a single SNI item. It is not reentrant —
 // Start/Stop are designed to be called exactly once per process, per the
 // fyne.io/systray lifecycle.
 type Tray struct {
-	onOpen     func()
-	onRefresh  func()
-	onSettings func()
-	onQuit     func()
-	log        *slog.Logger
+	onOpen      func()
+	onRefresh   func()
+	onSettings  func()
+	onQuit      func()
+	onSelectPrf ProfileSelector
+	listPrfs    ProfileLister
+	log         *slog.Logger
 
 	mu      sync.Mutex
 	ready   bool
 	current State
+
+	// buildCh signals onReady's loop goroutine to rebuild the menu. Capacity
+	// 1 + non-blocking send: bursts are coalesced.
+	buildCh chan struct{}
+	// stopCh is closed by Stop to unblock the loop when Quit is pending.
+	stopCh chan struct{}
 }
 
 // Option customizes the tray.
@@ -51,6 +75,16 @@ func WithLogger(l *slog.Logger) Option {
 	}
 }
 
+// WithProfileList enables the "Trocar conta" submenu. lister is called on
+// every menu rebuild to render the current profile list; selector is called
+// when the user picks a row.
+func WithProfileList(lister ProfileLister, selector ProfileSelector) Option {
+	return func(t *Tray) {
+		t.listPrfs = lister
+		t.onSelectPrf = selector
+	}
+}
+
 // New wires up the callbacks. onSettings opens the in-app settings view
 // (Wails window + ui:navigate event). onOpen/onSettings may be nil when the
 // Wails window is not available (e.g. headless smoke).
@@ -61,6 +95,8 @@ func New(onOpen, onRefresh, onSettings, onQuit func(), opts ...Option) *Tray {
 		onSettings: onSettings,
 		onQuit:     onQuit,
 		log:        slog.Default(),
+		buildCh:    make(chan struct{}, 1),
+		stopCh:     make(chan struct{}),
 	}
 	for _, opt := range opts {
 		opt(t)
@@ -76,6 +112,11 @@ func (t *Tray) Start() {
 
 // Stop asks the systray loop to terminate. Safe to call from any goroutine.
 func (t *Tray) Stop() {
+	select {
+	case <-t.stopCh:
+	default:
+		close(t.stopCh)
+	}
 	systray.Quit()
 }
 
@@ -104,6 +145,16 @@ func (t *Tray) SetState(s State) {
 	}
 }
 
+// OnProfilesChanged requests a menu rebuild so the "Trocar conta" submenu
+// reflects the latest list (new profile added, removed, or active flipped).
+// Safe to call before Start — the rebuild runs on the next onReady.
+func (t *Tray) OnProfilesChanged() {
+	select {
+	case t.buildCh <- struct{}{}:
+	default:
+	}
+}
+
 func iconFor(s State) []byte {
 	switch s {
 	case StatePending:
@@ -125,9 +176,77 @@ func (t *Tray) onReady() {
 	systray.SetTitle("revu")
 	systray.SetTooltip("revu — PR review notifier")
 
+	// onReady must return promptly so the systray library can pump D-Bus
+	// events; the rebuild/dispatch loop runs on its own goroutine.
+	go t.buildMenuAndLoop()
+}
+
+// buildMenuAndLoop constructs the menu, dispatches click events, and rebuilds
+// on OnProfilesChanged. The loop exits when Stop is called or the user picks
+// "Sair".
+func (t *Tray) buildMenuAndLoop() {
+	for {
+		items := t.buildMenu()
+		done := make(chan struct{})
+		dispatchDone := make(chan struct{})
+		go func() {
+			t.dispatch(items, done)
+			close(dispatchDone)
+		}()
+		select {
+		case <-t.buildCh:
+			// Rebuild requested: tear down the current dispatcher, reset the
+			// menu, and loop to re-build.
+			close(done)
+			<-dispatchDone
+			systray.ResetMenu()
+		case <-t.stopCh:
+			close(done)
+			<-dispatchDone
+			return
+		case <-dispatchDone:
+			// dispatch exited on its own (user picked Sair).
+			return
+		}
+	}
+}
+
+type menuItems struct {
+	open     *systray.MenuItem
+	refresh  *systray.MenuItem
+	config   *systray.MenuItem
+	quit     *systray.MenuItem
+	switchTo map[string]*systray.MenuItem // profile id → menu item
+}
+
+// buildMenu assembles every menu row from scratch. Must be called after
+// ResetMenu (or on first onReady).
+func (t *Tray) buildMenu() menuItems {
 	mOpen := systray.AddMenuItem("Abrir", "Mostra a janela do revu")
 	mRefresh := systray.AddMenuItem("Atualizar agora", "Forçar um poll imediato")
 	mConfig := systray.AddMenuItem("Configurações", "Abrir tela de configurações")
+
+	switchTo := map[string]*systray.MenuItem{}
+	if t.listPrfs != nil && t.onSelectPrf != nil {
+		profs := t.listPrfs()
+		if len(profs) > 0 {
+			mSwitch := systray.AddMenuItem("Trocar conta", "Seleciona a conta GitHub ativa")
+			for _, pr := range profs {
+				label := pr.Name
+				if pr.IsActive {
+					label = "● " + label
+				} else {
+					label = "○ " + label
+				}
+				item := mSwitch.AddSubMenuItem(label, "")
+				if pr.IsActive {
+					item.Disable()
+				}
+				switchTo[pr.ID] = item
+			}
+		}
+	}
+
 	systray.AddSeparator()
 	mQuit := systray.AddMenuItem("Sair", "Encerra o revu")
 
@@ -137,32 +256,67 @@ func (t *Tray) onReady() {
 	if t.onSettings == nil {
 		mConfig.Disable()
 	}
-
-	go t.loop(mOpen, mRefresh, mConfig, mQuit)
+	return menuItems{
+		open:     mOpen,
+		refresh:  mRefresh,
+		config:   mConfig,
+		quit:     mQuit,
+		switchTo: switchTo,
+	}
 }
 
-func (t *Tray) loop(mOpen, mRefresh, mConfig, mQuit *systray.MenuItem) {
-	for {
-		select {
-		case <-mOpen.ClickedCh:
-			if fn := t.getOnOpen(); fn != nil {
-				fn()
+// dispatch forwards click events from the built menu to the registered
+// callbacks until done is closed. Each menu row is watched by its own
+// goroutine that loops until shutdown — this keeps the select-case count
+// static regardless of how many profiles we render.
+func (t *Tray) dispatch(items menuItems, done <-chan struct{}) {
+	watch := func(ch <-chan struct{}, run func()) {
+		for {
+			select {
+			case <-ch:
+				run()
+			case <-done:
+				return
 			}
-		case <-mRefresh.ClickedCh:
-			if fn := t.getOnRefresh(); fn != nil {
-				fn()
-			}
-		case <-mConfig.ClickedCh:
-			if fn := t.getOnSettings(); fn != nil {
-				fn()
-			}
-		case <-mQuit.ClickedCh:
-			if fn := t.getOnQuit(); fn != nil {
-				fn()
-			}
-			systray.Quit()
-			return
 		}
+	}
+
+	go watch(items.open.ClickedCh, func() {
+		if fn := t.getOnOpen(); fn != nil {
+			fn()
+		}
+	})
+	go watch(items.refresh.ClickedCh, func() {
+		if fn := t.getOnRefresh(); fn != nil {
+			fn()
+		}
+	})
+	go watch(items.config.ClickedCh, func() {
+		if fn := t.getOnSettings(); fn != nil {
+			fn()
+		}
+	})
+
+	for id, mi := range items.switchTo {
+		id := id
+		mi := mi
+		go watch(mi.ClickedCh, func() {
+			if fn := t.getOnSelectProfile(); fn != nil {
+				fn(id)
+			}
+		})
+	}
+
+	// Quit returns from dispatch so buildMenuAndLoop can exit the outer loop.
+	select {
+	case <-items.quit.ClickedCh:
+		if fn := t.getOnQuit(); fn != nil {
+			fn()
+		}
+		systray.Quit()
+		return
+	case <-done:
+		return
 	}
 }
 
@@ -188,6 +342,12 @@ func (t *Tray) getOnSettings() func() {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	return t.onSettings
+}
+
+func (t *Tray) getOnSelectProfile() ProfileSelector {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.onSelectPrf
 }
 
 func (t *Tray) onExit() {

@@ -30,8 +30,8 @@ const (
 	qInsertPR = `INSERT INTO prs (
 		id, number, repo, title, author, url, state, is_draft,
 		additions, deletions, review_pending, first_seen_at, last_seen_at,
-		last_notified_at
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		last_notified_at, profile_id
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 	// qUpdatePRMutable rewrites the fields that may legitimately change
 	// between polls. first_seen_at is intentionally absent — it stays frozen

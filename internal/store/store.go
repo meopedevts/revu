@@ -1,6 +1,7 @@
 package store
 
 import (
+	"database/sql"
 	"errors"
 	"log/slog"
 	"time"
@@ -19,7 +20,12 @@ type Store interface {
 	UpdateFromPoll(prs []github.PRSummary) (novos []PRRecord)
 	RefreshPRStatus(id string, details github.PRDetails) error
 	SetRetentionDays(days int)
+	SetActiveProfileID(id string)
 	ClearHistory() (int, error)
+	// DB returns the underlying *sql.DB so sibling packages (e.g. profiles)
+	// can share the same connection / WAL session instead of opening a
+	// second handle. Returns nil before Load or after Close.
+	DB() *sql.DB
 }
 
 // ErrNotFound is returned by RefreshPRStatus when the id is unknown.

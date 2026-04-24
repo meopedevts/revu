@@ -23,10 +23,12 @@ import (
 	"github.com/meopedevts/revu/assets"
 	"github.com/meopedevts/revu/frontend"
 	"github.com/meopedevts/revu/internal/app"
+	"github.com/meopedevts/revu/internal/auth"
 	appconfig "github.com/meopedevts/revu/internal/config"
 	"github.com/meopedevts/revu/internal/github"
 	"github.com/meopedevts/revu/internal/notifier"
 	"github.com/meopedevts/revu/internal/poller"
+	"github.com/meopedevts/revu/internal/profiles"
 	"github.com/meopedevts/revu/internal/store"
 	"github.com/meopedevts/revu/internal/tray"
 )
@@ -44,14 +46,7 @@ func runApp(cmd *cobra.Command, _ []string) error {
 	defer stop()
 
 	log := slog.Default()
-	client := github.NewClient(github.DefaultExecutor())
-
-	// Fail fast on auth — later sessions can degrade gracefully into a
-	// tray error state. For now abort so systemd can restart / user sees
-	// the message.
-	if err := client.AuthStatus(ctx); err != nil {
-		return fmt.Errorf("pré-requisito falhou: %w", err)
-	}
+	executor := github.DefaultExecutor()
 
 	cfgPath, err := configPath()
 	if err != nil {
@@ -86,6 +81,22 @@ func runApp(cmd *cobra.Command, _ []string) error {
 		}
 	}()
 
+	profSvc := profiles.NewService(
+		profiles.NewRepository(st.DB()),
+		auth.New(),
+		executor,
+		profiles.WithLogger(log),
+	)
+
+	client := github.NewClient(executor, profSvc)
+
+	// Fail fast on auth using the active profile. gh-cli profiles defer to
+	// the ambient session (checked via AuthStatus); keyring profiles must
+	// have a valid token — validated via a cheap ValidateToken round-trip.
+	if err := preflightAuth(ctx, client, profSvc); err != nil {
+		return fmt.Errorf("pré-requisito falhou: %w", err)
+	}
+
 	ntf, err := notifier.New(notifier.WithExpireTimeout(time.Duration(cfg.NotificationTimeoutSeconds) * time.Second))
 	if err != nil {
 		return fmt.Errorf("inicializar notifier: %w", err)
@@ -93,7 +104,7 @@ func runApp(cmd *cobra.Command, _ []string) error {
 	ntf.SetEnabled(cfg.NotificationsEnabled)
 	defer ntf.Close()
 
-	bridge := app.New(st, cfgMgr, func() {}, app.WithLogger(log))
+	bridge := app.New(st, cfgMgr, func() {}, app.WithLogger(log), app.WithProfiles(profSvc))
 
 	// fyne.io/systray on Linux SNI does not touch the GTK main thread, so
 	// it coexists fine with Wails (which owns main).
@@ -106,6 +117,27 @@ func runApp(cmd *cobra.Command, _ []string) error {
 			stop()
 		},
 		tray.WithLogger(log),
+		tray.WithProfileList(
+			func() []tray.ProfileItem {
+				list, err := profSvc.List(ctx)
+				if err != nil {
+					log.Warn("tray list profiles", "err", err)
+					return nil
+				}
+				out := make([]tray.ProfileItem, 0, len(list))
+				for _, pr := range list {
+					out = append(out, tray.ProfileItem{
+						ID: pr.ID, Name: pr.Name, IsActive: pr.IsActive,
+					})
+				}
+				return out
+			},
+			func(id string) {
+				if err := profSvc.SetActive(ctx, id); err != nil {
+					log.Warn("tray set active", "err", err)
+				}
+			},
+		),
 	)
 	// Seed initial state from the already-loaded store; saves one icon
 	// flicker on startup when there are pending PRs waiting.
@@ -114,11 +146,29 @@ func runApp(cmd *cobra.Command, _ []string) error {
 	p := poller.New(client, st, ntf,
 		poller.WithLogger(log),
 		poller.WithInterval(time.Duration(cfg.PollingIntervalSeconds)*time.Second),
+		poller.WithActiveProfile(profSvc),
 		poller.WithEventHandler(func(e poller.Event) {
 			bridge.OnPollEvent(e)
 			syncTrayState(tr, st, e)
 		}),
 	)
+
+	// Wire the active-profile change fan-out: update store tagging, trigger
+	// an immediate poll so the UI reflects the new account, emit on the
+	// Wails bus for the frontend, and let the tray rebuild its submenu.
+	profSvc.SubscribeActive(func(pr profiles.Profile) {
+		log.Info("active profile changed",
+			slog.String("id", pr.ID), slog.String("name", pr.Name))
+		st.SetActiveProfileID(pr.ID)
+		bridge.EmitActiveProfileChanged(pr)
+		tr.OnProfilesChanged()
+		p.Trigger()
+	})
+	// Seed the store with the boot-time active id so the first tick tags
+	// inserts correctly.
+	if active, err := profSvc.GetActive(ctx); err == nil {
+		st.SetActiveProfileID(active.ID)
+	}
 	bridge.SetOnRefresh(p.Trigger)
 	tr.SetOnRefresh(func() {
 		log.Info("tray: refresh requested")
@@ -246,6 +296,35 @@ func syncTrayState(tr *tray.Tray, s store.Store, e poller.Event) {
 		return
 	}
 	tr.SetState(stateFromStore(s))
+}
+
+// preflightAuth verifies the active profile can talk to GitHub before the
+// poller starts. gh-cli profiles → AuthStatus (ambient gh auth). Keyring
+// profiles → read the token from the keyring and run a token validation.
+// Token is never logged on any branch.
+func preflightAuth(ctx context.Context, client github.Client, svc *profiles.Service) error {
+	active, err := svc.GetActive(ctx)
+	if err != nil {
+		return fmt.Errorf("resolve active profile: %w", err)
+	}
+	switch active.AuthMethod {
+	case profiles.AuthKeyring:
+		token, err := svc.TokenFor(ctx, active)
+		if err != nil {
+			return fmt.Errorf("read token for profile %s: %w", active.Name, err)
+		}
+		if _, err := svc.ValidateToken(ctx, token); err != nil {
+			return fmt.Errorf("validate token for profile %s: %w", active.Name, err)
+		}
+		return nil
+	case profiles.AuthGHCLI:
+		fallthrough
+	default:
+		if err := client.AuthStatus(ctx); err != nil {
+			return err
+		}
+		return nil
+	}
 }
 
 // isAuthError looks for the sentinel string emitted by poller.handlePollError

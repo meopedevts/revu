@@ -17,6 +17,8 @@ import { PRCard } from '@/components/pr-card'
 import { openPRInBrowser, refreshNow } from '@/src/lib/bridge'
 import { usePRs } from '@/src/lib/hooks/use-prs'
 import { SettingsView } from '@/src/components/settings-view'
+import { MainHeaderProfileBadge } from '@/src/components/main-header-profile-badge'
+import type { SettingsSection } from '@/src/components/settings/settings-sidebar'
 
 type View = 'main' | 'settings'
 
@@ -35,7 +37,7 @@ function formatSince(d: Date | null): string {
 }
 
 interface MainViewProps {
-  onOpenSettings: () => void
+  onOpenSettings: (section?: SettingsSection) => void
 }
 
 function MainView({ onOpenSettings }: MainViewProps) {
@@ -52,7 +54,12 @@ function MainView({ onOpenSettings }: MainViewProps) {
     <div className="flex h-screen flex-col gap-3 bg-background p-3 text-foreground">
       <header className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className="font-heading text-base font-medium">revu</div>
+          <div className="flex items-center gap-2">
+            <div className="font-heading text-base font-medium">revu</div>
+            <MainHeaderProfileBadge
+              onOpenAccounts={() => onOpenSettings('accounts')}
+            />
+          </div>
           <div className="truncate text-xs text-muted-foreground">
             {pending.length} pendente{pending.length === 1 ? '' : 's'} ·{' '}
             {history.length} no histórico · {formatSince(lastPollAt)}
@@ -68,7 +75,7 @@ function MainView({ onOpenSettings }: MainViewProps) {
           <Button
             size="sm"
             variant="ghost"
-            onClick={onOpenSettings}
+            onClick={() => onOpenSettings()}
             aria-label="Configurações"
           >
             <Settings />
@@ -131,23 +138,38 @@ function MainView({ onOpenSettings }: MainViewProps) {
 
 function App() {
   const [view, setView] = useState<View>('main')
+  const [settingsSection, setSettingsSection] = useState<
+    SettingsSection | undefined
+  >(undefined)
 
   useEffect(() => {
     EventsOn('ui:navigate', (target: string) => {
-      if (target === 'settings') setView('settings')
-      else if (target === 'main') setView('main')
+      if (target === 'settings') {
+        setSettingsSection(undefined)
+        setView('settings')
+      } else if (target === 'main') {
+        setView('main')
+      }
     })
     return () => {
       EventsOff('ui:navigate')
     }
   }, [])
 
+  const openSettings = useCallback((section?: SettingsSection) => {
+    setSettingsSection(section)
+    setView('settings')
+  }, [])
+
   return (
     <>
       {view === 'settings' ? (
-        <SettingsView onBack={() => setView('main')} />
+        <SettingsView
+          onBack={() => setView('main')}
+          initialSection={settingsSection}
+        />
       ) : (
-        <MainView onOpenSettings={() => setView('settings')} />
+        <MainView onOpenSettings={openSettings} />
       )}
       <Toaster />
     </>

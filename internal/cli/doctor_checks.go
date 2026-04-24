@@ -79,5 +79,6 @@ func runAllChecks(ctx context.Context, c github.Client, db string) []checkResult
 		checkDBPath(db),
 		checkSchemaVersion(db),
 		checkPRCounts(db),
+		checkProfiles(db),
 	}
 }
