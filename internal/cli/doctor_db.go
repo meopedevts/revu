@@ -1,0 +1,99 @@
+package cli
+
+import (
+	"database/sql"
+	"errors"
+	"fmt"
+	"os"
+
+	_ "modernc.org/sqlite"
+)
+
+// openReadOnlyDB opens the revu SQLite database in read-only mode. Used by
+// doctor checks so we never mutate state during diagnostics.
+func openReadOnlyDB(path string) (*sql.DB, error) {
+	dsn := fmt.Sprintf("file:%s?mode=ro", path)
+	db, err := sql.Open("sqlite", dsn)
+	if err != nil {
+		return nil, err
+	}
+	if err := db.Ping(); err != nil {
+		_ = db.Close()
+		return nil, err
+	}
+	return db, nil
+}
+
+// checkDBPath reports on the presence of the SQLite database file. A
+// missing file is *not* a failure — fresh installs run `revu doctor` before
+// their first `revu run` and we shouldn't yell at them about it.
+func checkDBPath(path string) checkResult {
+	info, err := os.Stat(path)
+	switch {
+	case errors.Is(err, os.ErrNotExist):
+		return checkResult{
+			Name:   "DB path",
+			Detail: path + " (ainda não criado — rode `revu run` pelo menos uma vez)",
+			OK:     true,
+		}
+	case err != nil:
+		return checkResult{Name: "DB path", Detail: err.Error()}
+	default:
+		return checkResult{
+			Name:   "DB path",
+			Detail: fmt.Sprintf("%s (%d bytes)", path, info.Size()),
+			OK:     true,
+		}
+	}
+}
+
+// checkSchemaVersion reports the goose_db_version. Skipped silently (as OK)
+// when the DB is absent.
+func checkSchemaVersion(path string) checkResult {
+	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
+		return checkResult{Name: "schema version", Detail: "DB ausente — skip", OK: true}
+	}
+	db, err := openReadOnlyDB(path)
+	if err != nil {
+		return checkResult{Name: "schema version", Detail: err.Error()}
+	}
+	defer db.Close()
+	var version int64
+	err = db.QueryRow(`SELECT MAX(version_id) FROM goose_db_version`).Scan(&version)
+	if err != nil {
+		return checkResult{Name: "schema version", Detail: err.Error()}
+	}
+	return checkResult{
+		Name:   "schema version",
+		Detail: fmt.Sprintf("%d", version),
+		OK:     true,
+	}
+}
+
+// checkPRCounts reports total/pending/history PR counts. Skipped silently
+// when the DB is absent.
+func checkPRCounts(path string) checkResult {
+	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
+		return checkResult{Name: "PR counts", Detail: "DB ausente — skip", OK: true}
+	}
+	db, err := openReadOnlyDB(path)
+	if err != nil {
+		return checkResult{Name: "PR counts", Detail: err.Error()}
+	}
+	defer db.Close()
+	var total, pending, history int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM prs`).Scan(&total); err != nil {
+		return checkResult{Name: "PR counts", Detail: err.Error()}
+	}
+	if err := db.QueryRow(`SELECT COUNT(*) FROM prs WHERE review_pending = 1`).Scan(&pending); err != nil {
+		return checkResult{Name: "PR counts", Detail: err.Error()}
+	}
+	if err := db.QueryRow(`SELECT COUNT(*) FROM prs WHERE review_pending = 0`).Scan(&history); err != nil {
+		return checkResult{Name: "PR counts", Detail: err.Error()}
+	}
+	return checkResult{
+		Name:   "PR counts",
+		Detail: fmt.Sprintf("total=%d pending=%d history=%d", total, pending, history),
+		OK:     true,
+	}
+}

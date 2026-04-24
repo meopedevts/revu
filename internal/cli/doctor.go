@@ -18,7 +18,11 @@ var doctorCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := cmd.Context()
 		client := github.NewClient(github.DefaultExecutor())
-		results := runAllChecks(ctx, client)
+		db, err := dbPath()
+		if err != nil {
+			return err
+		}
+		results := runAllChecks(ctx, client, db)
 		failed := printResults(cmd.OutOrStdout(), results)
 		if failed > 0 && doctorExitCode {
 			return fmt.Errorf("%d verificação(ões) falharam", failed)
@@ -36,7 +40,11 @@ func printResults(w io.Writer, results []checkResult) int {
 	failed := 0
 	for _, r := range results {
 		if r.OK {
-			fmt.Fprintf(w, "✓ %s\n", r.Name)
+			if r.Detail == "" {
+				fmt.Fprintf(w, "✓ %s\n", r.Name)
+			} else {
+				fmt.Fprintf(w, "✓ %s: %s\n", r.Name, r.Detail)
+			}
 			continue
 		}
 		failed++

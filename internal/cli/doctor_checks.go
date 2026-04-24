@@ -70,11 +70,14 @@ func checkAppIndicator(ctx context.Context, look lookupPath, run cmdRunner) chec
 
 // runAllChecks is the composition used by the doctor command. Split from the
 // Cobra wiring to keep it unit-testable.
-func runAllChecks(ctx context.Context, c github.Client) []checkResult {
+func runAllChecks(ctx context.Context, c github.Client, db string) []checkResult {
 	return []checkResult{
 		checkGHInPath(exec.LookPath),
 		checkGHAuth(ctx, c),
 		checkDBus(os.Getenv),
 		checkAppIndicator(ctx, exec.LookPath, defaultRunner),
+		checkDBPath(db),
+		checkSchemaVersion(db),
+		checkPRCounts(db),
 	}
 }

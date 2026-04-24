@@ -57,7 +57,11 @@ func runApp(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	statePath, err := statePath()
+	dbFile, err := dbPath()
+	if err != nil {
+		return err
+	}
+	legacyJSON, err := legacyStateJSONPath()
 	if err != nil {
 		return err
 	}
@@ -68,10 +72,19 @@ func runApp(cmd *cobra.Command, _ []string) error {
 	}
 	cfg := cfgMgr.Current()
 
-	st := store.New(statePath, store.WithRetention(cfg.HistoryRetentionDays))
+	st := store.New(dbFile,
+		store.WithRetention(cfg.HistoryRetentionDays),
+		store.WithLogger(log),
+		store.WithJSONMigration(legacyJSON),
+	)
 	if err := st.Load(); err != nil {
 		return fmt.Errorf("carregar store: %w", err)
 	}
+	defer func() {
+		if err := st.Close(); err != nil {
+			log.Warn("close store", "err", err)
+		}
+	}()
 
 	ntf, err := notifier.New(notifier.WithExpireTimeout(time.Duration(cfg.NotificationTimeoutSeconds) * time.Second))
 	if err != nil {
@@ -155,7 +168,7 @@ func runApp(cmd *cobra.Command, _ []string) error {
 	}()
 
 	log.Info("revu started",
-		"state", statePath,
+		"db", dbFile,
 		"config", cfgPath,
 		"interval", p.Interval(),
 		"retention_d", cfg.HistoryRetentionDays,
@@ -186,10 +199,6 @@ func runApp(cmd *cobra.Command, _ []string) error {
 
 	stop()
 	wg.Wait()
-
-	if saveErr := st.Save(); saveErr != nil {
-		log.Warn("save on shutdown", "err", saveErr)
-	}
 	log.Info("revu stopped")
 
 	if runErr != nil {
@@ -198,8 +207,18 @@ func runApp(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
-// statePath resolves ~/.config/revu/state.json consistently with configPath().
-func statePath() (string, error) {
+// dbPath resolves ~/.config/revu/revu.db consistently with configPath().
+func dbPath() (string, error) {
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		return "", fmt.Errorf("resolve user config dir: %w", err)
+	}
+	return filepath.Join(dir, "revu", "revu.db"), nil
+}
+
+// legacyStateJSONPath points at the pre-SQLite persistence file. Handed to
+// the store so the first boot after upgrade imports it into SQLite.
+func legacyStateJSONPath() (string, error) {
 	dir, err := os.UserConfigDir()
 	if err != nil {
 		return "", fmt.Errorf("resolve user config dir: %w", err)

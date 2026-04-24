@@ -81,9 +81,14 @@ func quietLogger() *slog.Logger {
 
 func freshStore(t *testing.T) store.Store {
 	t.Helper()
-	return store.New(filepath.Join(t.TempDir(), "state.json"),
+	s := store.New(filepath.Join(t.TempDir(), "revu.db"),
 		store.WithClock(func() time.Time { return time.Date(2026, 4, 23, 10, 0, 0, 0, time.UTC) }),
 	)
+	if err := s.Load(); err != nil {
+		t.Fatalf("store Load: %v", err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+	return s
 }
 
 func TestTick_NotifiesNovosAndEnriches(t *testing.T) {

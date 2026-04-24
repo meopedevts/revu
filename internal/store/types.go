@@ -3,7 +3,9 @@ package store
 import "time"
 
 // PRRecord is the persisted shape of a tracked pull request (SPEC §5.3).
-// JSON tags mirror state.json exactly — fields are snake_case on disk.
+// JSON tags are still honored because the record crosses the Wails bridge
+// into the React frontend via EventsEmit — removing them would silently
+// break TS bindings.
 type PRRecord struct {
 	ID             string     `json:"id"`
 	Number         int        `json:"number"`
@@ -19,10 +21,4 @@ type PRRecord struct {
 	FirstSeenAt    time.Time  `json:"first_seen_at"`
 	LastSeenAt     time.Time  `json:"last_seen_at"`
 	LastNotifiedAt *time.Time `json:"last_notified_at,omitempty"`
-}
-
-// snapshot is the on-disk envelope.
-type snapshot struct {
-	PRs        map[string]PRRecord `json:"prs"`
-	LastPollAt *time.Time          `json:"last_poll_at,omitempty"`
 }
