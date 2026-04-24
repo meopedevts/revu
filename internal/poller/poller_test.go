@@ -71,7 +71,9 @@ func (f *fakeNotifier) Notify(pr store.PRRecord) error {
 	return nil
 }
 
-func (f *fakeNotifier) Close() error { return nil }
+func (f *fakeNotifier) SetEnabled(bool)                {}
+func (f *fakeNotifier) SetExpireTimeout(time.Duration) {}
+func (f *fakeNotifier) Close() error                   { return nil }
 
 func quietLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -426,6 +428,27 @@ func TestTrigger_CoalescesBursts(t *testing.T) {
 	case <-p.triggerCh:
 		t.Fatal("trigger channel should have coalesced extras")
 	default:
+	}
+}
+
+func TestSetInterval_TakesEffectOnNextWait(t *testing.T) {
+	fc := &fakeClient{}
+	fn := &fakeNotifier{}
+	s := freshStore(t)
+	p := New(fc, s, fn, WithInterval(time.Hour), WithLogger(quietLogger()))
+
+	if p.Interval() != time.Hour {
+		t.Fatalf("initial interval: %s", p.Interval())
+	}
+	p.SetInterval(10 * time.Second)
+	if p.Interval() != 10*time.Second {
+		t.Fatalf("post-set interval: %s", p.Interval())
+	}
+	// Non-positive ignored.
+	p.SetInterval(0)
+	p.SetInterval(-1 * time.Second)
+	if p.Interval() != 10*time.Second {
+		t.Fatalf("invalid SetInterval mutated state: %s", p.Interval())
 	}
 }
 

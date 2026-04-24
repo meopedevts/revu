@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/wailsapp/wails/v2"
@@ -19,6 +20,7 @@ import (
 
 	"github.com/meopedevts/revu/frontend"
 	"github.com/meopedevts/revu/internal/app"
+	appconfig "github.com/meopedevts/revu/internal/config"
 	"github.com/meopedevts/revu/internal/github"
 	"github.com/meopedevts/revu/internal/notifier"
 	"github.com/meopedevts/revu/internal/poller"
@@ -56,24 +58,45 @@ func runApp(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	st := store.New(statePath)
+
+	cfgMgr, err := appconfig.Load(cfgPath, appconfig.WithLogger(log))
+	if err != nil {
+		return fmt.Errorf("carregar config: %w", err)
+	}
+	cfg := cfgMgr.Current()
+
+	st := store.New(statePath, store.WithRetention(cfg.HistoryRetentionDays))
 	if err := st.Load(); err != nil {
 		return fmt.Errorf("carregar store: %w", err)
 	}
 
-	ntf, err := notifier.New()
+	ntf, err := notifier.New(notifier.WithExpireTimeout(time.Duration(cfg.NotificationTimeoutSeconds) * time.Second))
 	if err != nil {
 		return fmt.Errorf("inicializar notifier: %w", err)
 	}
+	ntf.SetEnabled(cfg.NotificationsEnabled)
 	defer ntf.Close()
 
 	bridge := app.New(st, func() {}, app.WithLogger(log))
 	p := poller.New(client, st, ntf,
 		poller.WithLogger(log),
+		poller.WithInterval(time.Duration(cfg.PollingIntervalSeconds)*time.Second),
 		poller.WithEventHandler(bridge.OnPollEvent),
 	)
-	// Re-wire the refresh callback now that we have the poller.
 	bridge.SetOnRefresh(p.Trigger)
+
+	// Apply every validated config change to live components.
+	cfgMgr.Subscribe(func(c appconfig.Config) {
+		log.Info("config reloaded",
+			"polling_s", c.PollingIntervalSeconds,
+			"notifications", c.NotificationsEnabled,
+			"retention_d", c.HistoryRetentionDays,
+		)
+		p.SetInterval(time.Duration(c.PollingIntervalSeconds) * time.Second)
+		ntf.SetEnabled(c.NotificationsEnabled)
+		ntf.SetExpireTimeout(time.Duration(c.NotificationTimeoutSeconds) * time.Second)
+		st.SetRetentionDays(c.HistoryRetentionDays)
+	})
 
 	var wg sync.WaitGroup
 
@@ -119,13 +142,18 @@ func runApp(cmd *cobra.Command, _ []string) error {
 		}
 	}()
 
-	log.Info("revu started", "state", statePath, "config", cfgPath, "interval", poller.DefaultInterval)
+	log.Info("revu started",
+		"state", statePath,
+		"config", cfgPath,
+		"interval", p.Interval(),
+		"retention_d", cfg.HistoryRetentionDays,
+	)
 
 	runErr := wails.Run(&options.App{
 		Title:             "revu",
-		Width:             480,
-		Height:            640,
-		StartHidden:       true,
+		Width:             cfg.Window.Width,
+		Height:            cfg.Window.Height,
+		StartHidden:       cfg.StartHidden,
 		HideWindowOnClose: true,
 		AssetServer: &assetserver.Options{
 			Assets: frontend.AssetsFS(),

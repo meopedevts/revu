@@ -17,9 +17,12 @@ import (
 
 // Notifier sends desktop notifications for tracked PRs. MVP only exposes
 // Notify — click actions, replace semantics, and closed-signal handling are
-// out of scope (see SPEC §12).
+// out of scope (see SPEC §12). SetEnabled / SetExpireTimeout are the hooks
+// used by the config watcher to reconfigure mid-flight.
 type Notifier interface {
 	Notify(pr store.PRRecord) error
+	SetEnabled(enabled bool)
+	SetExpireTimeout(d time.Duration)
 	Close() error
 }
 
@@ -27,9 +30,12 @@ type Notifier interface {
 // the transient=true hint so daemons like swaync/mako/dunst skip the history
 // pane. The tray remains the source of truth for past PRs.
 type dbusNotifier struct {
-	conn          *dbus.Conn
-	iconPath      string
+	conn     *dbus.Conn
+	iconPath string
+
+	mu            sync.RWMutex
 	expireTimeout time.Duration
+	enabled       bool
 
 	closeOnce sync.Once
 }
@@ -63,6 +69,7 @@ func New(opts ...Option) (Notifier, error) {
 		conn:          conn,
 		iconPath:      iconPath,
 		expireTimeout: 5 * time.Second,
+		enabled:       true,
 	}
 	for _, opt := range opts {
 		opt(n)
@@ -70,16 +77,42 @@ func New(opts ...Option) (Notifier, error) {
 	return n, nil
 }
 
+// SetEnabled toggles notification delivery at runtime. When disabled,
+// Notify becomes a silent no-op. Safe for concurrent calls.
+func (n *dbusNotifier) SetEnabled(enabled bool) {
+	n.mu.Lock()
+	n.enabled = enabled
+	n.mu.Unlock()
+}
+
+// SetExpireTimeout adjusts the notification visibility window at runtime.
+// Non-positive values mean "server decides".
+func (n *dbusNotifier) SetExpireTimeout(d time.Duration) {
+	if d < 0 {
+		d = 0
+	}
+	n.mu.Lock()
+	n.expireTimeout = d
+	n.mu.Unlock()
+}
+
 func (n *dbusNotifier) Notify(pr store.PRRecord) error {
 	if n == nil || n.conn == nil {
 		return errors.New("notifier not initialized")
+	}
+	n.mu.RLock()
+	enabled := n.enabled
+	timeout := n.expireTimeout
+	n.mu.RUnlock()
+	if !enabled {
+		return nil
 	}
 	note := notify.Notification{
 		AppName:       "revu",
 		AppIcon:       n.iconPath,
 		Summary:       fmt.Sprintf("Review solicitado · %s", pr.Repo),
 		Body:          FormatBody(pr),
-		ExpireTimeout: n.expireTimeout,
+		ExpireTimeout: timeout,
 		Hints: map[string]dbus.Variant{
 			"transient": dbus.MakeVariant(true),
 		},

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/meopedevts/revu/internal/github"
@@ -27,6 +28,7 @@ type Poller struct {
 	notifier notifier.Notifier
 	log      *slog.Logger
 
+	mu           sync.RWMutex
 	interval     time.Duration
 	backoff      time.Duration // current backoff (0 when healthy)
 	triggerCh    chan struct{} // capacity 1; Trigger coalesces bursts
@@ -84,15 +86,12 @@ func (p *Poller) Trigger() {
 // Run drives the ticker until ctx is cancelled. The first tick fires
 // immediately (SPEC §8.2 step 7). On error it applies exponential backoff,
 // doubling up to MaxBackoff; on any success it resets to the configured
-// interval. Also honors Trigger for out-of-schedule polls.
+// interval. Also honors Trigger for out-of-schedule polls and picks up
+// interval changes landed via SetInterval on the next timer scheduling.
 func (p *Poller) Run(ctx context.Context) error {
 	p.tick(ctx)
 	for {
-		wait := p.interval
-		if p.backoff > 0 {
-			wait = p.backoff
-		}
-		timer := time.NewTimer(wait)
+		timer := time.NewTimer(p.waitDuration())
 		select {
 		case <-ctx.Done():
 			timer.Stop()
@@ -104,6 +103,30 @@ func (p *Poller) Run(ctx context.Context) error {
 			p.tick(ctx)
 		}
 	}
+}
+
+// waitDuration returns backoff (if active) or interval under lock so
+// concurrent SetInterval calls are race-free.
+func (p *Poller) waitDuration() time.Duration {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	if p.backoff > 0 {
+		return p.backoff
+	}
+	return p.interval
+}
+
+// SetInterval replaces the scheduled polling interval. Non-positive values
+// are ignored. The change takes effect on the next wait (current timer runs
+// to completion) — this matches the "próximo poll respeita novo intervalo"
+// expectation from SPEC §7.
+func (p *Poller) SetInterval(d time.Duration) {
+	if d <= 0 {
+		return
+	}
+	p.mu.Lock()
+	p.interval = d
+	p.mu.Unlock()
 }
 
 // tick executes one poll cycle. Errors are logged and applied to backoff but
@@ -183,6 +206,8 @@ func (p *Poller) handlePollError(err error) {
 }
 
 func (p *Poller) advanceBackoff() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	switch {
 	case p.backoff == 0:
 		p.backoff = p.interval * 2
@@ -195,12 +220,25 @@ func (p *Poller) advanceBackoff() {
 }
 
 func (p *Poller) resetBackoff() {
+	p.mu.Lock()
 	p.backoff = 0
+	p.mu.Unlock()
 }
 
 // CurrentBackoff exposes the current backoff duration for tests and for
 // doctor/status introspection.
-func (p *Poller) CurrentBackoff() time.Duration { return p.backoff }
+func (p *Poller) CurrentBackoff() time.Duration {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.backoff
+}
+
+// Interval returns the currently-scheduled polling interval.
+func (p *Poller) Interval() time.Duration {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.interval
+}
 
 // RunOnce executes a single tick outside of Run. Useful for manual refresh
 // triggered from the tray menu (SPEC §5.5 "Atualizar agora").

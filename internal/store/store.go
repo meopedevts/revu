@@ -22,6 +22,7 @@ type Store interface {
 	GetHistory() []PRRecord
 	UpdateFromPoll(prs []github.PRSummary) (novos []PRRecord)
 	RefreshPRStatus(id string, details github.PRDetails) error
+	SetRetentionDays(days int)
 }
 
 // ErrNotFound is returned by RefreshPRStatus when the id is unknown.
@@ -243,6 +244,14 @@ func (s *fileStore) RefreshPRStatus(id string, details github.PRDetails) error {
 	}
 	s.prs[id] = rec
 	return nil
+}
+
+// SetRetentionDays updates the retention window at runtime. Takes effect on
+// the next Save. Non-positive values disable retention (history unbounded).
+func (s *fileStore) SetRetentionDays(days int) {
+	s.mu.Lock()
+	s.retentionDays = days
+	s.mu.Unlock()
 }
 
 // applyRetentionLocked drops non-OPEN records whose LastSeenAt is older than
