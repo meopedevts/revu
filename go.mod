@@ -3,6 +3,7 @@ module github.com/meopedevts/revu
 go 1.23.0
 
 require (
+	fyne.io/systray v1.12.0
 	github.com/esiqveland/notify v0.13.3
 	github.com/godbus/dbus/v5 v5.2.2
 	github.com/spf13/cobra v1.10.2

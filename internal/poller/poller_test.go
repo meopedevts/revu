@@ -230,6 +230,80 @@ func TestBackoff_ResetsOnSuccess(t *testing.T) {
 	}
 }
 
+func TestTrigger_ForcesImmediatePoll(t *testing.T) {
+	fc := &fakeClient{
+		listResponses: []listResponse{
+			{prs: nil}, // first (immediate) tick
+			{prs: []github.PRSummary{
+				{ID: "a/b#1", Number: 1, Repo: "a/b", Title: "t", Author: "x", URL: "u"},
+			}},
+		},
+		detailsResponse: github.PRDetails{State: "OPEN"},
+	}
+	fn := &fakeNotifier{}
+	s := freshStore(t)
+	// Long interval so the trigger, not the timer, drives the second tick.
+	p := New(fc, s, fn, WithInterval(time.Hour), WithLogger(quietLogger()))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- p.Run(ctx) }()
+
+	// Wait for the immediate tick to land.
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		fc.mu.Lock()
+		n := fc.listCalls
+		fc.mu.Unlock()
+		if n >= 1 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("first tick never fired")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	p.Trigger()
+
+	deadline = time.Now().Add(2 * time.Second)
+	for {
+		fn.mu.Lock()
+		sent := len(fn.sent)
+		fn.mu.Unlock()
+		if sent >= 1 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("trigger did not produce a notification")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	cancel()
+	<-done
+}
+
+func TestTrigger_CoalescesBursts(t *testing.T) {
+	p := New(&fakeClient{}, freshStore(t), &fakeNotifier{}, WithLogger(quietLogger()))
+	// Ten rapid triggers must not panic nor block.
+	for i := 0; i < 10; i++ {
+		p.Trigger()
+	}
+	// Channel must still have exactly one pending item.
+	select {
+	case <-p.triggerCh:
+	default:
+		t.Fatal("expected at least one trigger queued")
+	}
+	select {
+	case <-p.triggerCh:
+		t.Fatal("trigger channel should have coalesced extras")
+	default:
+	}
+}
+
 func TestRun_StopsOnCtxCancel(t *testing.T) {
 	fc := &fakeClient{}
 	fn := &fakeNotifier{}

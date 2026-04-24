@@ -27,8 +27,9 @@ type Poller struct {
 	notifier notifier.Notifier
 	log      *slog.Logger
 
-	interval time.Duration
-	backoff  time.Duration // current backoff (0 when healthy)
+	interval  time.Duration
+	backoff   time.Duration // current backoff (0 when healthy)
+	triggerCh chan struct{} // capacity 1; Trigger coalesces bursts
 }
 
 // Option customizes the poller.
@@ -56,11 +57,12 @@ func WithLogger(l *slog.Logger) Option {
 // New builds a Poller with the given dependencies.
 func New(c github.Client, s store.Store, n notifier.Notifier, opts ...Option) *Poller {
 	p := &Poller{
-		client:   c,
-		store:    s,
-		notifier: n,
-		log:      slog.Default(),
-		interval: DefaultInterval,
+		client:    c,
+		store:     s,
+		notifier:  n,
+		log:       slog.Default(),
+		interval:  DefaultInterval,
+		triggerCh: make(chan struct{}, 1),
 	}
 	for _, opt := range opts {
 		opt(p)
@@ -68,10 +70,20 @@ func New(c github.Client, s store.Store, n notifier.Notifier, opts ...Option) *P
 	return p
 }
 
+// Trigger requests an immediate poll. Safe to call from any goroutine; if a
+// trigger is already queued, extra calls are coalesced (no unbounded queue
+// even under rapid clicking of "Atualizar agora").
+func (p *Poller) Trigger() {
+	select {
+	case p.triggerCh <- struct{}{}:
+	default:
+	}
+}
+
 // Run drives the ticker until ctx is cancelled. The first tick fires
 // immediately (SPEC §8.2 step 7). On error it applies exponential backoff,
 // doubling up to MaxBackoff; on any success it resets to the configured
-// interval.
+// interval. Also honors Trigger for out-of-schedule polls.
 func (p *Poller) Run(ctx context.Context) error {
 	p.tick(ctx)
 	for {
@@ -85,6 +97,9 @@ func (p *Poller) Run(ctx context.Context) error {
 			timer.Stop()
 			return ctx.Err()
 		case <-timer.C:
+			p.tick(ctx)
+		case <-p.triggerCh:
+			timer.Stop()
 			p.tick(ctx)
 		}
 	}
