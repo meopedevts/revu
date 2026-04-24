@@ -1,0 +1,28 @@
+[
+  {
+    "number": 142,
+    "title": "feat: add foo",
+    "url": "https://github.com/octocat/hello-world/pull/142",
+    "repository": {
+      "nameWithOwner": "octocat/hello-world"
+    },
+    "author": {
+      "login": "alice"
+    },
+    "isDraft": false,
+    "updatedAt": "2026-04-23T14:30:00Z"
+  },
+  {
+    "number": 7,
+    "title": "chore: bump deps",
+    "url": "https://github.com/acme/widgets/pull/7",
+    "repository": {
+      "nameWithOwner": "acme/widgets"
+    },
+    "author": {
+      "login": "bob"
+    },
+    "isDraft": true,
+    "updatedAt": "2026-04-22T09:15:00Z"
+  }
+]
