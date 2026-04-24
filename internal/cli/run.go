@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -16,8 +17,10 @@ import (
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	"github.com/wailsapp/wails/v2/pkg/options/linux"
 	wruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 
+	"github.com/meopedevts/revu/assets"
 	"github.com/meopedevts/revu/frontend"
 	"github.com/meopedevts/revu/internal/app"
 	appconfig "github.com/meopedevts/revu/internal/config"
@@ -78,12 +81,36 @@ func runApp(cmd *cobra.Command, _ []string) error {
 	defer ntf.Close()
 
 	bridge := app.New(st, func() {}, app.WithLogger(log))
+
+	// fyne.io/systray on Linux SNI does not touch the GTK main thread, so
+	// it coexists fine with Wails (which owns main).
+	tr := tray.New(
+		bridge.ShowWindow,
+		nil, // refresh wired after poller exists
+		func() {
+			log.Info("tray: quit requested")
+			stop()
+		},
+		cfgPath,
+		tray.WithLogger(log),
+	)
+	// Seed initial state from the already-loaded store; saves one icon
+	// flicker on startup when there are pending PRs waiting.
+	tr.SetState(stateFromStore(st))
+
 	p := poller.New(client, st, ntf,
 		poller.WithLogger(log),
 		poller.WithInterval(time.Duration(cfg.PollingIntervalSeconds)*time.Second),
-		poller.WithEventHandler(bridge.OnPollEvent),
+		poller.WithEventHandler(func(e poller.Event) {
+			bridge.OnPollEvent(e)
+			syncTrayState(tr, st, e)
+		}),
 	)
 	bridge.SetOnRefresh(p.Trigger)
+	tr.SetOnRefresh(func() {
+		log.Info("tray: refresh requested")
+		p.Trigger()
+	})
 
 	// Apply every validated config change to live components.
 	cfgMgr.Subscribe(func(c appconfig.Config) {
@@ -108,21 +135,6 @@ func runApp(cmd *cobra.Command, _ []string) error {
 		}
 	}()
 
-	// fyne.io/systray on Linux SNI does not touch the GTK main thread, so
-	// it coexists fine with Wails (which owns main).
-	tr := tray.New(
-		bridge.ShowWindow,
-		func() {
-			log.Info("tray: refresh requested")
-			p.Trigger()
-		},
-		func() {
-			log.Info("tray: quit requested")
-			stop()
-		},
-		cfgPath,
-		tray.WithLogger(log),
-	)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -158,6 +170,10 @@ func runApp(cmd *cobra.Command, _ []string) error {
 		AssetServer: &assetserver.Options{
 			Assets: frontend.AssetsFS(),
 		},
+		Linux: &linux.Options{
+			Icon:        assets.WindowIcon,
+			ProgramName: "revu",
+		},
 		OnStartup: bridge.OnStartup,
 		Bind:      []interface{}{bridge},
 	})
@@ -183,4 +199,36 @@ func statePath() (string, error) {
 		return "", fmt.Errorf("resolve user config dir: %w", err)
 	}
 	return filepath.Join(dir, "revu", "state.json"), nil
+}
+
+// stateFromStore derives the initial tray state from the loaded store.
+func stateFromStore(s store.Store) tray.State {
+	if len(s.GetPending()) > 0 {
+		return tray.StatePending
+	}
+	return tray.StateIdle
+}
+
+// syncTrayState reacts to poller events. An auth-expired tick flips to
+// error; any other completed poll re-reads the store and picks idle vs
+// pending.
+func syncTrayState(tr *tray.Tray, s store.Store, e poller.Event) {
+	if e.Kind != poller.EventPollCompleted {
+		return
+	}
+	if isAuthError(e.Err) {
+		tr.SetState(tray.StateError)
+		return
+	}
+	tr.SetState(stateFromStore(s))
+}
+
+// isAuthError looks for the sentinel string emitted by poller.handlePollError
+// → classify() path. Substring match is fragile but contained to one place.
+func isAuthError(msg string) bool {
+	if msg == "" {
+		return false
+	}
+	// matches github.ErrAuthExpired.Error()
+	return strings.Contains(msg, "gh auth expired")
 }

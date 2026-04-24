@@ -7,10 +7,22 @@ package tray
 import (
 	"log/slog"
 	"os/exec"
+	"sync"
 
 	"fyne.io/systray"
 
 	"github.com/meopedevts/revu/assets"
+)
+
+// State is the visual tray mode; the icon byte-buffer is picked from assets
+// by state (SPEC REV-10): idle when everything's healthy but no pending PR,
+// pending when at least one review is waiting, error on auth failure.
+type State int
+
+const (
+	StateIdle State = iota
+	StatePending
+	StateError
 )
 
 // Tray holds the wiring for a single SNI item. It is not reentrant —
@@ -22,6 +34,10 @@ type Tray struct {
 	onQuit     func()
 	configPath string
 	log        *slog.Logger
+
+	mu      sync.Mutex
+	ready   bool
+	current State
 }
 
 // Option customizes the tray.
@@ -53,10 +69,8 @@ func New(onOpen, onRefresh, onQuit func(), configPath string, opts ...Option) *T
 	return t
 }
 
-// Start blocks the calling goroutine (must be the main one — SNI requires
-// the main OS thread on some backends) and runs the systray event loop
-// until Stop is called, the user picks "Sair", or the underlying systray
-// exits.
+// Start blocks the calling goroutine and runs the systray event loop until
+// Stop is called, the user picks "Sair", or the underlying systray exits.
 func (t *Tray) Start() {
 	systray.Run(t.onReady, t.onExit)
 }
@@ -66,8 +80,49 @@ func (t *Tray) Stop() {
 	systray.Quit()
 }
 
+// SetOnRefresh replaces the refresh callback. Used by run.go to break the
+// cyclic dep between Tray and Poller.
+func (t *Tray) SetOnRefresh(fn func()) {
+	t.mu.Lock()
+	t.onRefresh = fn
+	t.mu.Unlock()
+}
+
+// SetState swaps the tray icon. Safe to call from any goroutine and from
+// before Start — the state is applied when onReady fires. Repeated calls
+// with the same state are no-ops (avoids gratuitous SNI churn).
+func (t *Tray) SetState(s State) {
+	t.mu.Lock()
+	if t.current == s && t.ready {
+		t.mu.Unlock()
+		return
+	}
+	t.current = s
+	ready := t.ready
+	t.mu.Unlock()
+	if ready {
+		systray.SetIcon(iconFor(s))
+	}
+}
+
+func iconFor(s State) []byte {
+	switch s {
+	case StatePending:
+		return assets.TrayPending
+	case StateError:
+		return assets.TrayError
+	default:
+		return assets.TrayIdle
+	}
+}
+
 func (t *Tray) onReady() {
-	systray.SetIcon(assets.IconIdle)
+	t.mu.Lock()
+	t.ready = true
+	state := t.current
+	t.mu.Unlock()
+
+	systray.SetIcon(iconFor(state))
 	systray.SetTitle("revu")
 	systray.SetTooltip("revu — PR review notifier")
 
@@ -88,23 +143,41 @@ func (t *Tray) loop(mOpen, mRefresh, mConfig, mQuit *systray.MenuItem) {
 	for {
 		select {
 		case <-mOpen.ClickedCh:
-			if t.onOpen != nil {
-				t.onOpen()
+			if fn := t.getOnOpen(); fn != nil {
+				fn()
 			}
 		case <-mRefresh.ClickedCh:
-			if t.onRefresh != nil {
-				t.onRefresh()
+			if fn := t.getOnRefresh(); fn != nil {
+				fn()
 			}
 		case <-mConfig.ClickedCh:
 			t.openConfig()
 		case <-mQuit.ClickedCh:
-			if t.onQuit != nil {
-				t.onQuit()
+			if fn := t.getOnQuit(); fn != nil {
+				fn()
 			}
 			systray.Quit()
 			return
 		}
 	}
+}
+
+func (t *Tray) getOnOpen() func() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.onOpen
+}
+
+func (t *Tray) getOnRefresh() func() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.onRefresh
+}
+
+func (t *Tray) getOnQuit() func() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.onQuit
 }
 
 // openConfig launches xdg-open on the config path. MVP does not block nor

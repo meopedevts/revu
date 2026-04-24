@@ -61,7 +61,7 @@ func New(opts ...Option) (Notifier, error) {
 	if err != nil {
 		return nil, fmt.Errorf("dbus session bus: %w", err)
 	}
-	iconPath, err := extractIcon(assets.IconIdle, "tray-idle.png")
+	iconPath, err := extractIcon(assets.NotifierIcon, "revu-notifier.png")
 	if err != nil {
 		return nil, fmt.Errorf("extract icon: %w", err)
 	}
