@@ -15,23 +15,24 @@ const (
 		last_notified_at
 		FROM prs ORDER BY last_seen_at DESC, id ASC`
 
-	// qSelectPRsPending / qSelectPRsHistory encode the REV-16 rule: a PR only
-	// leaves the pending tab once the PR is no longer OPEN AND we have already
-	// submitted a review. An approved PR sitting on a queued merge, or a PR
-	// that got closed before we reviewed it, both stay in pending — losing
-	// that would drop visibility on the two most common "waiting" cases.
+	// qSelectPRsPending / qSelectPRsHistory encode the REV-16 rule (refined):
+	// classification is driven by state alone. Once the PR is MERGED or
+	// CLOSED there is nothing left for me to do, so it leaves pending even
+	// if I never submitted a review — the common trigger is a co-reviewer
+	// merging before I got to it. review_state is still persisted so the
+	// badge communicates what happened, but it no longer gates the tab.
 	qSelectPRsPending = `SELECT id, number, repo, title, author, url, state, is_draft,
 		additions, deletions, review_pending, review_state, first_seen_at, last_seen_at,
 		last_notified_at
 		FROM prs
-		WHERE state IN ('OPEN', '') OR review_state = 'PENDING'
+		WHERE state NOT IN ('MERGED', 'CLOSED')
 		ORDER BY last_seen_at DESC, id ASC`
 
 	qSelectPRsHistory = `SELECT id, number, repo, title, author, url, state, is_draft,
 		additions, deletions, review_pending, review_state, first_seen_at, last_seen_at,
 		last_notified_at
 		FROM prs
-		WHERE state NOT IN ('OPEN', '') AND review_state != 'PENDING'
+		WHERE state IN ('MERGED', 'CLOSED')
 		ORDER BY last_seen_at DESC, id ASC`
 
 	qInsertPR = `INSERT INTO prs (
@@ -68,12 +69,10 @@ const (
 	qDeleteRetention = `DELETE FROM prs
 		WHERE state NOT IN ('OPEN', '') AND last_seen_at < ?`
 
-	// qClearHistory wipes rows that satisfy the REV-16 history rule: the PR
-	// is finalized AND we have already submitted a review. Rows that are
-	// non-OPEN but still PENDING on our side survive — user may want to
-	// still acknowledge them before they're purged.
-	qClearHistory = `DELETE FROM prs
-		WHERE state NOT IN ('OPEN', '') AND review_state != 'PENDING'`
+	// qClearHistory wipes rows that satisfy the REV-16 history rule: PR is
+	// finalized (MERGED or CLOSED). Rows with state='' legacy / 'OPEN' stay
+	// so re-request detection keeps a prior sighting to transition off.
+	qClearHistory = `DELETE FROM prs WHERE state IN ('MERGED', 'CLOSED')`
 
 	qGetMeta = `SELECT value FROM meta WHERE key = ?`
 
@@ -81,10 +80,8 @@ const (
 		ON CONFLICT(key) DO UPDATE SET value = excluded.value`
 
 	qCountPRs        = `SELECT COUNT(*) FROM prs`
-	qCountPRsPending = `SELECT COUNT(*) FROM prs
-		WHERE state IN ('OPEN', '') OR review_state = 'PENDING'`
-	qCountPRsHistory = `SELECT COUNT(*) FROM prs
-		WHERE state NOT IN ('OPEN', '') AND review_state != 'PENDING'`
+	qCountPRsPending = `SELECT COUNT(*) FROM prs WHERE state NOT IN ('MERGED', 'CLOSED')`
+	qCountPRsHistory = `SELECT COUNT(*) FROM prs WHERE state IN ('MERGED', 'CLOSED')`
 )
 
 // Meta keys persisted by the store.

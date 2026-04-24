@@ -217,6 +217,10 @@ func TestSQLite_HistoryRule_REV16(t *testing.T) {
 	clock, _ := newClock(time.Date(2026, 4, 23, 10, 0, 0, 0, time.UTC))
 	s := newMemoryStore(t, WithClock(clock))
 
+	// REV-16 refined: history is state IN (MERGED, CLOSED) regardless of
+	// review_state. The merged-before-I-reviewed case (co-reviewer merged
+	// first) must land in history so the user is not stuck acknowledging
+	// something they can no longer act on.
 	prOpenApproved := mkSummary("a/b#1", "a/b", 1, "open-approved", "x", false)
 	prMergedPending := mkSummary("a/b#2", "a/b", 2, "merged-pending", "x", false)
 	prMergedApproved := mkSummary("a/b#3", "a/b", 3, "merged-approved", "x", false)
@@ -232,8 +236,12 @@ func TestSQLite_HistoryRule_REV16(t *testing.T) {
 
 	pending := sortedIDs(s.GetPending())
 	history := sortedIDs(s.GetHistory())
-	wantPending := sortedIDs([]PRRecord{{ID: prOpenApproved.ID}, {ID: prMergedPending.ID}})
-	wantHistory := sortedIDs([]PRRecord{{ID: prMergedApproved.ID}, {ID: prClosedCommented.ID}})
+	wantPending := sortedIDs([]PRRecord{{ID: prOpenApproved.ID}})
+	wantHistory := sortedIDs([]PRRecord{
+		{ID: prMergedPending.ID},
+		{ID: prMergedApproved.ID},
+		{ID: prClosedCommented.ID},
+	})
 	if !reflect.DeepEqual(pending, wantPending) {
 		t.Fatalf("pending mismatch: got %v, want %v", pending, wantPending)
 	}
@@ -342,9 +350,8 @@ func TestSQLite_ClearHistory_DropsEveryHistoryRow(t *testing.T) {
 	prClosed := mkSummary("a/b#3", "a/b", 3, "closed", "x", false)
 	prDropped := mkSummary("a/b#4", "a/b", 4, "dropped-from-search", "x", false)
 	s.UpdateFromPoll([]github.PRSummary{prStillPending, prMerged, prClosed, prDropped})
-	// Apply REV-16 history combinations: merged+approved and closed+commented
-	// are the two that actually belong in history. prDropped stays PENDING
-	// (review never submitted) so survives ClearHistory.
+	// Finalize two PRs on GitHub — under REV-16 the state alone decides the
+	// tab, so both end up in history regardless of review state.
 	if err := s.RefreshPRStatus(prMerged.ID, github.PRDetails{State: "MERGED", ReviewState: "APPROVED"}); err != nil {
 		t.Fatalf("refresh merged: %v", err)
 	}
@@ -352,10 +359,10 @@ func TestSQLite_ClearHistory_DropsEveryHistoryRow(t *testing.T) {
 		t.Fatalf("refresh closed: %v", err)
 	}
 
-	// Next poll keeps only prStillPending — the other three fall out of the
+	// Next poll keeps only prStillPending — the other three drop from the
 	// search and flip to review_pending=0. prDropped stays state='OPEN'
-	// AND review_state='PENDING' (never enriched); under REV-16 it remains
-	// in pending since the review was never submitted.
+	// (never enriched) so still belongs to the pending tab; merged/closed
+	// rows land in history.
 	*tp = tp.Add(1 * time.Minute)
 	s.UpdateFromPoll([]github.PRSummary{prStillPending})
 
@@ -368,8 +375,8 @@ func TestSQLite_ClearHistory_DropsEveryHistoryRow(t *testing.T) {
 		t.Fatalf("want 2 rows in history, got %d: %+v", len(history), history)
 	}
 
-	// Only rows satisfying the REV-16 history rule vanish; prDropped and
-	// prStillPending (both still PENDING on our side) survive.
+	// ClearHistory now wipes every merged/closed row; OPEN survivors stay
+	// regardless of their review_state.
 	n, err := s.ClearHistory()
 	if err != nil {
 		t.Fatalf("clear history: %v", err)

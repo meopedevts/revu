@@ -85,14 +85,12 @@ func checkPRCounts(path string) checkResult {
 	if err := db.QueryRow(`SELECT COUNT(*) FROM prs`).Scan(&total); err != nil {
 		return checkResult{Name: "PR counts", Detail: err.Error()}
 	}
-	// REV-16: pending/history rule is (state, review_state) — mirror the
-	// store-level SELECTs so `revu doctor` reflects what the UI shows.
-	if err := db.QueryRow(`SELECT COUNT(*) FROM prs
-		WHERE state IN ('OPEN', '') OR review_state = 'PENDING'`).Scan(&pending); err != nil {
+	// REV-16: history is PRs finalized on GitHub (MERGED or CLOSED); anything
+	// else remains pending regardless of the review state.
+	if err := db.QueryRow(`SELECT COUNT(*) FROM prs WHERE state NOT IN ('MERGED', 'CLOSED')`).Scan(&pending); err != nil {
 		return checkResult{Name: "PR counts", Detail: err.Error()}
 	}
-	if err := db.QueryRow(`SELECT COUNT(*) FROM prs
-		WHERE state NOT IN ('OPEN', '') AND review_state != 'PENDING'`).Scan(&history); err != nil {
+	if err := db.QueryRow(`SELECT COUNT(*) FROM prs WHERE state IN ('MERGED', 'CLOSED')`).Scan(&history); err != nil {
 		return checkResult{Name: "PR counts", Detail: err.Error()}
 	}
 	return checkResult{
