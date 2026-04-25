@@ -15,13 +15,12 @@ import (
 
 // State is the visual tray mode; the icon byte-buffer is picked from assets
 // by state (SPEC REV-10): idle when everything's healthy but no pending PR,
-// pending when at least one review is waiting, error on auth failure.
+// pending when at least one review is waiting.
 type State int
 
 const (
 	StateIdle State = iota
 	StatePending
-	StateError
 )
 
 // ProfileItem is the minimal shape the tray needs to render the "Trocar
@@ -159,8 +158,6 @@ func iconFor(s State) []byte {
 	switch s {
 	case StatePending:
 		return assets.TrayPending
-	case StateError:
-		return assets.TrayError
 	default:
 		return assets.TrayIdle
 	}

@@ -17,9 +17,6 @@ var TrayIdle []byte
 //go:embed icons/tray-pending-256.png
 var TrayPending []byte
 
-//go:embed icons/tray-error-256.png
-var TrayError []byte
-
 // NotifierIcon is the default icon rendered next to D-Bus notifications.
 // SPEC §5.4 mandates AppIcon be an absolute file path — caller extracts
 // these bytes to a tempfile at boot.

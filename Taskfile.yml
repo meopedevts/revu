@@ -82,12 +82,13 @@ tasks:
       - go build -trimpath -tags desktop,production,webkit2_41 -ldflags "{{.LDFLAGS}}" -o {{.BUILD_DIR}}/{{.BINARY}} {{.PKG}}
 
   icons:
-    desc: Regera PNGs da tray/notifier/janela a partir dos SVGs (8-bit RGBA — GTK/webkit2gtk quebram em 16-bit)
+    desc: Resize PNGs-fonte da tray/notifier/janela pra 256px (8-bit RGBA — GTK/webkit2gtk quebram em 16-bit)
     cmds:
-      - magick -background none assets/icons/tray-idle.svg     -resize 256x256 -depth 8 -define png:color-type=6 PNG32:assets/icons/tray-idle-256.png
-      - magick -background none assets/icons/tray-pending.svg  -resize 256x256 -depth 8 -define png:color-type=6 PNG32:assets/icons/tray-pending-256.png
-      - magick -background none assets/icons/tray-error.svg    -resize 256x256 -depth 8 -define png:color-type=6 PNG32:assets/icons/tray-error-256.png
+      - magick assets/icons/tray-idle.png    -resize 256x256 -depth 8 -define png:color-type=6 PNG32:assets/icons/tray-idle-256.png
+      - magick assets/icons/tray-pending.png -resize 256x256 -depth 8 -define png:color-type=6 PNG32:assets/icons/tray-pending-256.png
     sources:
-      - assets/icons/*.svg
+      - assets/icons/tray-idle.png
+      - assets/icons/tray-pending.png
     generates:
-      - assets/icons/*.png
+      - assets/icons/tray-idle-256.png
+      - assets/icons/tray-pending-256.png

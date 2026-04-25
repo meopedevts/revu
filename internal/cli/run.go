@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -303,15 +302,10 @@ func stateFromStore(s store.Store) tray.State {
 	return tray.StateIdle
 }
 
-// syncTrayState reacts to poller events. An auth-expired tick flips to
-// error; any other completed poll re-reads the store and picks idle vs
-// pending.
+// syncTrayState reacts to poller events. Any completed poll re-reads the
+// store and picks idle vs pending.
 func syncTrayState(tr *tray.Tray, s store.Store, e poller.Event) {
 	if e.Kind != poller.EventPollCompleted {
-		return
-	}
-	if isAuthError(e.Err) {
-		tr.SetState(tray.StateError)
 		return
 	}
 	tr.SetState(stateFromStore(s))
@@ -344,14 +338,4 @@ func preflightAuth(ctx context.Context, client github.Client, svc *profiles.Serv
 		}
 		return nil
 	}
-}
-
-// isAuthError looks for the sentinel string emitted by poller.handlePollError
-// → classify() path. Substring match is fragile but contained to one place.
-func isAuthError(msg string) bool {
-	if msg == "" {
-		return false
-	}
-	// matches github.ErrAuthExpired.Error()
-	return strings.Contains(msg, "gh auth expired")
 }
