@@ -56,3 +56,18 @@ var _ = itoa
 func TestPackageCompiles(t *testing.T) {
 	// Intentional placeholder; real coverage lives in *_test.go siblings.
 }
+
+// TestWithLogger_NilIsNoOp cobre o guard `if l != nil` no Option.
+// New(..., WithLogger(nil)) não deve substituir o [slog.Default]
+// nem panicar — opção comum quando callers não querem injetar logger.
+func TestWithLogger_NilIsNoOp(t *testing.T) {
+	st := New(":memory:", WithLogger(nil)).(*sqliteStore)
+	if st.log == nil {
+		t.Fatal("log must remain default, got nil")
+	}
+	// Sanity: o store carrega e fecha sem panicar mesmo com Option nil.
+	if err := st.Load(); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+}

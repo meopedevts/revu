@@ -425,6 +425,124 @@ func TestService_Update_GHCLIToKeyringRequiresToken(t *testing.T) {
 	}
 }
 
+func TestService_Create_MakeActiveTrue(t *testing.T) {
+	svc, _ := newSvc(t, nil, &fakeRunner{respond: respondNotCalled(t)})
+	ctx := context.Background()
+
+	created, err := svc.Create(ctx, profiles.CreateParams{
+		Name:       "secondary",
+		Method:     profiles.AuthGHCLI,
+		MakeActive: true,
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if !created.IsActive {
+		t.Fatalf("created profile must be IsActive=true, got %+v", created)
+	}
+	active, err := svc.GetActive(ctx)
+	if err != nil {
+		t.Fatalf("GetActive: %v", err)
+	}
+	if active.ID != created.ID {
+		t.Fatalf("active profile mismatch: want %q, got %q", created.ID, active.ID)
+	}
+}
+
+// TestService_Update_KeyringToGHCLIDropsOldKeyringEntry cobre as três
+// condições do && chain em applyGHCLIMethod (cur=keyring, ref!="",
+// ref!="gh-cli") e o branch else do log de delete. Quando o delete
+// retorna nil o serviço NÃO deve emitir o warn — checar logs detecta
+// mutações que invertam a condição `err != nil`.
+func TestService_Update_KeyringToGHCLIDropsOldKeyringEntry(t *testing.T) {
+	var logs bytes.Buffer
+	const token = "ghp_to_be_dropped"
+
+	runner := &fakeRunner{
+		respond: func(_ []string, _ []string) ([]byte, []byte, error) {
+			return []byte(`{"login":"alice"}`), nil, nil
+		},
+	}
+	svc, key := newSvc(t, &logs, runner)
+	ctx := context.Background()
+
+	prof, err := svc.Create(ctx, profiles.CreateParams{
+		Name:   "to-be-switched",
+		Method: profiles.AuthKeyring,
+		Token:  token,
+	})
+	if err != nil {
+		t.Fatalf("Create keyring: %v", err)
+	}
+	if got, _ := key.Get(prof.KeyringRef); got != token {
+		t.Fatalf("keyring not seeded: got %q", got)
+	}
+
+	ghcli := profiles.AuthGHCLI
+	updated, err := svc.Update(ctx, prof.ID, profiles.Update{Method: &ghcli})
+	if err != nil {
+		t.Fatalf("Update method: %v", err)
+	}
+	if updated.AuthMethod != profiles.AuthGHCLI {
+		t.Fatalf("method not switched: %+v", updated)
+	}
+	if updated.KeyringRef != string(profiles.AuthGHCLI) {
+		t.Fatalf("KeyringRef not normalized: %q", updated.KeyringRef)
+	}
+	if updated.GitHubUsername != "" {
+		t.Fatalf("username not cleared: %q", updated.GitHubUsername)
+	}
+
+	if _, err := key.Get(prof.KeyringRef); err == nil {
+		t.Fatal("old keyring entry must be deleted")
+	}
+
+	if strings.Contains(logs.String(), "delete old keyring entry") {
+		t.Errorf("delete succeeded but warn log fired:\n%s", logs.String())
+	}
+}
+
+// TestService_Delete_KeyringProfileDropsToken cobre o cleanup do
+// keyring em Delete (linha 345 — três condições do && chain) e o
+// branch do log de erro (linha 346). Mesmo princípio do log: delete
+// ok → warn NÃO deve aparecer.
+func TestService_Delete_KeyringProfileDropsToken(t *testing.T) {
+	var logs bytes.Buffer
+	const token = "ghp_delete_me"
+
+	runner := &fakeRunner{
+		respond: func(_ []string, _ []string) ([]byte, []byte, error) {
+			return []byte(`{"login":"bob"}`), nil, nil
+		},
+	}
+	svc, key := newSvc(t, &logs, runner)
+	ctx := context.Background()
+
+	target, err := svc.Create(ctx, profiles.CreateParams{
+		Name:   "delete-me",
+		Method: profiles.AuthKeyring,
+		Token:  token,
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if got, _ := key.Get(target.KeyringRef); got != token {
+		t.Fatalf("keyring not seeded: got %q", got)
+	}
+
+	if err := svc.Delete(ctx, target.ID); err != nil {
+		t.Fatalf("Delete: %v", err)
+	}
+
+	if _, err := key.Get(target.KeyringRef); err == nil {
+		t.Fatal("keyring entry must be deleted")
+	}
+
+	if strings.Contains(logs.String(), "delete keyring entry") {
+		t.Errorf("delete succeeded but warn log fired:\n%s", logs.String())
+	}
+}
+
 func hasToken(env []string, token string) bool {
 	target := "GH_TOKEN=" + token
 	return slices.Contains(env, target)

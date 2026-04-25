@@ -342,6 +342,41 @@ func TestSQLite_Save_NoOp(t *testing.T) {
 	}
 }
 
+// TestSQLite_Load_Idempotent cobre o branch `if s.db != nil` em Load.
+// Segunda chamada de Load() retorna nil sem reabrir/migrar o DB.
+func TestSQLite_Load_Idempotent(t *testing.T) {
+	st := New(":memory:").(*sqliteStore)
+	if err := st.Load(); err != nil {
+		t.Fatalf("first Load: %v", err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+
+	first := st.db
+	if first == nil {
+		t.Fatal("first Load did not set db handle")
+	}
+
+	if err := st.Load(); err != nil {
+		t.Fatalf("second Load: %v", err)
+	}
+	if st.db != first {
+		t.Fatal("second Load reopened the db handle (must be no-op)")
+	}
+}
+
+// TestSQLite_GetByID_NotFound cobre o branch `if err != nil || !ok` em
+// GetByID. ID inexistente → (PRRecord{}, false).
+func TestSQLite_GetByID_NotFound(t *testing.T) {
+	s := newMemoryStore(t)
+	rec, ok := s.GetByID("does-not-exist")
+	if ok {
+		t.Fatal("missing id must return ok=false")
+	}
+	if rec != (PRRecord{}) {
+		t.Fatalf("missing id must return zero record, got %+v", rec)
+	}
+}
+
 func TestSQLite_ClearHistory_DropsEveryHistoryRow(t *testing.T) {
 	clock, tp := newClock(time.Date(2026, 4, 23, 10, 0, 0, 0, time.UTC))
 	s := newMemoryStore(t, WithClock(clock))
