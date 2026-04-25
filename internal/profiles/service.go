@@ -29,10 +29,25 @@ type RunnerWithEnv interface {
 	RunEnv(ctx context.Context, env []string, name string, args ...string) (stdout, stderr []byte, err error)
 }
 
+// profileRepo é o subset de *Repository consumido pelo Service. Existe
+// pra permitir injeção de fake em testes que exercitam error paths do
+// repo (GetActive falha, Create falha pós-keyring set, etc.).
+// *Repository concreto satisfaz a interface — produção segue inalterada.
+type profileRepo interface {
+	List(ctx context.Context) ([]Profile, error)
+	Get(ctx context.Context, id string) (Profile, error)
+	GetActive(ctx context.Context) (Profile, error)
+	Create(ctx context.Context, p Profile) error
+	UpdateFields(ctx context.Context, p Profile) error
+	Delete(ctx context.Context, id string) error
+	SetActive(ctx context.Context, id string) error
+	Count(ctx context.Context) (int, error)
+}
+
 // Service coordinates the repository, the keyring, and GitHub for all
 // profile-level operations. Never logs or returns tokens.
 type Service struct {
-	repo    *Repository
+	repo    profileRepo
 	keys    auth.Keyring
 	runner  CommandRunner
 	now     func() time.Time
@@ -67,6 +82,13 @@ func WithLogger(l *slog.Logger) Option {
 
 // NewService wires the collaborators. All arguments are required except opts.
 func NewService(repo *Repository, keys auth.Keyring, runner CommandRunner, opts ...Option) *Service {
+	return newService(repo, keys, runner, opts...)
+}
+
+// newService é o construtor interno parametrizado pela interface
+// profileRepo — consumido por NewService (produção) e por testes que
+// injetam um fake repo pra exercitar error paths.
+func newService(repo profileRepo, keys auth.Keyring, runner CommandRunner, opts ...Option) *Service {
 	s := &Service{
 		repo:        repo,
 		keys:        keys,
@@ -450,7 +472,3 @@ func (s *Service) runWithEnv(ctx context.Context, env []string, name string, arg
 	}
 	return s.runner.Run(ctx, name, args...)
 }
-
-// RepositoryHandle exposes the repo for callers that need a CRUD touchpoint
-// outside the service surface (primarily the smoke test harness).
-func (s *Service) RepositoryHandle() *Repository { return s.repo }

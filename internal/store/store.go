@@ -70,6 +70,14 @@ func WithJSONMigration(path string) Option {
 	return func(s *sqliteStore) { s.jsonStatePath = path }
 }
 
+// withDBOpener substitui a função usada por Load pra abrir o handle do
+// DB. Existe **apenas** pra testes que exercitam o error path do
+// openDB — produção sempre usa o opener default. Nome unexported sinaliza
+// uso restrito ao pacote.
+func withDBOpener(open func(string) (*sql.DB, error)) Option {
+	return func(s *sqliteStore) { s.openDB = open }
+}
+
 // New constructs a Store backed by SQLite at dbPath. The DB is opened and
 // migrated by Load — New never touches the filesystem.
 func New(dbPath string, opts ...Option) Store {
@@ -78,6 +86,7 @@ func New(dbPath string, opts ...Option) Store {
 		now:           time.Now,
 		retentionDays: 30,
 		log:           slog.Default(),
+		openDB:        openDB,
 	}
 	for _, opt := range opts {
 		opt(s)

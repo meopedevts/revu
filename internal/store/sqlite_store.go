@@ -24,6 +24,10 @@ type sqliteStore struct {
 	retentionDays int
 	log           *slog.Logger
 
+	// openDB é injetável via withDBOpener pra exercitar error paths em
+	// testes. Em produção sempre aponta pro openDB package-level.
+	openDB func(string) (*sql.DB, error)
+
 	dbMu sync.Mutex // guards db handle lifecycle (Load/Close)
 	db   *sql.DB
 
@@ -40,7 +44,7 @@ func (s *sqliteStore) Load() error {
 	if s.db != nil {
 		return nil
 	}
-	db, err := openDB(s.path)
+	db, err := s.openDB(s.path)
 	if err != nil {
 		return err
 	}
@@ -586,6 +590,7 @@ func newSQLiteFromDB(db *sql.DB, opts ...Option) *sqliteStore {
 		now:           time.Now,
 		retentionDays: 30,
 		log:           slog.Default(),
+		openDB:        openDB,
 	}
 	for _, opt := range opts {
 		opt(s)
