@@ -61,7 +61,8 @@ func TestSmoke_RealStateJSON(t *testing.T) {
 		if e.Name() == "revu.db" {
 			sawDB = true
 		}
-		if len(e.Name()) > len("state.json.migrated-") && e.Name()[:len("state.json.migrated-")] == "state.json.migrated-" {
+		if len(e.Name()) > len("state.json.migrated-") &&
+			e.Name()[:len("state.json.migrated-")] == "state.json.migrated-" {
 			sawMigrated = true
 		}
 	}

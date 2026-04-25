@@ -48,11 +48,25 @@ task build                # build/bin/revu
 task run                  # build + revu run
 task install              # ~/.local/bin/revu
 task test                 # go test -race ./...
-task lint                 # golangci-lint run ./...
-task fmt                  # gofmt + goimports via golangci-lint
-task check                # fmt + vet + lint + test
+task fmt                  # gofmt + goimports + golines via golangci-lint
+task lint                 # task fmt + golangci-lint run -v
+task check                # task lint + go vet + go test -race
 task release              # wails build (app completo com UI)
 ```
+
+## Política de qualidade — obrigatório após qualquer mudança de código
+
+Toda alteração em `*.go` exige `task check` verde **antes** de commit/push.
+A task encadeia, em ordem:
+
+1. `golangci-lint fmt ./...` — aplica gofmt + goimports + golines.
+2. `golangci-lint run -v ./...` — roda o set completo do `.golangci.yml`.
+3. `go vet ./...`.
+4. `go test -race ./...`.
+
+Qualquer falha bloqueia o commit. Se um lint novo aparecer, corrija no
+código — **não** desabilite o linter sem justificativa explícita no
+`.golangci.yml` ou via `//nolint:<linter> // <motivo>` direcionado.
 
 CLI: `revu run|version|config|doctor` (cobra). Ldflags injetam
 `main.version`/`main.commit`/`main.date` — forwarded pro pacote
