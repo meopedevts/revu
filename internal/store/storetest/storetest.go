@@ -4,12 +4,13 @@
 package storetest
 
 import (
+	"context"
 	"database/sql"
 	"sync"
 	"testing"
 
 	"github.com/pressly/goose/v3"
-	_ "modernc.org/sqlite"
+	_ "modernc.org/sqlite" // driver SQLite registrado via init.
 
 	"github.com/meopedevts/revu/internal/store/migrations"
 )
@@ -29,7 +30,7 @@ func OpenMem(t testing.TB) *sql.DB {
 		t.Fatalf("open sqlite: %v", err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	if err := db.Ping(); err != nil {
+	if err := db.PingContext(context.Background()); err != nil {
 		t.Fatalf("ping sqlite: %v", err)
 	}
 	gooseOnce.Do(func() {

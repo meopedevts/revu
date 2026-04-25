@@ -144,14 +144,14 @@ func FormatBody(pr store.PRRecord) string {
 // (e.g. previous run), it is reused.
 func extractIcon(data []byte, name string) (string, error) {
 	dir := filepath.Join(os.TempDir(), "revu")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return "", fmt.Errorf("mkdir tmp: %w", err)
 	}
 	path := filepath.Join(dir, name)
 	if info, err := os.Stat(path); err == nil && info.Size() == int64(len(data)) {
 		return path, nil
 	}
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	if err := os.WriteFile(path, data, 0o600); err != nil {
 		return "", fmt.Errorf("write icon: %w", err)
 	}
 	return path, nil

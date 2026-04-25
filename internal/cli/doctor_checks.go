@@ -77,8 +77,8 @@ func runAllChecks(ctx context.Context, c github.Client, db string) []checkResult
 		checkDBus(os.Getenv),
 		checkAppIndicator(ctx, exec.LookPath, defaultRunner),
 		checkDBPath(db),
-		checkSchemaVersion(db),
-		checkPRCounts(db),
-		checkProfiles(db),
+		checkSchemaVersion(ctx, db),
+		checkPRCounts(ctx, db),
+		checkProfiles(ctx, db),
 	}
 }

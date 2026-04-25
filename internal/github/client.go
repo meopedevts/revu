@@ -257,7 +257,7 @@ func (c *ghClient) MergePR(ctx context.Context, url string, method MergeMethod) 
 func flattenLabels(in []rawLabel) []Label {
 	out := make([]Label, 0, len(in))
 	for _, l := range in {
-		out = append(out, Label{Name: l.Name, Color: l.Color})
+		out = append(out, Label(l))
 	}
 	return out
 }

@@ -135,7 +135,11 @@ func (a *App) OpenPRInBrowser(url string) {
 	if url == "" {
 		return
 	}
-	cmd := exec.Command("xdg-open", url)
+	ctx := a.getCtx()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	cmd := exec.CommandContext(ctx, "xdg-open", url)
 	if err := cmd.Start(); err != nil {
 		a.log.Warn("xdg-open failed", "url", url, "err", err)
 		return

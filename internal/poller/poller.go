@@ -99,7 +99,7 @@ func (p *Poller) Trigger() {
 	}
 }
 
-// Run drives the ticker until ctx is cancelled. The first tick fires
+// Run drives the ticker until ctx is canceled. The first tick fires
 // immediately (SPEC §8.2 step 7). On error it applies exponential backoff,
 // doubling up to MaxBackoff; on any success it resets to the configured
 // interval. Also honors Trigger for out-of-schedule polls and picks up
@@ -241,8 +241,8 @@ func (p *Poller) handlePollError(err error) {
 func (p *Poller) advanceBackoff() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	switch {
-	case p.backoff == 0:
+	switch p.backoff {
+	case 0:
 		p.backoff = p.interval * 2
 	default:
 		p.backoff *= 2

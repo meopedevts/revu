@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"sort"
 	"testing"
@@ -128,7 +129,7 @@ func TestSQLite_RefreshPRStatus(t *testing.T) {
 		t.Fatalf("status not applied: %+v", got)
 	}
 
-	if err := s.RefreshPRStatus("nope", github.PRDetails{}); err != ErrNotFound {
+	if err := s.RefreshPRStatus("nope", github.PRDetails{}); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("want ErrNotFound, got %v", err)
 	}
 }

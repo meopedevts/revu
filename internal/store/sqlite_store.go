@@ -62,7 +62,7 @@ func (s *sqliteStore) Save() error {
 	if db == nil {
 		return nil
 	}
-	if _, err := db.Exec(`PRAGMA wal_checkpoint(PASSIVE)`); err != nil {
+	if _, err := db.ExecContext(context.Background(), `PRAGMA wal_checkpoint(PASSIVE)`); err != nil {
 		return fmt.Errorf("wal checkpoint: %w", err)
 	}
 	return nil
@@ -76,7 +76,7 @@ func (s *sqliteStore) Close() error {
 	if s.db == nil {
 		return nil
 	}
-	_, _ = s.db.Exec(`PRAGMA wal_checkpoint(TRUNCATE)`)
+	_, _ = s.db.ExecContext(context.Background(), `PRAGMA wal_checkpoint(TRUNCATE)`)
 	err := s.db.Close()
 	s.db = nil
 	if err != nil {
@@ -178,6 +178,8 @@ func (s *sqliteStore) ClearHistory() (int, error) {
 //     re-enrichment so state + review_state converge with GitHub (the PR may
 //     have been merged/closed, or our review may have just been submitted).
 //     Callers must not notify on these — they're not new work.
+//
+//nolint:gocyclo // transação única que coordena upserts, retenção e detecção de vanished; dividir aumenta race surface.
 func (s *sqliteStore) UpdateFromPoll(prs []github.PRSummary) ([]PRRecord, []PRRecord) {
 	db := s.handle()
 	if db == nil {
@@ -271,6 +273,7 @@ func (s *sqliteStore) UpdateFromPoll(prs []github.PRSummary) ([]PRRecord, []PRRe
 			ids = append(ids, id)
 			placeholders = append(placeholders, "?")
 		}
+		// #nosec G202 — placeholders são uma sequência fixa de "?" gerada acima; valores entram via parâmetros.
 		q := `UPDATE prs SET review_pending = 0
 			WHERE review_pending = 1 AND id NOT IN (` + strings.Join(placeholders, ",") + `)`
 		if _, err := tx.ExecContext(ctx, q, ids...); err != nil {
@@ -432,7 +435,7 @@ func scanRow(row interface {
 }
 
 func mustScan(db *sql.DB, query string) []PRRecord {
-	rows, err := db.Query(query)
+	rows, err := db.QueryContext(context.Background(), query)
 	if err != nil {
 		return nil
 	}
@@ -444,6 +447,9 @@ func mustScan(db *sql.DB, query string) []PRRecord {
 			return out
 		}
 		out = append(out, rec)
+	}
+	if err := rows.Err(); err != nil {
+		return out
 	}
 	return out
 }

@@ -295,8 +295,6 @@ func (t *Tray) dispatch(items menuItems, done <-chan struct{}) {
 	})
 
 	for id, mi := range items.switchTo {
-		id := id
-		mi := mi
 		go watch(mi.ClickedCh, func() {
 			if fn := t.getOnSelectProfile(); fn != nil {
 				fn(id)

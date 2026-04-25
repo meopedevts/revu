@@ -1,6 +1,7 @@
 package notifier
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
@@ -44,7 +45,7 @@ func TestExtractIcon_WritesAndReuses(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read back: %v", err)
 	}
-	if string(got) != string(data) {
+	if !bytes.Equal(got, data) {
 		t.Fatal("extracted content does not match input")
 	}
 
@@ -72,7 +73,7 @@ func TestExtractIcon_WritesAndReuses(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(got2) != string(data2) {
+	if !bytes.Equal(got2, data2) {
 		t.Fatal("rewrite did not update file content")
 	}
 }

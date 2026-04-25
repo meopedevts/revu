@@ -19,6 +19,11 @@ System tray Linux pra PRs com review solicitado no GitHub. Veja `SPEC.md` pra es
 - `libayatana-appindicator`, `webkit2gtk-4.1`
 - Daemon notify freedesktop (`mako`/`dunst`/`swaync`)
 
+## Pré-requisitos dev
+
+- `golangci-lint` ≥ 2.11 (config em `.golangci.yml`, schema v2). Instalar via
+  `mise use -g golangci-lint@latest` ou pacote da distro.
+
 ## Estrutura (SPEC §10)
 
 ```
@@ -43,6 +48,9 @@ task build                # build/bin/revu
 task run                  # build + revu run
 task install              # ~/.local/bin/revu
 task test                 # go test -race ./...
+task lint                 # golangci-lint run ./...
+task fmt                  # gofmt + goimports via golangci-lint
+task check                # fmt + vet + lint + test
 task release              # wails build (app completo com UI)
 ```
 

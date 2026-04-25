@@ -101,7 +101,7 @@ func runApp(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("inicializar notifier: %w", err)
 	}
 	ntf.SetEnabled(cfg.NotificationsEnabled)
-	defer ntf.Close()
+	defer func() { _ = ntf.Close() }()
 
 	bridge := app.New(
 		st,
@@ -219,6 +219,7 @@ func runApp(cmd *cobra.Command, _ []string) error {
 		tr.Stop()
 		// WailsCtx may be nil if shutdown fires before OnStartup.
 		if wc := bridge.WailsCtx(); wc != nil {
+			//nolint:contextcheck // wc é o contexto gerenciado pela Wails runtime; Quit precisa dele.
 			wruntime.Quit(wc)
 		}
 	}()
@@ -265,7 +266,7 @@ func runApp(cmd *cobra.Command, _ []string) error {
 }
 
 // themeBackgroundColour maps the persisted theme to the webview's initial
-// chrome colour so the window does not flash white while the bundle parses.
+// chrome color so the window does not flash white while the bundle parses.
 // Values are pulled from frontend/src/style.css (`--background`) and
 // converted to sRGB. Unknown themes fall back to light.
 func themeBackgroundColour(theme string) *options.RGBA {
@@ -330,8 +331,6 @@ func preflightAuth(ctx context.Context, client github.Client, svc *profiles.Serv
 			return fmt.Errorf("validate token for profile %s: %w", active.Name, err)
 		}
 		return nil
-	case profiles.AuthGHCLI:
-		fallthrough
 	default:
 		if err := client.AuthStatus(ctx); err != nil {
 			return err

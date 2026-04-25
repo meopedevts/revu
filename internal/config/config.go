@@ -120,7 +120,7 @@ func Load(path string, opts ...Option) (*Manager, error) {
 	m.v.SetConfigFile(path)
 	m.v.SetConfigType("json")
 
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		return nil, fmt.Errorf("mkdir config dir: %w", err)
 	}
 
@@ -194,11 +194,11 @@ func (m *Manager) Update(c Config) error {
 	}
 
 	dir := filepath.Dir(m.path)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return fmt.Errorf("update config: mkdir: %w", err)
 	}
 	tmp := m.path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+	if err := os.WriteFile(tmp, data, 0o600); err != nil {
 		return fmt.Errorf("update config: write tmp: %w", err)
 	}
 	if err := os.Rename(tmp, m.path); err != nil {
@@ -249,9 +249,7 @@ func (m *Manager) decodeAndValidate() (Config, error) {
 	if err := m.v.Unmarshal(&c); err != nil {
 		return Config{}, fmt.Errorf("unmarshal: %w", err)
 	}
-	if err := validate(&c); err != nil {
-		return Config{}, err
-	}
+	validate(&c)
 	return c, nil
 }
 
@@ -306,7 +304,7 @@ func validateStrict(c *Config) error {
 // validate coerces obviously-broken values back into safe defaults. Total
 // garbage (e.g. negative polling) is replaced silently with the spec
 // baseline — better than crashing the daemon over a stray keystroke.
-func validate(c *Config) error {
+func validate(c *Config) {
 	d := Defaults()
 	if c.PollingIntervalSeconds < 30 {
 		c.PollingIntervalSeconds = d.PollingIntervalSeconds
@@ -329,5 +327,4 @@ func validate(c *Config) error {
 	if c.Theme != "light" && c.Theme != "dark" {
 		c.Theme = d.Theme
 	}
-	return nil
 }

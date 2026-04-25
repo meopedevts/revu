@@ -47,10 +47,12 @@ sudo pacman -S mako
 ### Build tools
 
 ```bash
-sudo pacman -S go nodejs pnpm go-task
+sudo pacman -S go nodejs pnpm go-task golangci-lint
 ```
 
 `go-task` é opcional mas os targets abaixo usam `Taskfile.yml`.
+`golangci-lint` (≥ 2.11) é exigido pelos targets `task lint` / `task check`;
+config em [`.golangci.yml`](./.golangci.yml).
 
 **Ambiente alvo:** Hyprland + Waybar (Wayland). Também roda em KDE
 Plasma, Sway + Waybar e GNOME com extensão AppIndicator.

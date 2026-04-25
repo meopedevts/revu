@@ -465,7 +465,7 @@ func TestTrigger_ForcesImmediatePoll(t *testing.T) {
 func TestTrigger_CoalescesBursts(t *testing.T) {
 	p := New(&fakeClient{}, freshStore(t), &fakeNotifier{}, WithLogger(quietLogger()))
 	// Ten rapid triggers must not panic nor block.
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		p.Trigger()
 	}
 	// Channel must still have exactly one pending item.

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"os"
@@ -37,7 +38,7 @@ func writeTestDB(t *testing.T, path string, prs int, pending int) {
 			t.Fatal(err)
 		}
 	}
-	for i := 0; i < prs; i++ {
+	for i := range prs {
 		reviewPending := 0
 		state := "MERGED"
 		review := "APPROVED"
@@ -80,8 +81,10 @@ func TestCheckDBPath(t *testing.T) {
 func TestCheckSchemaVersion(t *testing.T) {
 	dir := t.TempDir()
 
+	ctx := context.Background()
+
 	// Missing file → OK skip.
-	r := checkSchemaVersion(filepath.Join(dir, "nope.db"))
+	r := checkSchemaVersion(ctx, filepath.Join(dir, "nope.db"))
 	if !r.OK || !strings.Contains(r.Detail, "skip") {
 		t.Fatalf("missing file should skip: %+v", r)
 	}
@@ -89,7 +92,7 @@ func TestCheckSchemaVersion(t *testing.T) {
 	// Present file with goose table → reports version.
 	path := filepath.Join(dir, "revu.db")
 	writeTestDB(t, path, 0, 0)
-	r = checkSchemaVersion(path)
+	r = checkSchemaVersion(ctx, path)
 	if !r.OK || r.Detail != "1" {
 		t.Fatalf("schema version: %+v", r)
 	}
@@ -97,16 +100,17 @@ func TestCheckSchemaVersion(t *testing.T) {
 
 func TestCheckPRCounts(t *testing.T) {
 	dir := t.TempDir()
+	ctx := context.Background()
 
 	// Missing file → OK skip.
-	r := checkPRCounts(filepath.Join(dir, "nope.db"))
+	r := checkPRCounts(ctx, filepath.Join(dir, "nope.db"))
 	if !r.OK {
 		t.Fatalf("missing file should skip: %+v", r)
 	}
 
 	path := filepath.Join(dir, "revu.db")
 	writeTestDB(t, path, 5, 2)
-	r = checkPRCounts(path)
+	r = checkPRCounts(ctx, path)
 	if !r.OK {
 		t.Fatalf("counts failed: %+v", r)
 	}

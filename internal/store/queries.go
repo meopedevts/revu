@@ -78,10 +78,6 @@ const (
 
 	qSetMeta = `INSERT INTO meta (key, value) VALUES (?, ?)
 		ON CONFLICT(key) DO UPDATE SET value = excluded.value`
-
-	qCountPRs        = `SELECT COUNT(*) FROM prs`
-	qCountPRsPending = `SELECT COUNT(*) FROM prs WHERE state NOT IN ('MERGED', 'CLOSED')`
-	qCountPRsHistory = `SELECT COUNT(*) FROM prs WHERE state IN ('MERGED', 'CLOSED')`
 )
 
 // Meta keys persisted by the store.

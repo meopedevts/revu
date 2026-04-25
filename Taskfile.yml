@@ -68,6 +68,29 @@ tasks:
     cmds:
       - go test -race ./...
 
+  lint:
+    desc: Roda golangci-lint conforme .golangci.yml
+    cmds:
+      - golangci-lint run ./...
+
+  lint:fix:
+    desc: Roda golangci-lint com auto-fix nos linters/formatters que suportam
+    cmds:
+      - golangci-lint run --fix ./...
+
+  fmt:
+    desc: Aplica gofmt + goimports via golangci-lint formatters
+    cmds:
+      - golangci-lint fmt ./...
+
+  check:
+    desc: Verificação completa — fmt, vet, lint, test
+    cmds:
+      - go fmt ./...
+      - go vet ./...
+      - golangci-lint run ./...
+      - go test -race ./...
+
   install:
     desc: Instala binário em ~/.local/bin
     deps: [build]

@@ -1,0 +1,177 @@
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+  build-tags:
+    - desktop
+    - production
+    - webkit2_41
+    - wailsdev
+
+linters:
+  default: none
+  enable:
+    # default set
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+
+    # bugs / correctness
+    - bodyclose
+    - contextcheck
+    - copyloopvar
+    - durationcheck
+    - errorlint
+    - exhaustive
+    - gocheckcompilerdirectives
+    - gosec
+    - intrange
+    - makezero
+    - nilerr
+    - nilnesserr
+    - noctx
+    - reassign
+    - rowserrcheck
+    - sqlclosecheck
+
+    # style / readability
+    - gocritic
+    - gocyclo
+    - misspell
+    - predeclared
+    - revive
+    - unconvert
+    - unparam
+    - usestdlibvars
+    - wastedassign
+    - whitespace
+
+    # performance
+    - prealloc
+
+  settings:
+    errcheck:
+      exclude-functions:
+        - (io.Closer).Close
+        - (*os.File).Close
+        - (*database/sql.DB).Close
+        - (*database/sql.Rows).Close
+        - (*database/sql.Stmt).Close
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+
+    exhaustive:
+      default-signifies-exhaustive: true
+
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - performance
+        - style
+      disabled-checks:
+        - ifElseChain
+        - paramTypeCombine
+        - hugeParam
+        - whyNoLint
+        - unnamedResult
+        - rangeValCopy
+
+    gocyclo:
+      min-complexity: 18
+
+    gosec:
+      excludes:
+        - G104  # já coberto por errcheck
+        - G304  # filepaths são saneados em fronteiras
+
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment
+        - shadow
+
+    misspell:
+      locale: US
+      ignore-rules:
+        # Comentários e strings em pt-BR — evita "corrigir" pt→en.
+        - persistente
+        - persistência
+        - referência
+        - referências
+        - histórico
+        - parâmetro
+        - parâmetros
+
+    revive:
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: dot-imports
+        - name: error-return
+        - name: error-strings
+        - name: error-naming
+        - name: if-return
+        - name: increment-decrement
+        - name: indent-error-flow
+        - name: range
+        - name: receiver-naming
+        - name: redefines-builtin-id
+        - name: superfluous-else
+        - name: time-naming
+        - name: unexported-return
+        - name: unreachable-code
+        - name: var-declaration
+        - name: var-naming
+        - name: useless-break
+        - name: empty-block
+        - name: bool-literal-in-expr
+
+    staticcheck:
+      checks:
+        - all
+        - "-ST1000" # comentário no pacote opcional
+        - "-ST1003" # estilo de naming já coberto pelo revive
+
+    unparam:
+      check-exported: false
+
+  exclusions:
+    generated: lax
+    presets:
+      - common-false-positives
+    rules:
+      - path: _test\.go
+        linters:
+          - bodyclose
+          - contextcheck
+          - errcheck
+          - gocyclo
+          - gosec
+          - noctx
+          - prealloc
+          - rowserrcheck
+          - unparam
+      - path: cmd/revu/main\.go
+        linters:
+          - gochecknoinits
+      - path: internal/store/migrations/
+        linters:
+          - revive
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/meopedevts/revu
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

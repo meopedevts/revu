@@ -225,6 +225,8 @@ func (s *Service) Create(ctx context.Context, p CreateParams) (Profile, error) {
 // Update applies the non-nil fields in u. If u.Token is non-nil and the
 // profile uses the keyring, the token is validated and replaces the current
 // secret atomically (validation fails → nothing changes).
+//
+//nolint:gocyclo // pipeline coeso de validação + persistência + atualização atômica do segredo; quebrar em helpers obscurece o fluxo.
 func (s *Service) Update(ctx context.Context, id string, u Update) (Profile, error) {
 	cur, err := s.repo.Get(ctx, id)
 	if err != nil {

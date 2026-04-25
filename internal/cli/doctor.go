@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/meopedevts/revu/internal/github"
 	"github.com/spf13/cobra"
+
+	"github.com/meopedevts/revu/internal/github"
 )
 
 var doctorExitCode bool

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -10,17 +11,17 @@ import (
 // checkProfiles queries the profiles table directly (read-only) and reports
 // the list with the active one flagged. Skipped cleanly on a fresh install
 // (DB absent) since `revu doctor` runs before first boot.
-func checkProfiles(path string) checkResult {
+func checkProfiles(ctx context.Context, path string) checkResult {
 	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
 		return checkResult{Name: "profiles", Detail: "DB ausente — skip", OK: true}
 	}
-	db, err := openReadOnlyDB(path)
+	db, err := openReadOnlyDB(ctx, path)
 	if err != nil {
 		return checkResult{Name: "profiles", Detail: err.Error()}
 	}
 	defer db.Close()
 
-	rows, err := db.Query(`SELECT name, auth_method, is_active FROM profiles ORDER BY created_at ASC`)
+	rows, err := db.QueryContext(ctx, `SELECT name, auth_method, is_active FROM profiles ORDER BY created_at ASC`)
 	if err != nil {
 		return checkResult{Name: "profiles", Detail: err.Error()}
 	}

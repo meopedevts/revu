@@ -582,10 +582,3 @@ func TestMergePR_InvalidatesCache(t *testing.T) {
 		t.Fatalf("cache invalidation failed: want 2 pr view calls, got %d", views)
 	}
 }
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
