@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -264,18 +265,5 @@ func isUniqueNameViolation(err error) bool {
 		return false
 	}
 	msg := err.Error()
-	return contains(msg, "UNIQUE constraint failed: profiles.name")
-}
-
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && indexOf(s, substr) >= 0
-}
-
-func indexOf(s, substr string) int {
-	for i := 0; i+len(substr) <= len(s); i++ {
-		if s[i:i+len(substr)] == substr {
-			return i
-		}
-	}
-	return -1
+	return strings.Contains(msg, "UNIQUE constraint failed: profiles.name")
 }
