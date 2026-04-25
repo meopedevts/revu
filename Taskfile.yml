@@ -98,6 +98,13 @@ tasks:
     cmds:
       - install -Dm755 {{.BUILD_DIR}}/{{.BINARY}} "$HOME/.local/bin/{{.BINARY}}"
 
+  install:hooks:
+    desc: Symlinka scripts/pre-push em .git/hooks/pre-push (gate de qualidade)
+    cmds:
+      - mkdir -p .git/hooks
+      - ln -sf ../../scripts/pre-push .git/hooks/pre-push
+      - echo "pre-push hook instalado — task check vai rodar antes de cada push"
+
   release:
     desc: Build otimizado (strip + trimpath + ldflags) — binário em build/bin/revu
     deps: [build:frontend]

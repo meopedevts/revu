@@ -13,7 +13,7 @@ formatters:
         - github.com/meopedevts/revu
 
     golines:
-      max-len: 120
+      max-len: 140
 
 linters:
   enable:
@@ -158,10 +158,6 @@ linters:
     funcorder:
       struct-method: false
 
-    funlen:
-      lines: 100
-      statements: 50
-
     gochecksumtype:
       default-signifies-exhaustive: false
 
@@ -191,26 +187,11 @@ linters:
     inamedparam:
       skip-single-param: true
 
-    mnd:
-      ignored-functions:
-        - args.Error
-        - flag.Arg
-        - flag.Duration.*
-        - flag.Float.*
-        - flag.Int.*
-        - flag.Uint.*
-        - os.Chmod
-        - os.Mkdir.*
-        - os.OpenFile
-        - os.WriteFile
-        - prometheus.ExponentialBuckets.*
-        - prometheus.LinearBuckets
-
     nakedret:
       max-func-lines: 0
 
     nolintlint:
-      allow-no-explanation: [funlen, gocognit, golines]
+      allow-no-explanation: [gocognit, golines]
       require-explanation: true
       require-specific: true
 

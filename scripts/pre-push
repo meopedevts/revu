@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# revu pre-push hook — bloqueia push se task check falhar.
+# Instalar via `task install:hooks` (cria symlink em .git/hooks/pre-push).
+
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root"
+
+echo "[pre-push] rodando task check (fmt + lint + vet + test) ..."
+
+if ! task check; then
+	echo
+	echo "[pre-push] BLOQUEADO: task check falhou. Corrija antes de push."
+	echo "[pre-push] Para emergência (use com cautela): git push --no-verify"
+	exit 1
+fi
+
+echo "[pre-push] OK — push liberado."

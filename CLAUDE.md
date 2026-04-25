@@ -68,6 +68,18 @@ Qualquer falha bloqueia o commit. Se um lint novo aparecer, corrija no
 código — **não** desabilite o linter sem justificativa explícita no
 `.golangci.yml` ou via `//nolint:<linter> // <motivo>` direcionado.
 
+### Hook de pre-push
+
+`scripts/pre-push` roda `task check` antes de cada `git push`. Para ativar
+no clone local:
+
+```bash
+task install:hooks
+```
+
+Cria symlink em `.git/hooks/pre-push`. Falha do check bloqueia o push.
+Bypass de emergência: `git push --no-verify` (use só em emergência real).
+
 CLI: `revu run|version|config|doctor` (cobra). Ldflags injetam
 `main.version`/`main.commit`/`main.date` — forwarded pro pacote
 `internal/cli` via `SetBuildInfo`.
