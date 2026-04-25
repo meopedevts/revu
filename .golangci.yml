@@ -162,9 +162,7 @@ linters:
       default-signifies-exhaustive: false
 
     gocognit:
-      # 30 já corta 90% do ruído sem forçar nolint em funções legítimas
-      # de coordenação (transações, pipelines, lifecycle de runtime).
-      min-complexity: 30
+      min-complexity: 20
 
     gocritic:
       settings:
@@ -191,7 +189,7 @@ linters:
       max-func-lines: 0
 
     nolintlint:
-      allow-no-explanation: [gocognit, golines]
+      allow-no-explanation: [golines]
       require-explanation: true
       require-specific: true
 

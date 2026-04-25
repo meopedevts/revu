@@ -226,8 +226,6 @@ func (s *Service) Create(ctx context.Context, p CreateParams) (Profile, error) {
 // Update applies the non-nil fields in u. If u.Token is non-nil and the
 // profile uses the keyring, the token is validated and replaces the current
 // secret atomically (validation fails → nothing changes).
-//
-
 func (s *Service) Update(ctx context.Context, id string, u Update) (Profile, error) {
 	cur, err := s.repo.Get(ctx, id)
 	if err != nil {
@@ -235,52 +233,19 @@ func (s *Service) Update(ctx context.Context, id string, u Update) (Profile, err
 	}
 
 	next := cur
-	if u.Name != nil {
-		n := strings.TrimSpace(*u.Name)
-		if n == "" {
-			return Profile{}, errors.New("profile name required")
-		}
-		next.Name = n
-	}
-	if u.Method != nil {
-		if !u.Method.Valid() {
-			return Profile{}, ErrInvalidMethod
-		}
-		next.AuthMethod = *u.Method
+	if err := applyMutableFields(&next, u); err != nil {
+		return Profile{}, err
 	}
 
 	tokenChanged := u.Token != nil && *u.Token != ""
 
 	switch next.AuthMethod {
 	case AuthKeyring:
-		if tokenChanged {
-			username, err := s.validateTokenString(ctx, *u.Token)
-			if err != nil {
-				return Profile{}, err
-			}
-			ref := next.KeyringRef
-			if ref == "" || ref == string(AuthGHCLI) {
-				ref = s.refPref + next.ID
-			}
-			if err := s.keys.Set(ref, *u.Token); err != nil {
-				return Profile{}, fmt.Errorf("store token: %w", err)
-			}
-			next.KeyringRef = ref
-			next.GitHubUsername = username
-			now := s.now().UTC()
-			next.LastValidatedAt = &now
-		} else if cur.AuthMethod != AuthKeyring {
-			return Profile{}, ErrTokenRequired
+		if err := s.applyKeyringMethod(ctx, &next, cur, u, tokenChanged); err != nil {
+			return Profile{}, err
 		}
 	case AuthGHCLI:
-		// Switching to gh-cli: drop the token from the keyring if one existed.
-		if cur.AuthMethod == AuthKeyring && cur.KeyringRef != "" && cur.KeyringRef != string(AuthGHCLI) {
-			if err := s.keys.Delete(cur.KeyringRef); err != nil {
-				s.log.WarnContext(ctx, "delete old keyring entry", slog.String("err", err.Error()))
-			}
-		}
-		next.KeyringRef = string(AuthGHCLI)
-		next.GitHubUsername = ""
+		s.applyGHCLIMethod(ctx, &next, cur)
 	}
 
 	if err := s.repo.UpdateFields(ctx, next); err != nil {
@@ -291,6 +256,73 @@ func (s *Service) Update(ctx context.Context, id string, u Update) (Profile, err
 	}
 	s.log.InfoContext(ctx, "profile updated", slog.String("id", next.ID), slog.String("name", next.Name))
 	return next, nil
+}
+
+// applyMutableFields valida e copia Name/Method de `u` em `next`. Pure
+// helper sem dep de Service — deixa Update legível.
+func applyMutableFields(next *Profile, u Update) error {
+	if u.Name != nil {
+		n := strings.TrimSpace(*u.Name)
+		if n == "" {
+			return errors.New("profile name required")
+		}
+		next.Name = n
+	}
+	if u.Method != nil {
+		if !u.Method.Valid() {
+			return ErrInvalidMethod
+		}
+		next.AuthMethod = *u.Method
+	}
+	return nil
+}
+
+// applyKeyringMethod aplica a transição pra AuthKeyring: valida o token
+// quando muda, persiste no keyring sob o ref correto, e atualiza
+// username + LastValidatedAt. Quando não há token e o método anterior
+// também não era keyring, exige o token (ErrTokenRequired).
+func (s *Service) applyKeyringMethod(
+	ctx context.Context,
+	next *Profile,
+	cur Profile,
+	u Update,
+	tokenChanged bool,
+) error {
+	if !tokenChanged {
+		if cur.AuthMethod != AuthKeyring {
+			return ErrTokenRequired
+		}
+		return nil
+	}
+	username, err := s.validateTokenString(ctx, *u.Token)
+	if err != nil {
+		return err
+	}
+	ref := next.KeyringRef
+	if ref == "" || ref == string(AuthGHCLI) {
+		ref = s.refPref + next.ID
+	}
+	if err := s.keys.Set(ref, *u.Token); err != nil {
+		return fmt.Errorf("store token: %w", err)
+	}
+	next.KeyringRef = ref
+	next.GitHubUsername = username
+	now := s.now().UTC()
+	next.LastValidatedAt = &now
+	return nil
+}
+
+// applyGHCLIMethod aplica a transição pra AuthGHCLI: dropa o token
+// keyring antigo (se houver) e zera campos específicos do keyring no
+// `next`. Falha de delete só loga — não bloqueia a transição.
+func (s *Service) applyGHCLIMethod(ctx context.Context, next *Profile, cur Profile) {
+	if cur.AuthMethod == AuthKeyring && cur.KeyringRef != "" && cur.KeyringRef != string(AuthGHCLI) {
+		if err := s.keys.Delete(cur.KeyringRef); err != nil {
+			s.log.WarnContext(ctx, "delete old keyring entry", slog.String("err", err.Error()))
+		}
+	}
+	next.KeyringRef = string(AuthGHCLI)
+	next.GitHubUsername = ""
 }
 
 // Delete removes the profile. Rejects deletion of the last remaining profile

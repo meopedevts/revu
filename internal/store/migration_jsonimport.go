@@ -107,47 +107,15 @@ func runJSONImportTx(ctx context.Context, db *sql.DB, snap jsonImportSnapshot, n
 
 	count := 0
 	for _, rec := range snap.PRs {
-		state := rec.State
-		if state == "" {
-			state = "OPEN"
-		}
-		firstSeen := rec.FirstSeenAt
-		if firstSeen.IsZero() {
-			firstSeen = now
-		}
-		lastSeen := rec.LastSeenAt
-		if lastSeen.IsZero() {
-			lastSeen = now
-		}
-		// Legacy JSON never carried review_state. Mirror the migration 00004
-		// backfill rule: pending rows become PENDING, non-pending rows become
-		// COMMENTED so the REV-16 history predicate accepts them.
-		reviewState := rec.ReviewState
-		if reviewState == "" {
-			if rec.ReviewPending {
-				reviewState = "PENDING"
-			} else {
-				reviewState = "COMMENTED"
-			}
-		}
-		if _, err := stmt.ExecContext(ctx,
-			rec.ID, rec.Number, rec.Repo, rec.Title, rec.Author, rec.URL,
-			state, boolToInt(rec.IsDraft), rec.Additions, rec.Deletions,
-			boolToInt(rec.ReviewPending), reviewState, formatTime(firstSeen), formatTime(lastSeen),
-			formatTimePtr(rec.LastNotifiedAt),
-		); err != nil {
-			return 0, fmt.Errorf("insert pr %s: %w", rec.ID, err)
+		normalized := normalizeLegacyPR(rec, now)
+		if _, err := stmt.ExecContext(ctx, legacyPRArgs(normalized)...); err != nil {
+			return 0, fmt.Errorf("insert pr %s: %w", normalized.ID, err)
 		}
 		count++
 	}
 
-	if snap.LastPollAt != nil {
-		if _, err := tx.ExecContext(ctx, qSetMeta, metaLastPollAt, formatTime(*snap.LastPollAt)); err != nil {
-			return 0, fmt.Errorf("set last_poll_at: %w", err)
-		}
-	}
-	if _, err := tx.ExecContext(ctx, qSetMeta, metaJSONMigratedAt, formatTime(now)); err != nil {
-		return 0, fmt.Errorf("set json_migrated_at: %w", err)
+	if err := setMigrationMeta(ctx, tx, snap.LastPollAt, now); err != nil {
+		return 0, err
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -155,6 +123,57 @@ func runJSONImportTx(ctx context.Context, db *sql.DB, snap jsonImportSnapshot, n
 	}
 	committed = true
 	return count, nil
+}
+
+// normalizeLegacyPR aplica os defaults exigidos pela migration JSON→SQLite:
+// State padrão "OPEN", FirstSeenAt/LastSeenAt fallback pro `now`, e backfill
+// de ReviewState seguindo a regra da migration 00004 (pending → PENDING,
+// finalizados → COMMENTED). Pure function — sem efeito colateral.
+func normalizeLegacyPR(rec PRRecord, now time.Time) PRRecord {
+	if rec.State == "" {
+		rec.State = "OPEN"
+	}
+	if rec.FirstSeenAt.IsZero() {
+		rec.FirstSeenAt = now
+	}
+	if rec.LastSeenAt.IsZero() {
+		rec.LastSeenAt = now
+	}
+	if rec.ReviewState == "" {
+		rec.ReviewState = "COMMENTED"
+		if rec.ReviewPending {
+			rec.ReviewState = "PENDING"
+		}
+	}
+	return rec
+}
+
+// legacyPRArgs serializa o PRRecord normalizado na ordem dos placeholders
+// do INSERT da migration. Mantido fora do hot path do prepare pra deixar
+// o loop legível.
+func legacyPRArgs(rec PRRecord) []any {
+	return []any{
+		rec.ID, rec.Number, rec.Repo, rec.Title, rec.Author, rec.URL,
+		rec.State, boolToInt(rec.IsDraft), rec.Additions, rec.Deletions,
+		boolToInt(rec.ReviewPending), rec.ReviewState,
+		formatTime(rec.FirstSeenAt), formatTime(rec.LastSeenAt),
+		formatTimePtr(rec.LastNotifiedAt),
+	}
+}
+
+// setMigrationMeta grava metaLastPollAt (quando presente no snapshot) e
+// metaJSONMigratedAt na transação corrente. O timestamp `now` ancora a
+// idempotência: chamadas subsequentes encontram o flag e fazem no-op.
+func setMigrationMeta(ctx context.Context, tx *sql.Tx, lastPoll *time.Time, now time.Time) error {
+	if lastPoll != nil {
+		if _, err := tx.ExecContext(ctx, qSetMeta, metaLastPollAt, formatTime(*lastPoll)); err != nil {
+			return fmt.Errorf("set last_poll_at: %w", err)
+		}
+	}
+	if _, err := tx.ExecContext(ctx, qSetMeta, metaJSONMigratedAt, formatTime(now)); err != nil {
+		return fmt.Errorf("set json_migrated_at: %w", err)
+	}
+	return nil
 }
 
 // getMeta is a package-level helper so the one-shot import code can peek

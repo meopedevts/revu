@@ -178,8 +178,6 @@ func (s *sqliteStore) ClearHistory() (int, error) {
 //     re-enrichment so state + review_state converge with GitHub (the PR may
 //     have been merged/closed, or our review may have just been submitted).
 //     Callers must not notify on these — they're not new work.
-//
-//nolint:gocognit // transação única que coordena upserts, retenção e detecção de vanished; dividir aumenta race surface.
 func (s *sqliteStore) UpdateFromPoll(prs []github.PRSummary) ([]PRRecord, []PRRecord) {
 	db := s.handle()
 	if db == nil {
@@ -199,102 +197,31 @@ func (s *sqliteStore) UpdateFromPoll(prs []github.PRSummary) ([]PRRecord, []PRRe
 		}
 	}()
 
-	var novos, vanished []PRRecord
-	polledIDs := make(map[string]struct{}, len(prs))
-	for _, pr := range prs {
-		polledIDs[pr.ID] = struct{}{}
-	}
+	s.mu.RLock()
+	profID := s.activeProfileID
+	retention := s.retentionDays
+	s.mu.RUnlock()
+
+	polledIDs := indexPolledIDs(prs)
 
 	vanishedIDs, err := selectVanishedIDs(ctx, tx, polledIDs)
 	if err != nil {
 		return nil, nil
 	}
 
-	for _, pr := range prs {
-		var prevPending int
-		err := tx.QueryRowContext(ctx, `SELECT review_pending FROM prs WHERE id = ?`, pr.ID).
-			Scan(&prevPending)
-		switch {
-		case errors.Is(err, sql.ErrNoRows):
-			rec := PRRecord{
-				ID:            pr.ID,
-				Number:        pr.Number,
-				Repo:          pr.Repo,
-				Title:         pr.Title,
-				Author:        pr.Author,
-				URL:           pr.URL,
-				State:         "OPEN",
-				IsDraft:       pr.IsDraft,
-				ReviewPending: true,
-				ReviewState:   "PENDING",
-				FirstSeenAt:   now,
-				LastSeenAt:    now,
-			}
-			s.mu.RLock()
-			profID := s.activeProfileID
-			s.mu.RUnlock()
-			if _, err := tx.ExecContext(ctx, qInsertPR,
-				rec.ID, rec.Number, rec.Repo, rec.Title, rec.Author, rec.URL,
-				rec.State, boolToInt(rec.IsDraft), rec.Additions, rec.Deletions,
-				boolToInt(rec.ReviewPending), rec.ReviewState,
-				formatTime(rec.FirstSeenAt),
-				formatTime(rec.LastSeenAt), formatTimePtr(rec.LastNotifiedAt),
-				profID,
-			); err != nil {
-				return nil, nil
-			}
-			novos = append(novos, rec)
-		case err != nil:
-			return nil, nil
-		default:
-			if _, err := tx.ExecContext(ctx, qUpdatePRMutable,
-				pr.Title, pr.Author, pr.URL, pr.Repo, boolToInt(pr.IsDraft),
-				formatTime(now), pr.ID,
-			); err != nil {
-				return nil, nil
-			}
-			if prevPending == 0 {
-				rec, ok := loadRecordTx(ctx, tx, pr.ID)
-				if ok {
-					novos = append(novos, rec)
-				}
-			}
-		}
+	novos, err := upsertPolled(ctx, tx, prs, now, profID)
+	if err != nil {
+		return nil, nil
 	}
 
-	if len(polledIDs) == 0 {
-		if _, err := tx.ExecContext(ctx, qMarkNotPendingAll); err != nil {
-			return nil, nil
-		}
-	} else {
-		ids := make([]any, 0, len(polledIDs))
-		placeholders := make([]string, 0, len(polledIDs))
-		for id := range polledIDs {
-			ids = append(ids, id)
-			placeholders = append(placeholders, "?")
-		}
-		// #nosec G202 — placeholders são uma sequência fixa de "?" gerada acima; valores entram via parâmetros.
-		q := `UPDATE prs SET review_pending = 0
-			WHERE review_pending = 1 AND id NOT IN (` + strings.Join(placeholders, ",") + `)`
-		if _, err := tx.ExecContext(ctx, q, ids...); err != nil {
-			return nil, nil
-		}
+	if err := markNotPolled(ctx, tx, polledIDs); err != nil {
+		return nil, nil
 	}
 
-	for _, id := range vanishedIDs {
-		if rec, ok := loadRecordTx(ctx, tx, id); ok {
-			vanished = append(vanished, rec)
-		}
-	}
+	vanished := loadVanishedRecords(ctx, tx, vanishedIDs)
 
-	s.mu.RLock()
-	retention := s.retentionDays
-	s.mu.RUnlock()
-	if retention > 0 {
-		cutoff := now.AddDate(0, 0, -retention)
-		if _, err := tx.ExecContext(ctx, qDeleteRetention, formatTime(cutoff)); err != nil {
-			return nil, nil
-		}
+	if err := enforceRetention(ctx, tx, retention, now); err != nil {
+		return nil, nil
 	}
 
 	if _, err := tx.ExecContext(ctx, qSetMeta, metaLastPollAt, formatTime(now)); err != nil {
@@ -306,6 +233,173 @@ func (s *sqliteStore) UpdateFromPoll(prs []github.PRSummary) ([]PRRecord, []PRRe
 	}
 	committed = true
 	return novos, vanished
+}
+
+// indexPolledIDs materializa um set dos PR IDs do poll corrente —
+// usado por selectVanishedIDs e markNotPolled. Pure function.
+func indexPolledIDs(prs []github.PRSummary) map[string]struct{} {
+	out := make(map[string]struct{}, len(prs))
+	for _, pr := range prs {
+		out[pr.ID] = struct{}{}
+	}
+	return out
+}
+
+// upsertPolled aplica cada PR do poll corrente sobre a transação `tx`:
+// PRs novos viram INSERT, existentes ganham UPDATE de mutable fields,
+// e existentes que estavam fora de pendentes (re-request) são
+// devolvidos como `novos` pra o caller notificar. `profID` etiqueta
+// inserts; é capturado uma única vez antes do loop pra evitar lock
+// repetido.
+func upsertPolled(
+	ctx context.Context,
+	tx *sql.Tx,
+	prs []github.PRSummary,
+	now time.Time,
+	profID string,
+) ([]PRRecord, error) {
+	var novos []PRRecord
+	for _, pr := range prs {
+		var prevPending int
+		err := tx.QueryRowContext(ctx, `SELECT review_pending FROM prs WHERE id = ?`, pr.ID).
+			Scan(&prevPending)
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			rec, err := insertNewPolled(ctx, tx, pr, now, profID)
+			if err != nil {
+				return nil, err
+			}
+			novos = append(novos, rec)
+		case err != nil:
+			return nil, err
+		default:
+			rec, isReRequest, err := updateExistingPolled(ctx, tx, pr, now, prevPending)
+			if err != nil {
+				return nil, err
+			}
+			if isReRequest {
+				novos = append(novos, rec)
+			}
+		}
+	}
+	return novos, nil
+}
+
+// insertNewPolled cria um PRRecord novo a partir do summary e persiste
+// via qInsertPR. Retorna o registro construído (mesmo formato dos
+// novos).
+func insertNewPolled(
+	ctx context.Context,
+	tx *sql.Tx,
+	pr github.PRSummary,
+	now time.Time,
+	profID string,
+) (PRRecord, error) {
+	rec := PRRecord{
+		ID:            pr.ID,
+		Number:        pr.Number,
+		Repo:          pr.Repo,
+		Title:         pr.Title,
+		Author:        pr.Author,
+		URL:           pr.URL,
+		State:         "OPEN",
+		IsDraft:       pr.IsDraft,
+		ReviewPending: true,
+		ReviewState:   "PENDING",
+		FirstSeenAt:   now,
+		LastSeenAt:    now,
+	}
+	if _, err := tx.ExecContext(ctx, qInsertPR,
+		rec.ID, rec.Number, rec.Repo, rec.Title, rec.Author, rec.URL,
+		rec.State, boolToInt(rec.IsDraft), rec.Additions, rec.Deletions,
+		boolToInt(rec.ReviewPending), rec.ReviewState,
+		formatTime(rec.FirstSeenAt),
+		formatTime(rec.LastSeenAt), formatTimePtr(rec.LastNotifiedAt),
+		profID,
+	); err != nil {
+		return PRRecord{}, err
+	}
+	return rec, nil
+}
+
+// updateExistingPolled aplica os campos mutáveis de `pr` sobre o registro
+// existente e detecta re-request (quando review_pending era 0 e o PR
+// reapareceu no poll). Quando é re-request, retorna o registro pós-update
+// e isReRequest=true pra o caller acumular nos novos.
+func updateExistingPolled(
+	ctx context.Context,
+	tx *sql.Tx,
+	pr github.PRSummary,
+	now time.Time,
+	prevPending int,
+) (PRRecord, bool, error) {
+	if _, err := tx.ExecContext(ctx, qUpdatePRMutable,
+		pr.Title, pr.Author, pr.URL, pr.Repo, boolToInt(pr.IsDraft),
+		formatTime(now), pr.ID,
+	); err != nil {
+		return PRRecord{}, false, err
+	}
+	if prevPending != 0 {
+		return PRRecord{}, false, nil
+	}
+	rec, ok := loadRecordTx(ctx, tx, pr.ID)
+	if !ok {
+		return PRRecord{}, false, nil
+	}
+	return rec, true, nil
+}
+
+// markNotPolled garante que toda linha review_pending=1 que NÃO está no
+// poll corrente vire review_pending=0. Quando o poll vem vazio, usa a
+// query estática qMarkNotPendingAll; senão monta um IN(?, ?, ...) com
+// placeholders fixos pra evitar SQL injection.
+func markNotPolled(ctx context.Context, tx *sql.Tx, polledIDs map[string]struct{}) error {
+	if len(polledIDs) == 0 {
+		if _, err := tx.ExecContext(ctx, qMarkNotPendingAll); err != nil {
+			return err
+		}
+		return nil
+	}
+	ids := make([]any, 0, len(polledIDs))
+	placeholders := make([]string, 0, len(polledIDs))
+	for id := range polledIDs {
+		ids = append(ids, id)
+		placeholders = append(placeholders, "?")
+	}
+	// #nosec G202 — placeholders são uma sequência fixa de "?" gerada acima; valores entram via parâmetros.
+	q := `UPDATE prs SET review_pending = 0
+		WHERE review_pending = 1 AND id NOT IN (` + strings.Join(placeholders, ",") + `)`
+	if _, err := tx.ExecContext(ctx, q, ids...); err != nil {
+		return err
+	}
+	return nil
+}
+
+// loadVanishedRecords resolve o slice de PRRecord pra cada id que sumiu
+// do poll. Erros de load individual são silenciados (semântica
+// pre-existente — vanished que não bate no DB significa concorrência
+// resolvida).
+func loadVanishedRecords(ctx context.Context, tx *sql.Tx, ids []string) []PRRecord {
+	var out []PRRecord
+	for _, id := range ids {
+		if rec, ok := loadRecordTx(ctx, tx, id); ok {
+			out = append(out, rec)
+		}
+	}
+	return out
+}
+
+// enforceRetention apaga registros mais velhos que `days` quando a
+// retenção está habilitada (>0). No-op silencioso quando desabilitada.
+func enforceRetention(ctx context.Context, tx *sql.Tx, days int, now time.Time) error {
+	if days <= 0 {
+		return nil
+	}
+	cutoff := now.AddDate(0, 0, -days)
+	if _, err := tx.ExecContext(ctx, qDeleteRetention, formatTime(cutoff)); err != nil {
+		return err
+	}
+	return nil
 }
 
 // selectVanishedIDs returns the ids of PRs currently flagged review_pending=1
