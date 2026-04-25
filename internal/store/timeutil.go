@@ -36,7 +36,7 @@ func parseTimePtr(ns sql.NullString) (*time.Time, error) {
 	return &t, nil
 }
 
-// formatTimePtr returns a sql.NullString from an optional time pointer.
+// formatTimePtr returns a [sql.NullString] from an optional time pointer.
 func formatTimePtr(t *time.Time) sql.NullString {
 	if t == nil {
 		return sql.NullString{}

@@ -17,7 +17,7 @@ type checkResult struct {
 	OK     bool
 }
 
-// lookupPath abstracts exec.LookPath for testing.
+// lookupPath abstracts [exec.LookPath] for testing.
 type lookupPath func(string) (string, error)
 
 // cmdRunner runs a command to completion and returns the combined exec error.

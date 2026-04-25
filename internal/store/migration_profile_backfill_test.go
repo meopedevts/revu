@@ -30,8 +30,10 @@ func TestMigration_ProfileBackfill(t *testing.T) {
 		t.Fatalf("up to 1: %v", err)
 	}
 
-	if _, err := db.Exec(`INSERT INTO prs (id, number, repo, title, author, url, state, is_draft, review_pending, first_seen_at, last_seen_at)
-		VALUES ('octo/repo#1', 1, 'octo/repo', 'Title', 'author', 'http://x', 'OPEN', 0, 1, '2026-04-24T00:00:00Z', '2026-04-24T00:00:00Z')`); err != nil {
+	if _, err := db.Exec(
+		`INSERT INTO prs (id, number, repo, title, author, url, state, is_draft, review_pending, first_seen_at, last_seen_at)
+		VALUES ('octo/repo#1', 1, 'octo/repo', 'Title', 'author', 'http://x', 'OPEN', 0, 1, '2026-04-24T00:00:00Z', '2026-04-24T00:00:00Z')`,
+	); err != nil {
 		t.Fatalf("insert legacy pr: %v", err)
 	}
 

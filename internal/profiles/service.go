@@ -3,6 +3,7 @@ package profiles
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -55,7 +56,7 @@ func WithClock(now func() time.Time) Option {
 	}
 }
 
-// WithLogger injects a logger. Defaults to slog.Default().
+// WithLogger injects a logger. Defaults to [slog.Default].
 func WithLogger(l *slog.Logger) Option {
 	return func(s *Service) {
 		if l != nil {
@@ -164,7 +165,7 @@ func (s *Service) Create(ctx context.Context, p CreateParams) (Profile, error) {
 	}
 	name := strings.TrimSpace(p.Name)
 	if name == "" {
-		return Profile{}, fmt.Errorf("profile name required")
+		return Profile{}, errors.New("profile name required")
 	}
 
 	id, err := NewID()
@@ -198,7 +199,7 @@ func (s *Service) Create(ctx context.Context, p CreateParams) (Profile, error) {
 		now := s.now().UTC()
 		prof.LastValidatedAt = &now
 	case AuthGHCLI:
-		prof.KeyringRef = "gh-cli"
+		prof.KeyringRef = string(AuthGHCLI)
 	}
 
 	if err := s.repo.Create(ctx, prof); err != nil {
@@ -215,7 +216,7 @@ func (s *Service) Create(ctx context.Context, p CreateParams) (Profile, error) {
 		prof.IsActive = true
 		s.fanoutActive(prof)
 	}
-	s.log.Info("profile created",
+	s.log.InfoContext(ctx, "profile created",
 		slog.String("id", prof.ID),
 		slog.String("name", prof.Name),
 		slog.String("method", string(prof.AuthMethod)))
@@ -226,7 +227,7 @@ func (s *Service) Create(ctx context.Context, p CreateParams) (Profile, error) {
 // profile uses the keyring, the token is validated and replaces the current
 // secret atomically (validation fails → nothing changes).
 //
-//nolint:gocyclo // pipeline coeso de validação + persistência + atualização atômica do segredo; quebrar em helpers obscurece o fluxo.
+
 func (s *Service) Update(ctx context.Context, id string, u Update) (Profile, error) {
 	cur, err := s.repo.Get(ctx, id)
 	if err != nil {
@@ -237,7 +238,7 @@ func (s *Service) Update(ctx context.Context, id string, u Update) (Profile, err
 	if u.Name != nil {
 		n := strings.TrimSpace(*u.Name)
 		if n == "" {
-			return Profile{}, fmt.Errorf("profile name required")
+			return Profile{}, errors.New("profile name required")
 		}
 		next.Name = n
 	}
@@ -258,7 +259,7 @@ func (s *Service) Update(ctx context.Context, id string, u Update) (Profile, err
 				return Profile{}, err
 			}
 			ref := next.KeyringRef
-			if ref == "" || ref == "gh-cli" {
+			if ref == "" || ref == string(AuthGHCLI) {
 				ref = s.refPref + next.ID
 			}
 			if err := s.keys.Set(ref, *u.Token); err != nil {
@@ -273,12 +274,12 @@ func (s *Service) Update(ctx context.Context, id string, u Update) (Profile, err
 		}
 	case AuthGHCLI:
 		// Switching to gh-cli: drop the token from the keyring if one existed.
-		if cur.AuthMethod == AuthKeyring && cur.KeyringRef != "" && cur.KeyringRef != "gh-cli" {
+		if cur.AuthMethod == AuthKeyring && cur.KeyringRef != "" && cur.KeyringRef != string(AuthGHCLI) {
 			if err := s.keys.Delete(cur.KeyringRef); err != nil {
-				s.log.Warn("delete old keyring entry", slog.String("err", err.Error()))
+				s.log.WarnContext(ctx, "delete old keyring entry", slog.String("err", err.Error()))
 			}
 		}
-		next.KeyringRef = "gh-cli"
+		next.KeyringRef = string(AuthGHCLI)
 		next.GitHubUsername = ""
 	}
 
@@ -288,7 +289,7 @@ func (s *Service) Update(ctx context.Context, id string, u Update) (Profile, err
 	if next.IsActive {
 		s.fanoutActive(next)
 	}
-	s.log.Info("profile updated", slog.String("id", next.ID), slog.String("name", next.Name))
+	s.log.InfoContext(ctx, "profile updated", slog.String("id", next.ID), slog.String("name", next.Name))
 	return next, nil
 }
 
@@ -309,15 +310,15 @@ func (s *Service) Delete(ctx context.Context, id string) error {
 	if total <= 1 {
 		return ErrCannotDeleteLast
 	}
-	if prof.AuthMethod == AuthKeyring && prof.KeyringRef != "" && prof.KeyringRef != "gh-cli" {
+	if prof.AuthMethod == AuthKeyring && prof.KeyringRef != "" && prof.KeyringRef != string(AuthGHCLI) {
 		if err := s.keys.Delete(prof.KeyringRef); err != nil {
-			s.log.Warn("delete keyring entry", slog.String("id", id), slog.String("err", err.Error()))
+			s.log.WarnContext(ctx, "delete keyring entry", slog.String("id", id), slog.String("err", err.Error()))
 		}
 	}
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return err
 	}
-	s.log.Info("profile deleted", slog.String("id", id), slog.String("name", prof.Name))
+	s.log.InfoContext(ctx, "profile deleted", slog.String("id", id), slog.String("name", prof.Name))
 	return nil
 }
 
@@ -330,7 +331,7 @@ func (s *Service) SetActive(ctx context.Context, id string) error {
 	if err == nil {
 		s.fanoutActive(p)
 	}
-	s.log.Info("active profile changed", slog.String("id", id))
+	s.log.InfoContext(ctx, "active profile changed", slog.String("id", id))
 	return nil
 }
 
@@ -387,7 +388,7 @@ func (s *Service) validateTokenString(ctx context.Context, token string) (string
 			return "", fmt.Errorf("decode gh api user: %w", jerr)
 		}
 		if body.Login == "" {
-			return "", fmt.Errorf("gh api user returned empty login")
+			return "", errors.New("gh api user returned empty login")
 		}
 		return body.Login, nil
 	}

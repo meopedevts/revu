@@ -55,7 +55,7 @@ func WithInterval(d time.Duration) Option {
 	}
 }
 
-// WithLogger injects a logger. Defaults to slog.Default().
+// WithLogger injects a logger. Defaults to [slog.Default].
 func WithLogger(l *slog.Logger) Option {
 	return func(p *Poller) {
 		if l != nil {
@@ -154,7 +154,7 @@ func (p *Poller) tick(ctx context.Context) {
 		if id, err := p.profiles.ActiveProfileID(ctx); err == nil && id != "" {
 			p.store.SetActiveProfileID(id)
 		} else if err != nil {
-			p.log.Warn("resolve active profile", "err", err)
+			p.log.WarnContext(ctx, "resolve active profile", "err", err)
 		}
 	}
 	summaries, err := p.client.ListReviewRequested(ctx)
@@ -170,7 +170,7 @@ func (p *Poller) tick(ctx context.Context) {
 		rec := novos[i]
 		enriched := p.enrich(ctx, rec)
 		if err := p.notifier.Notify(enriched); err != nil {
-			p.log.Warn("notify failed", "pr", rec.ID, "err", err)
+			p.log.WarnContext(ctx, "notify failed", "pr", rec.ID, "err", err)
 		}
 		prCopy := enriched
 		p.emit(Event{Kind: EventPRNew, PR: &prCopy})
@@ -183,7 +183,7 @@ func (p *Poller) tick(ctx context.Context) {
 		p.enrich(ctx, vanished[i])
 	}
 	if err := p.store.Save(); err != nil {
-		p.log.Warn("save store", "err", err)
+		p.log.WarnContext(ctx, "save store", "err", err)
 	}
 	p.emit(Event{Kind: EventPollCompleted})
 }
@@ -195,12 +195,12 @@ func (p *Poller) tick(ctx context.Context) {
 func (p *Poller) enrich(ctx context.Context, rec store.PRRecord) store.PRRecord {
 	details, err := p.client.GetPRDetails(ctx, rec.URL)
 	if err != nil {
-		p.log.Warn("enrich failed; notifying without diff", "pr", rec.ID, "err", err)
+		p.log.WarnContext(ctx, "enrich failed; notifying without diff", "pr", rec.ID, "err", err)
 		return rec
 	}
 	prevState := rec.State
 	if err := p.store.RefreshPRStatus(rec.ID, *details); err != nil {
-		p.log.Warn("refresh status", "pr", rec.ID, "err", err)
+		p.log.WarnContext(ctx, "refresh status", "pr", rec.ID, "err", err)
 	}
 	rec.Additions = details.Additions
 	rec.Deletions = details.Deletions

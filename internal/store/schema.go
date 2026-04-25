@@ -16,12 +16,12 @@ import (
 
 var (
 	gooseOnce sync.Once
-	gooseErr  error
+	errGoose  error
 )
 
 // openDB opens the SQLite database at path, applies pragmas via DSN, pings
 // the handle, and runs pending goose migrations. Returns the ready-to-use
-// *sql.DB or an error. For `:memory:` pass path == ":memory:" (no pragmas
+// [*sql.DB] or an error. For `:memory:` pass path == ":memory:" (no pragmas
 // applied — irrelevant for in-memory).
 func openDB(path string) (*sql.DB, error) {
 	dsn := buildDSN(path)
@@ -60,15 +60,15 @@ func buildDSN(path string) string {
 }
 
 // runMigrations applies all pending goose migrations from the embedded FS.
-// goose.SetBaseFS / SetDialect are process-global; wrap in sync.Once so
+// goose.SetBaseFS / SetDialect are process-global; wrap in [sync.Once] so
 // concurrent openDB calls (eg. tests) don't race on state.
 func runMigrations(db *sql.DB) error {
 	gooseOnce.Do(func() {
 		goose.SetBaseFS(migrations.FS)
-		gooseErr = goose.SetDialect("sqlite3")
+		errGoose = goose.SetDialect("sqlite3")
 	})
-	if gooseErr != nil {
-		return fmt.Errorf("goose setup: %w", gooseErr)
+	if errGoose != nil {
+		return fmt.Errorf("goose setup: %w", errGoose)
 	}
 	// Silence goose's default stdout logger — we handle logging at the call
 	// site via slog.

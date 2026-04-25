@@ -176,7 +176,7 @@ type rawStatusCheck struct {
 }
 
 // Sentinel errors let callers branch on failure mode (poller backoff, tray
-// error state, merge confirmation). They are returned via errors.Is after
+// error state, merge confirmation). They are returned via [errors.Is] after
 // classify().
 var (
 	ErrAuthExpired     = errors.New("gh auth expired")

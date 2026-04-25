@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// DBTX is the subset of *sql.DB / *sql.Tx the repository needs. Accepting
+// DBTX is the subset of [*sql.DB] / [*sql.Tx] the repository needs. Accepting
 // either lets callers opt into transactions for multi-step operations.
 type DBTX interface {
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
@@ -24,7 +24,7 @@ type Repository struct {
 	db *sql.DB
 }
 
-// NewRepository wraps a *sql.DB. The store owns the handle lifecycle.
+// NewRepository wraps a [*sql.DB]. The store owns the handle lifecycle.
 func NewRepository(db *sql.DB) *Repository {
 	return &Repository{db: db}
 }
@@ -170,7 +170,7 @@ func (r *Repository) Count(ctx context.Context) (int, error) {
 	return n, nil
 }
 
-// getFrom reads a single row from either *sql.DB or *sql.Tx.
+// getFrom reads a single row from either [*sql.DB] or [*sql.Tx].
 func (r *Repository) getFrom(ctx context.Context, q DBTX, id string) (Profile, error) {
 	row := q.QueryRowContext(ctx, qSelectByID, id)
 	p, err := scanProfile(row)

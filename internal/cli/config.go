@@ -11,7 +11,7 @@ import (
 var configCmd = &cobra.Command{
 	Use:   "config",
 	Short: "Imprime path do arquivo de configuração",
-	RunE: func(cmd *cobra.Command, args []string) error {
+	RunE: func(_ *cobra.Command, _ []string) error {
 		path, err := configPath()
 		if err != nil {
 			return err

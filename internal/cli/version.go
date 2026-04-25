@@ -29,7 +29,7 @@ func SetBuildInfo(v, c, d string) {
 var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Imprime versão e info de build",
-	Run: func(cmd *cobra.Command, args []string) {
+	Run: func(_ *cobra.Command, _ []string) {
 		fmt.Printf("revu %s\n", version)
 		fmt.Printf("  commit: %s\n", commit)
 		fmt.Printf("  built:  %s\n", date)

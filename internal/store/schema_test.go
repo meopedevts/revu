@@ -97,7 +97,8 @@ func TestSchema_ProfilesSeed(t *testing.T) {
 	}
 
 	var name, method string
-	if err := db.QueryRow(`SELECT name, auth_method FROM profiles WHERE is_active = 1`).Scan(&name, &method); err != nil {
+	if err := db.QueryRow(`SELECT name, auth_method FROM profiles WHERE is_active = 1`).
+		Scan(&name, &method); err != nil {
 		t.Fatalf("scan seed: %v", err)
 	}
 	if name != "gh-cli" || method != "gh-cli" {

@@ -52,7 +52,7 @@ func (s *System) Set(ref, secret string) error {
 // the entry does not exist.
 func (s *System) Get(ref string) (string, error) {
 	if ref == "" {
-		return "", fmt.Errorf("keyring: empty ref")
+		return "", errors.New("keyring: empty ref")
 	}
 	secret, err := gokeyring.Get(Service, ref)
 	if err != nil {

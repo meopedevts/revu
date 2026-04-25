@@ -1,5 +1,5 @@
 // Package frontend exposes the built React assets (frontend/dist) as an
-// embed.FS so Wails can serve them without shelling out to vite at runtime.
+// [embed.FS] so Wails can serve them without shelling out to vite at runtime.
 // In `wails dev` the dev server is used instead (configured in wails.json).
 package frontend
 

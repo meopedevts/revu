@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -27,13 +28,17 @@ type Client interface {
 // enough to absorb double-clicks and back-and-forth navigation.
 const detailsCacheTTL = 30 * time.Second
 
+// reviewStatePending é o estado neutro normalizado quando não há review
+// resolvido pra `login` (sem reviewer, em DISMISSED, ou sem matches).
+const reviewStatePending = "PENDING"
+
 // reviewStateFor picks the review state for login among latestReviews and
 // normalizes it to the four-value domain persisted by the store. Any review
 // in states GitHub doesn't expose here (PENDING, DISMISSED) collapses into
 // "PENDING" so the UI can show "still yours to review".
 func reviewStateFor(login string, reviews []rawLatestReview) string {
 	if login == "" {
-		return "PENDING"
+		return reviewStatePending
 	}
 	for _, r := range reviews {
 		if r.Author.Login != login {
@@ -43,10 +48,10 @@ func reviewStateFor(login string, reviews []rawLatestReview) string {
 		case "APPROVED", "CHANGES_REQUESTED", "COMMENTED":
 			return r.State
 		default:
-			return "PENDING"
+			return reviewStatePending
 		}
 	}
-	return "PENDING"
+	return reviewStatePending
 }
 
 // TokenProvider returns the PAT for the currently active profile, or "" when
@@ -360,7 +365,7 @@ func (c *ghClient) runGH(ctx context.Context, args ...string) ([]byte, []byte, e
 	// Executor does not support env injection. Caller passed a non-env-aware
 	// impl despite wiring a TokenProvider — surface a clear error instead of
 	// silently falling back to ambient.
-	return nil, nil, fmt.Errorf("executor does not support GH_TOKEN injection")
+	return nil, nil, errors.New("executor does not support GH_TOKEN injection")
 }
 
 // classify maps the stderr of a failed `gh` invocation to a sentinel error.
@@ -398,15 +403,15 @@ func classify(stderr []byte, runErr error) error {
 		return ErrNotMergeable
 	}
 	if runErr == nil {
-		runErr = fmt.Errorf("gh failed")
+		runErr = errors.New("gh failed")
 	}
 	return fmt.Errorf("gh: %s: %w", firstLine(s), runErr)
 }
 
 func firstLine(s string) string {
 	s = strings.TrimSpace(s)
-	if i := strings.IndexByte(s, '\n'); i >= 0 {
-		return s[:i]
+	if before, _, ok := strings.Cut(s, "\n"); ok {
+		return before
 	}
 	if s == "" {
 		return "no stderr"

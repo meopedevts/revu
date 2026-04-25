@@ -196,25 +196,19 @@ func runApp(cmd *cobra.Command, _ []string) error {
 
 	var wg sync.WaitGroup
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		if err := p.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
 			log.Warn("poller exit", "err", err)
 		}
-	}()
+	})
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		tr.Start()
-	}()
+	})
 
 	// Bridge ctx cancellation into both the systray loop and the Wails
 	// runtime so Wails.Run (blocking on the main thread) returns.
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		<-ctx.Done()
 		tr.Stop()
 		// WailsCtx may be nil if shutdown fires before OnStartup.
@@ -222,7 +216,7 @@ func runApp(cmd *cobra.Command, _ []string) error {
 			//nolint:contextcheck // wc é o contexto gerenciado pela Wails runtime; Quit precisa dele.
 			wruntime.Quit(wc)
 		}
-	}()
+	})
 
 	log.Info("revu started",
 		"db", dbFile,
@@ -252,7 +246,7 @@ func runApp(cmd *cobra.Command, _ []string) error {
 			WebviewGpuPolicy: linux.WebviewGpuPolicyNever,
 		},
 		OnStartup: bridge.OnStartup,
-		Bind:      []interface{}{bridge},
+		Bind:      []any{bridge},
 	})
 
 	stop()

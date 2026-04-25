@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"testing"
 	"time"
 )
@@ -348,12 +349,7 @@ func TestAuthStatus_DoesNotInjectToken(t *testing.T) {
 }
 
 func containsEnv(env []string, want string) bool {
-	for _, kv := range env {
-		if kv == want {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(env, want)
 }
 
 func contains(s, sub string) bool {
@@ -542,7 +538,11 @@ func TestMergePR_ErrorClassification(t *testing.T) {
 		stderr  []byte
 		wantErr error
 	}{
-		{"conflict", []byte("Pull request is not mergeable: the merge commit cannot be cleanly created"), ErrMergeConflict},
+		{
+			"conflict",
+			[]byte("Pull request is not mergeable: the merge commit cannot be cleanly created"),
+			ErrMergeConflict,
+		},
 		{"permission", []byte("Resource not accessible by personal access token"), ErrMergePermission},
 		{"draft", []byte("Pull request is in draft state"), ErrNotMergeable},
 	}

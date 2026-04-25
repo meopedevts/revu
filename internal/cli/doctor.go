@@ -16,7 +16,7 @@ var doctorCmd = &cobra.Command{
 	Short:         "Valida dependências de runtime (gh auth, libs, D-Bus)",
 	SilenceUsage:  true,
 	SilenceErrors: true,
-	RunE: func(cmd *cobra.Command, args []string) error {
+	RunE: func(cmd *cobra.Command, _ []string) error {
 		ctx := cmd.Context()
 		client := github.NewClient(github.DefaultExecutor())
 		db, err := dbPath()

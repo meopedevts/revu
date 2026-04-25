@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -323,12 +324,7 @@ func TestService_ValidateToken_NoTokenInLogs(t *testing.T) {
 
 func hasToken(env []string, token string) bool {
 	target := "GH_TOKEN=" + token
-	for _, kv := range env {
-		if kv == target {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(env, target)
 }
 
 func respondNotCalled(t *testing.T) func(argv []string, env []string) ([]byte, []byte, error) {

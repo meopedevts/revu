@@ -52,7 +52,7 @@ type Update struct {
 }
 
 // Sentinel errors returned by the service. Callers branch on these via
-// errors.Is — never compare messages.
+// [errors.Is] — never compare messages.
 var (
 	ErrNotFound           = errors.New("profile not found")
 	ErrNameTaken          = errors.New("profile name already in use")

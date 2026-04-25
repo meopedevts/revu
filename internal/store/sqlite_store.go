@@ -179,7 +179,7 @@ func (s *sqliteStore) ClearHistory() (int, error) {
 //     have been merged/closed, or our review may have just been submitted).
 //     Callers must not notify on these — they're not new work.
 //
-//nolint:gocyclo // transação única que coordena upserts, retenção e detecção de vanished; dividir aumenta race surface.
+//nolint:gocognit // transação única que coordena upserts, retenção e detecção de vanished; dividir aumenta race surface.
 func (s *sqliteStore) UpdateFromPoll(prs []github.PRSummary) ([]PRRecord, []PRRecord) {
 	db := s.handle()
 	if db == nil {

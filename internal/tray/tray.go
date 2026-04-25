@@ -216,6 +216,32 @@ type menuItems struct {
 	switchTo map[string]*systray.MenuItem // profile id → menu item
 }
 
+// buildSwitchSubmenu materializa o submenu "Trocar conta" só quando há
+// callbacks de listagem/seleção e pelo menos um profile.
+func buildSwitchSubmenu(t *Tray) map[string]*systray.MenuItem {
+	switchTo := map[string]*systray.MenuItem{}
+	if t.listPrfs == nil || t.onSelectPrf == nil {
+		return switchTo
+	}
+	profs := t.listPrfs()
+	if len(profs) == 0 {
+		return switchTo
+	}
+	mSwitch := systray.AddMenuItem("Trocar conta", "Seleciona a conta GitHub ativa")
+	for _, pr := range profs {
+		label := "○ " + pr.Name
+		if pr.IsActive {
+			label = "● " + pr.Name
+		}
+		item := mSwitch.AddSubMenuItem(label, "")
+		if pr.IsActive {
+			item.Disable()
+		}
+		switchTo[pr.ID] = item
+	}
+	return switchTo
+}
+
 // buildMenu assembles every menu row from scratch. Must be called after
 // ResetMenu (or on first onReady).
 func (t *Tray) buildMenu() menuItems {
@@ -223,26 +249,7 @@ func (t *Tray) buildMenu() menuItems {
 	mRefresh := systray.AddMenuItem("Atualizar agora", "Forçar um poll imediato")
 	mConfig := systray.AddMenuItem("Configurações", "Abrir tela de configurações")
 
-	switchTo := map[string]*systray.MenuItem{}
-	if t.listPrfs != nil && t.onSelectPrf != nil {
-		profs := t.listPrfs()
-		if len(profs) > 0 {
-			mSwitch := systray.AddMenuItem("Trocar conta", "Seleciona a conta GitHub ativa")
-			for _, pr := range profs {
-				label := pr.Name
-				if pr.IsActive {
-					label = "● " + label
-				} else {
-					label = "○ " + label
-				}
-				item := mSwitch.AddSubMenuItem(label, "")
-				if pr.IsActive {
-					item.Disable()
-				}
-				switchTo[pr.ID] = item
-			}
-		}
-	}
+	switchTo := buildSwitchSubmenu(t)
 
 	systray.AddSeparator()
 	mQuit := systray.AddMenuItem("Sair", "Encerra o revu")

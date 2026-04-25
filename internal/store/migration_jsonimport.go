@@ -44,10 +44,10 @@ func migrateJSONIfPresent(ctx context.Context, db *sql.DB, jsonPath string, now 
 	if migratedPresent {
 		if fileExists(jsonPath) {
 			if err := renameAsMigrated(jsonPath, now); err != nil {
-				log.Warn("state.json leftover rename failed", "path", jsonPath, "err", err)
+				log.WarnContext(ctx, "state.json leftover rename failed", "path", jsonPath, "err", err)
 				return nil
 			}
-			log.Warn("state.json was already migrated; renamed leftover",
+			log.WarnContext(ctx, "state.json was already migrated; renamed leftover",
 				"path", jsonPath, "migrated_at", migratedAt)
 		}
 		return nil
@@ -72,11 +72,11 @@ func migrateJSONIfPresent(ctx context.Context, db *sql.DB, jsonPath string, now 
 	}
 
 	if err := renameAsMigrated(jsonPath, now); err != nil {
-		log.Warn("state.json migrated in DB but rename failed — next boot will rename leftover",
+		log.WarnContext(ctx, "state.json migrated in DB but rename failed — next boot will rename leftover",
 			"path", jsonPath, "err", err)
 	}
 
-	log.Info("migrated PRs from state.json to revu.db",
+	log.InfoContext(ctx, "migrated PRs from state.json to revu.db",
 		"count", count, "state_json", jsonPath)
 	return nil
 }

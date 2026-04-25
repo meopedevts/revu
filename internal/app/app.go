@@ -215,16 +215,21 @@ func (a *App) ClearHistory() (int, error) {
 	return a.store.ClearHistory()
 }
 
+const (
+	themeLight = "light"
+	themeDark  = "dark"
+)
+
 // GetTheme returns the persisted UI theme ("light" or "dark"). Falls back to
 // "light" when no Manager is wired (smoke path) or the value on disk is
 // unexpected — keeps the frontend boot deterministic.
 func (a *App) GetTheme() string {
 	if a.cfgMgr == nil {
-		return "light"
+		return themeLight
 	}
 	t := a.cfgMgr.Current().Theme
-	if t != "light" && t != "dark" {
-		return "light"
+	if t != themeLight && t != themeDark {
+		return themeLight
 	}
 	return t
 }

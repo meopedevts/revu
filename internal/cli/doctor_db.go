@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 
 	_ "modernc.org/sqlite" // registra driver "sqlite" via init.
 )
@@ -66,7 +67,7 @@ func checkSchemaVersion(ctx context.Context, path string) checkResult {
 	}
 	return checkResult{
 		Name:   "schema version",
-		Detail: fmt.Sprintf("%d", version),
+		Detail: strconv.FormatInt(version, 10),
 		OK:     true,
 	}
 }
@@ -88,10 +89,12 @@ func checkPRCounts(ctx context.Context, path string) checkResult {
 	}
 	// REV-16: history is PRs finalized on GitHub (MERGED or CLOSED); anything
 	// else remains pending regardless of the review state.
-	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM prs WHERE state NOT IN ('MERGED', 'CLOSED')`).Scan(&pending); err != nil {
+	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM prs WHERE state NOT IN ('MERGED', 'CLOSED')`).
+		Scan(&pending); err != nil {
 		return checkResult{Name: "PR counts", Detail: err.Error()}
 	}
-	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM prs WHERE state IN ('MERGED', 'CLOSED')`).Scan(&history); err != nil {
+	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM prs WHERE state IN ('MERGED', 'CLOSED')`).
+		Scan(&history); err != nil {
 		return checkResult{Name: "PR counts", Detail: err.Error()}
 	}
 	return checkResult{

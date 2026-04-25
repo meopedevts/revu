@@ -1,5 +1,5 @@
 // Package storetest exposes migration-aware test helpers for packages that
-// need a throwaway *sql.DB pre-populated with the revu schema (profiles,
+// need a throwaway [*sql.DB] pre-populated with the revu schema (profiles,
 // prs, meta, etc). Keep this tiny — production code never imports it.
 package storetest
 
@@ -17,7 +17,7 @@ import (
 
 var (
 	gooseOnce sync.Once
-	gooseErr  error
+	errGoose  error
 )
 
 // OpenMem opens an in-memory SQLite DB and applies all pending migrations.
@@ -35,11 +35,11 @@ func OpenMem(t testing.TB) *sql.DB {
 	}
 	gooseOnce.Do(func() {
 		goose.SetBaseFS(migrations.FS)
-		gooseErr = goose.SetDialect("sqlite3")
+		errGoose = goose.SetDialect("sqlite3")
 		goose.SetLogger(goose.NopLogger())
 	})
-	if gooseErr != nil {
-		t.Fatalf("goose setup: %v", gooseErr)
+	if errGoose != nil {
+		t.Fatalf("goose setup: %v", errGoose)
 	}
 	if err := goose.Up(db, "."); err != nil {
 		t.Fatalf("goose up: %v", err)

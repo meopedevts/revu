@@ -21,19 +21,19 @@ import (
 // Config is the user-editable shape persisted to JSON. Field names mirror
 // SPEC §7 exactly — casing preserved for mapstructure binding.
 type Config struct {
-	PollingIntervalSeconds     int          `mapstructure:"polling_interval_seconds" json:"polling_interval_seconds"`
-	NotificationsEnabled       bool         `mapstructure:"notifications_enabled" json:"notifications_enabled"`
+	PollingIntervalSeconds     int          `mapstructure:"polling_interval_seconds"     json:"polling_interval_seconds"`
+	NotificationsEnabled       bool         `mapstructure:"notifications_enabled"        json:"notifications_enabled"`
 	NotificationTimeoutSeconds int          `mapstructure:"notification_timeout_seconds" json:"notification_timeout_seconds"`
 	StatusRefreshEveryNTicks   int          `mapstructure:"status_refresh_every_n_ticks" json:"status_refresh_every_n_ticks"`
-	HistoryRetentionDays       int          `mapstructure:"history_retention_days" json:"history_retention_days"`
-	StartHidden                bool         `mapstructure:"start_hidden" json:"start_hidden"`
-	Window                     WindowConfig `mapstructure:"window" json:"window"`
-	Theme                      string       `mapstructure:"theme" json:"theme"`
+	HistoryRetentionDays       int          `mapstructure:"history_retention_days"       json:"history_retention_days"`
+	StartHidden                bool         `mapstructure:"start_hidden"                 json:"start_hidden"`
+	Window                     WindowConfig `mapstructure:"window"                       json:"window"`
+	Theme                      string       `mapstructure:"theme"                        json:"theme"`
 }
 
 // WindowConfig carries the initial Wails window geometry.
 type WindowConfig struct {
-	Width  int `mapstructure:"width" json:"width"`
+	Width  int `mapstructure:"width"  json:"width"`
 	Height int `mapstructure:"height" json:"height"`
 }
 
