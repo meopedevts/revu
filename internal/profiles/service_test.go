@@ -322,6 +322,109 @@ func TestService_ValidateToken_NoTokenInLogs(t *testing.T) {
 	}
 }
 
+func TestService_TokenFor_GHCLIReturnsEmpty(t *testing.T) {
+	svc, _ := newSvc(t, nil, &fakeRunner{respond: respondNotCalled(t)})
+	got, err := svc.TokenFor(context.Background(), profiles.Profile{
+		ID:         "gh-cli",
+		AuthMethod: profiles.AuthGHCLI,
+		KeyringRef: "gh-cli",
+	})
+	if err != nil {
+		t.Fatalf("TokenFor: %v", err)
+	}
+	if got != "" {
+		t.Errorf("gh-cli profile must return empty token, got %q", got)
+	}
+}
+
+func TestService_TokenFor_KeyringMissingRefReturnsError(t *testing.T) {
+	svc, _ := newSvc(t, nil, &fakeRunner{respond: respondNotCalled(t)})
+	_, err := svc.TokenFor(context.Background(), profiles.Profile{
+		ID:         "abc",
+		AuthMethod: profiles.AuthKeyring,
+		KeyringRef: "",
+	})
+	if err == nil {
+		t.Fatal("expected error for keyring profile without ref")
+	}
+	if !strings.Contains(err.Error(), "missing keyring ref") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestService_TokenFor_KeyringHappyPath(t *testing.T) {
+	svc, key := newSvc(t, nil, &fakeRunner{respond: respondNotCalled(t)})
+	const token = "ghp_keyring_test_token"
+	if err := key.Set("profile-abc", token); err != nil {
+		t.Fatalf("seed keyring: %v", err)
+	}
+	got, err := svc.TokenFor(context.Background(), profiles.Profile{
+		ID:         "abc",
+		AuthMethod: profiles.AuthKeyring,
+		KeyringRef: "profile-abc",
+	})
+	if err != nil {
+		t.Fatalf("TokenFor: %v", err)
+	}
+	if got != token {
+		t.Errorf("token mismatch: want %q, got %q", token, got)
+	}
+}
+
+func TestApplyMutableFields_RejectsBlankName(t *testing.T) {
+	svc, _ := newSvc(t, nil, &fakeRunner{respond: respondNotCalled(t)})
+	ctx := context.Background()
+	prof, err := svc.Create(ctx, profiles.CreateParams{
+		Name:   "alice",
+		Method: profiles.AuthGHCLI,
+	})
+	if err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	blank := "   "
+	_, err = svc.Update(ctx, prof.ID, profiles.Update{Name: &blank})
+	if err == nil {
+		t.Fatal("Update with blank name must error")
+	}
+	if !strings.Contains(err.Error(), "profile name required") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestApplyMutableFields_RejectsInvalidMethod(t *testing.T) {
+	svc, _ := newSvc(t, nil, &fakeRunner{respond: respondNotCalled(t)})
+	ctx := context.Background()
+	prof, err := svc.Create(ctx, profiles.CreateParams{
+		Name:   "alice2",
+		Method: profiles.AuthGHCLI,
+	})
+	if err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	bogus := profiles.AuthMethod("bogus-method")
+	_, err = svc.Update(ctx, prof.ID, profiles.Update{Method: &bogus})
+	if !errors.Is(err, profiles.ErrInvalidMethod) {
+		t.Fatalf("want ErrInvalidMethod, got %v", err)
+	}
+}
+
+func TestService_Update_GHCLIToKeyringRequiresToken(t *testing.T) {
+	svc, _ := newSvc(t, nil, &fakeRunner{respond: respondNotCalled(t)})
+	ctx := context.Background()
+	prof, err := svc.Create(ctx, profiles.CreateParams{
+		Name:   "alice3",
+		Method: profiles.AuthGHCLI,
+	})
+	if err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	keyring := profiles.AuthKeyring
+	_, err = svc.Update(ctx, prof.ID, profiles.Update{Method: &keyring})
+	if !errors.Is(err, profiles.ErrTokenRequired) {
+		t.Fatalf("want ErrTokenRequired, got %v", err)
+	}
+}
+
 func hasToken(env []string, token string) bool {
 	target := "GH_TOKEN=" + token
 	return slices.Contains(env, target)

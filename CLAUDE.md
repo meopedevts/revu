@@ -80,6 +80,26 @@ task install:hooks
 Cria symlink em `.git/hooks/pre-push`. Falha do check bloqueia o push.
 Bypass de emergência: `git push --no-verify` (use só em emergência real).
 
+### Mutation testing (gremlins)
+
+Rodado **manualmente** via `task mutate` — escopo restrito a
+`internal/store` + `internal/profiles` (config em `.gremlins.yaml`,
+REV-21). Não entra no `task check` nem no pre-push (lento demais).
+
+```bash
+task mutate           # full run (store + profiles), ~30s
+task mutate:store     # só store
+task mutate:profiles  # só profiles
+task mutate:dry       # lista mutantes sem executar testes (rápido)
+```
+
+Thresholds: `efficacy ≥ 95%`, `mcover ≥ 60%`. Baseline atual: 100% /
+~75% mcover combinado.
+
+Quando rodar: ao mudar `internal/store/*.go` ou `internal/profiles/*.go`,
+rode antes de PR pra garantir que mutantes novos morreram. Se algum
+**LIVED**, escreva teste pra matá-lo antes de mergear.
+
 CLI: `revu run|version|config|doctor` (cobra). Ldflags injetam
 `main.version`/`main.commit`/`main.date` — forwarded pro pacote
 `internal/cli` via `SetBuildInfo`.

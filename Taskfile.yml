@@ -92,6 +92,28 @@ tasks:
       - go vet ./...
       - go test -race ./...
 
+  mutate:
+    desc: Mutation testing scoped (store + profiles). Lento — manual ou nightly.
+    cmds:
+      - task: mutate:store
+      - task: mutate:profiles
+
+  mutate:store:
+    desc: Mutation testing em internal/store
+    cmds:
+      - gremlins unleash ./internal/store
+
+  mutate:profiles:
+    desc: Mutation testing em internal/profiles
+    cmds:
+      - gremlins unleash ./internal/profiles
+
+  mutate:dry:
+    desc: Dry-run gremlins (lista mutantes sem rodar testes — rápido)
+    cmds:
+      - gremlins unleash --dry-run ./internal/store
+      - gremlins unleash --dry-run ./internal/profiles
+
   install:
     desc: Instala binário em ~/.local/bin
     deps: [build]

@@ -1,0 +1,48 @@
+# gremlins.dev — mutation testing config (REV-21)
+#
+# Escopo: rodamos por pacote-alvo (internal/store, internal/profiles) via
+# argumento na CLI. Esta config controla mutadores, thresholds e regras de
+# exclusão globais.
+
+unleash:
+  # Workers em paralelo. -1 = auto (NumCPU). 4 funciona bem em laptop.
+  workers: 4
+
+  # CPUs por test run. 1 evita contenção quando rodamos -race em paralelo.
+  test-cpu: 1
+
+  # Multiplicador do timeout por test run. Profiles tem suite curta mas
+  # com setup pesado (SQLite memory + goose migrations); coeficiente baixo
+  # mascara mutantes legítimos como TIMED OUT. 10× dá folga sem deixar
+  # infinite loops travarem.
+  timeout-coefficient: 10
+
+  # Thresholds — gates que falham o `task mutate` quando não atingidos.
+  # Baseline atual (REV-21): efficacy 100% nos 2 pacotes, mcover 84.6%
+  # (store) e 69% (profiles). Margem confortável até subir o piso.
+  threshold-efficacy: 95.0
+  threshold-mcover: 60.0
+
+  # Excluir arquivos via regex (path-relative ao módulo).
+  # - testdata/, migrations/ — não tem lógica testável.
+  # - storetest/ — helper de teste, não tem comportamento de produção.
+  exclude-files:
+    - .*_test\.go
+    - internal/store/migrations/.*
+    - internal/store/storetest/.*
+
+  # Mutadores. Defaults do gremlins habilitam o set conservador (não
+  # gera muitos equivalentes). Habilitamos extras de alto valor pro
+  # domínio: invert-logical (||/&&), invert-loopctrl (continue/break).
+  arithmetic-base: true
+  conditionals-boundary: true
+  conditionals-negation: true
+  increment-decrement: true
+  invert-negatives: true
+  invert-logical: true
+  invert-loopctrl: true
+  # Off por default — geram muitos equivalentes em código de I/O:
+  invert-assignments: false
+  invert-bitwise: false
+  invert-bwassign: false
+  remove-self-assignments: false
