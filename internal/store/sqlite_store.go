@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"strings"
 	"sync"
 	"time"
 
@@ -354,8 +353,8 @@ func updateExistingPolled(
 
 // markNotPolled garante que toda linha review_pending=1 que NÃO está no
 // poll corrente vire review_pending=0. Quando o poll vem vazio, usa a
-// query estática qMarkNotPendingAll; senão monta um IN(?, ?, ...) com
-// placeholders fixos pra evitar SQL injection.
+// query estática qMarkNotPendingAll; senão monta um IN(?, ?, ...) via
+// inClause (helper puro, seguro por construção).
 func markNotPolled(ctx context.Context, tx *sql.Tx, polledIDs map[string]struct{}) error {
 	if len(polledIDs) == 0 {
 		if _, err := tx.ExecContext(ctx, qMarkNotPendingAll); err != nil {
@@ -364,14 +363,12 @@ func markNotPolled(ctx context.Context, tx *sql.Tx, polledIDs map[string]struct{
 		return nil
 	}
 	ids := make([]any, 0, len(polledIDs))
-	placeholders := make([]string, 0, len(polledIDs))
 	for id := range polledIDs {
 		ids = append(ids, id)
-		placeholders = append(placeholders, "?")
 	}
-	// #nosec G202 — placeholders são uma sequência fixa de "?" gerada acima; valores entram via parâmetros.
+	// #nosec G202 — inClause é puro: gera só "?" + ",". Sem input externo.
 	q := `UPDATE prs SET review_pending = 0
-		WHERE review_pending = 1 AND id NOT IN (` + strings.Join(placeholders, ",") + `)`
+		WHERE review_pending = 1 AND id NOT IN ` + inClause(len(ids))
 	if _, err := tx.ExecContext(ctx, q, ids...); err != nil {
 		return err
 	}
@@ -414,13 +411,12 @@ func selectVanishedIDs(ctx context.Context, tx *sql.Tx, polled map[string]struct
 	if len(polled) == 0 {
 		q = `SELECT id FROM prs WHERE review_pending = 1`
 	} else {
-		placeholders := make([]string, 0, len(polled))
 		args = make([]any, 0, len(polled))
 		for id := range polled {
-			placeholders = append(placeholders, "?")
 			args = append(args, id)
 		}
-		q = `SELECT id FROM prs WHERE review_pending = 1 AND id NOT IN (` + strings.Join(placeholders, ",") + `)`
+		// #nosec G202 — inClause é puro: gera só "?" + ",". Sem input externo.
+		q = `SELECT id FROM prs WHERE review_pending = 1 AND id NOT IN ` + inClause(len(args))
 	}
 	rows, err := tx.QueryContext(ctx, q, args...)
 	if err != nil {
