@@ -93,10 +93,11 @@ tasks:
       - go test -race ./...
 
   mutate:
-    desc: Mutation testing scoped (store + profiles). Lento — manual ou nightly.
+    desc: Mutation testing scoped (store + profiles + poller). Lento — manual ou nightly.
     cmds:
       - task: mutate:store
       - task: mutate:profiles
+      - task: mutate:poller
 
   mutate:store:
     desc: Mutation testing em internal/store
@@ -108,11 +109,17 @@ tasks:
     cmds:
       - gremlins unleash ./internal/profiles
 
+  mutate:poller:
+    desc: Mutation testing em internal/poller
+    cmds:
+      - gremlins unleash ./internal/poller
+
   mutate:dry:
     desc: Dry-run gremlins (lista mutantes sem rodar testes — rápido)
     cmds:
       - gremlins unleash --dry-run ./internal/store
       - gremlins unleash --dry-run ./internal/profiles
+      - gremlins unleash --dry-run ./internal/poller
 
   install:
     desc: Instala binário em ~/.local/bin

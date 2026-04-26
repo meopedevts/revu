@@ -82,23 +82,27 @@ Bypass de emergência: `git push --no-verify` (use só em emergência real).
 
 ### Mutation testing (gremlins)
 
-Rodado **manualmente** via `task mutate` — escopo restrito a
-`internal/store` + `internal/profiles` (config em `.gremlins.yaml`,
-REV-21). Não entra no `task check` nem no pre-push (lento demais).
+Rodado **manualmente** via `task mutate` — escopo cobre `internal/store`,
+`internal/profiles` e `internal/poller` (config em `.gremlins.yaml`,
+REV-21/REV-24). Não entra no `task check` nem no pre-push (lento demais).
 
 ```bash
-task mutate           # full run (store + profiles), ~30s
-task mutate:store     # só store
-task mutate:profiles  # só profiles
-task mutate:dry       # lista mutantes sem executar testes (rápido)
+task mutate            # full run (store + profiles + poller), ~40s
+task mutate:store      # só store
+task mutate:profiles   # só profiles
+task mutate:poller     # só poller
+task mutate:dry        # lista mutantes sem executar testes (rápido)
 ```
 
-Thresholds: `efficacy ≥ 95%`, `mcover ≥ 60%`. Baseline atual: 100% /
-~75% mcover combinado.
+Thresholds: `efficacy ≥ 95%`, `mcover ≥ 70%`. Baseline atual:
+- store: 100% / 90.4%
+- profiles: 100% / 75%
+- poller: 100% / 92.86%
 
-Quando rodar: ao mudar `internal/store/*.go` ou `internal/profiles/*.go`,
-rode antes de PR pra garantir que mutantes novos morreram. Se algum
-**LIVED**, escreva teste pra matá-lo antes de mergear.
+Quando rodar: ao mudar `internal/store/*.go`, `internal/profiles/*.go`
+ou `internal/poller/*.go`, rode antes de PR pra garantir que mutantes
+novos morreram. Se algum **LIVED**, escreva teste pra matá-lo antes de
+mergear.
 
 CLI: `revu run|version|config|doctor` (cobra). Ldflags injetam
 `main.version`/`main.commit`/`main.date` — forwarded pro pacote

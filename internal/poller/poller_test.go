@@ -1,11 +1,13 @@
 package poller
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
 	"log/slog"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -13,6 +15,35 @@ import (
 	"github.com/meopedevts/revu/internal/github"
 	"github.com/meopedevts/revu/internal/store"
 )
+
+type fakeProfileProvider struct {
+	id  string
+	err error
+}
+
+func (f *fakeProfileProvider) ActiveProfileID(_ context.Context) (string, error) {
+	return f.id, f.err
+}
+
+type recordingStore struct {
+	store.Store
+
+	mu    sync.Mutex
+	calls []string
+}
+
+func (r *recordingStore) SetActiveProfileID(id string) {
+	r.mu.Lock()
+	r.calls = append(r.calls, id)
+	r.mu.Unlock()
+	r.Store.SetActiveProfileID(id)
+}
+
+func (r *recordingStore) profileCalls() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]string(nil), r.calls...)
+}
 
 type fakeClient struct {
 	mu sync.Mutex
@@ -499,6 +530,81 @@ func TestSetInterval_TakesEffectOnNextWait(t *testing.T) {
 	p.SetInterval(-1 * time.Second)
 	if p.Interval() != 10*time.Second {
 		t.Fatalf("invalid SetInterval mutated state: %s", p.Interval())
+	}
+}
+
+func TestTick_AppliesActiveProfile(t *testing.T) {
+	fc := &fakeClient{listResponses: []listResponse{{prs: nil}}}
+	fn := &fakeNotifier{}
+	rs := &recordingStore{Store: freshStore(t)}
+	pp := &fakeProfileProvider{id: "profile-xyz"}
+	p := New(fc, rs, fn, WithLogger(quietLogger()), WithActiveProfile(pp))
+
+	p.tick(context.Background())
+
+	calls := rs.profileCalls()
+	if len(calls) != 1 || calls[0] != "profile-xyz" {
+		t.Fatalf("want SetActiveProfileID(\"profile-xyz\") once, got %#v", calls)
+	}
+}
+
+func TestTick_SkipsActiveProfileOnEmptyID(t *testing.T) {
+	fc := &fakeClient{listResponses: []listResponse{{prs: nil}}}
+	fn := &fakeNotifier{}
+	rs := &recordingStore{Store: freshStore(t)}
+	pp := &fakeProfileProvider{id: ""}
+	p := New(fc, rs, fn, WithLogger(quietLogger()), WithActiveProfile(pp))
+
+	p.tick(context.Background())
+
+	if calls := rs.profileCalls(); len(calls) != 0 {
+		t.Fatalf("empty id must not call SetActiveProfileID, got %#v", calls)
+	}
+}
+
+func TestTick_LogsActiveProfileError(t *testing.T) {
+	fc := &fakeClient{listResponses: []listResponse{{prs: nil}}}
+	fn := &fakeNotifier{}
+	rs := &recordingStore{Store: freshStore(t)}
+	pp := &fakeProfileProvider{err: errors.New("profile lookup boom")}
+
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	p := New(fc, rs, fn, WithLogger(logger), WithActiveProfile(pp))
+
+	p.tick(context.Background())
+
+	if calls := rs.profileCalls(); len(calls) != 0 {
+		t.Fatalf("provider error must not call SetActiveProfileID, got %#v", calls)
+	}
+	if !strings.Contains(buf.String(), "resolve active profile") {
+		t.Fatalf("expected provider error log, got %q", buf.String())
+	}
+}
+
+func TestRunOnce_PropagatesCtxError(t *testing.T) {
+	fc := &fakeClient{}
+	fn := &fakeNotifier{}
+	s := freshStore(t)
+	p := New(fc, s, fn, WithLogger(quietLogger()))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := p.RunOnce(ctx)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("want wrapped context.Canceled, got %v", err)
+	}
+}
+
+func TestRunOnce_NilErrorOnHealthyTick(t *testing.T) {
+	fc := &fakeClient{listResponses: []listResponse{{prs: nil}}}
+	fn := &fakeNotifier{}
+	s := freshStore(t)
+	p := New(fc, s, fn, WithLogger(quietLogger()))
+
+	if err := p.RunOnce(context.Background()); err != nil {
+		t.Fatalf("healthy tick should return nil, got %v", err)
 	}
 }
 
