@@ -104,6 +104,24 @@ ou `internal/poller/*.go`, rode antes de PR pra garantir que mutantes
 novos morreram. Se algum **LIVED**, escreva teste pra matá-lo antes de
 mergear.
 
+### Fuzz testing
+
+Rodado **manualmente** via `task fuzz` — escopo cobre `parseTimePtr`
+(`internal/store/timeutil.go`) e `isUniqueNameViolation`
+(`internal/profiles/repository.go`). 30s por target, ~1min total. Não entra
+no `task check` nem no pre-push (lento + não-determinístico). REV-27.
+
+```bash
+task fuzz             # full run (store + profiles)
+task fuzz:store       # só parseTimePtr
+task fuzz:profiles    # só isUniqueNameViolation
+```
+
+Quando rodar: ao mudar parsing de timestamps em `store` ou matching de erro
+do driver SQLite em `profiles/repository.go`. Se algum case interessante
+aparecer, `testdata/fuzz/<TestName>/<hash>` vai ser criado — comitar pra
+virar regressão.
+
 CLI: `revu run|version|config|doctor` (cobra). Ldflags injetam
 `main.version`/`main.commit`/`main.date` — forwarded pro pacote
 `internal/cli` via `SetBuildInfo`.

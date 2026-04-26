@@ -121,6 +121,22 @@ tasks:
       - gremlins unleash --dry-run ./internal/profiles
       - gremlins unleash --dry-run ./internal/poller
 
+  fuzz:
+    desc: Fuzz testing (store + profiles). Manual — 30s por target.
+    cmds:
+      - task: fuzz:store
+      - task: fuzz:profiles
+
+  fuzz:store:
+    desc: Fuzz parseTimePtr (30s)
+    cmds:
+      - go test -run=^$ -fuzz=^FuzzParseTimePtr$ -fuzztime=30s ./internal/store
+
+  fuzz:profiles:
+    desc: Fuzz isUniqueNameViolation (30s)
+    cmds:
+      - go test -run=^$ -fuzz=^FuzzIsUniqueNameViolation$ -fuzztime=30s ./internal/profiles
+
   install:
     desc: Instala binário em ~/.local/bin
     deps: [build]
