@@ -94,10 +94,10 @@ task mutate:poller     # só poller
 task mutate:dry        # lista mutantes sem executar testes (rápido)
 ```
 
-Thresholds: `efficacy ≥ 95%`, `mcover ≥ 70%`. Baseline atual:
-- store: 100% / 90.4%
-- profiles: 100% / 75%
-- poller: 100% / 92.86%
+Thresholds: `efficacy ≥ 95%`, `mcover ≥ 85%` (REV-29). Baseline atual:
+- store: 100% / 95.33%
+- profiles: 100% / 91.46%
+- poller: 100% / 93.33%
 
 Quando rodar: ao mudar `internal/store/*.go`, `internal/profiles/*.go`
 ou `internal/poller/*.go`, rode antes de PR pra garantir que mutantes

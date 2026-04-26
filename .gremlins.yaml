@@ -18,10 +18,11 @@ unleash:
   timeout-coefficient: 10
 
   # Thresholds — gates que falham o `task mutate` quando não atingidos.
-  # Baseline pós REV-25: efficacy 100% nos 2 pacotes, mcover 90.4% (store)
-  # e 75% (profiles). Threshold-mcover 70 trava o ganho com folga.
+  # Baseline pós REV-30: efficacy 100% nos 3 pacotes, mcover 95.33% (store),
+  # 91.46% (profiles), 93.33% (poller). Threshold-mcover 85 trava o ganho
+  # com folga (REV-29).
   threshold-efficacy: 95.0
-  threshold-mcover: 70.0
+  threshold-mcover: 85.0
 
   # Excluir arquivos via regex (path-relative ao módulo).
   # - testdata/, migrations/ — não tem lógica testável.
