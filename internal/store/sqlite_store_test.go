@@ -34,18 +34,18 @@ func TestSQLite_UpdateFromPoll_InsertsAndIsIdempotent(t *testing.T) {
 		mkSummary("octocat/hello#1", "octocat/hello", 1, "feat: foo", "alice", false),
 		mkSummary("acme/widgets#7", "acme/widgets", 7, "chore: bump", "bob", true),
 	}
-	novos, _ := s.UpdateFromPoll(prs)
+	novos, _ := s.UpdateFromPoll(context.Background(), prs)
 	if len(novos) != 2 {
 		t.Fatalf("first poll: want 2 novos, got %d", len(novos))
 	}
 
 	*tp = tp.Add(5 * time.Minute)
-	novos, _ = s.UpdateFromPoll(prs)
+	novos, _ = s.UpdateFromPoll(context.Background(), prs)
 	if len(novos) != 0 {
 		t.Fatalf("second poll with same PRs: want 0 novos, got %d", len(novos))
 	}
-	if len(s.GetPending()) != 2 {
-		t.Fatalf("want 2 pending, got %d", len(s.GetPending()))
+	if len(s.GetPending(context.Background())) != 2 {
+		t.Fatalf("want 2 pending, got %d", len(s.GetPending(context.Background())))
 	}
 }
 
@@ -54,30 +54,30 @@ func TestSQLite_UpdateFromPoll_ReRequestDetected(t *testing.T) {
 	s := newMemoryStore(t, WithClock(clock))
 
 	pr := mkSummary("octocat/hello#1", "octocat/hello", 1, "feat: foo", "alice", false)
-	if novos, _ := s.UpdateFromPoll([]github.PRSummary{pr}); len(novos) != 1 {
+	if novos, _ := s.UpdateFromPoll(context.Background(), []github.PRSummary{pr}); len(novos) != 1 {
 		t.Fatalf("initial insert: want 1 novo, got %d", len(novos))
 	}
 	// Simulate a review being submitted so the re-request branch has to reset
 	// review_state back to PENDING to signal the fresh request.
-	if err := s.RefreshPRStatus(pr.ID, github.PRDetails{State: "OPEN", ReviewState: "APPROVED"}); err != nil {
+	if err := s.RefreshPRStatus(context.Background(), pr.ID, github.PRDetails{State: "OPEN", ReviewState: "APPROVED"}); err != nil {
 		t.Fatalf("refresh approved: %v", err)
 	}
 
 	*tp = tp.Add(5 * time.Minute)
-	novos, vanished := s.UpdateFromPoll(nil)
+	novos, vanished := s.UpdateFromPoll(context.Background(), nil)
 	if len(novos) != 0 {
 		t.Fatalf("empty poll: want 0 novos, got %d", len(novos))
 	}
 	if len(vanished) != 1 || vanished[0].ID != pr.ID {
 		t.Fatalf("want pr in vanished, got %+v", vanished)
 	}
-	all := s.GetAll()
+	all := s.GetAll(context.Background())
 	if len(all) != 1 || all[0].ReviewPending {
 		t.Fatalf("want 1 record with pending=false, got %+v", all)
 	}
 
 	*tp = tp.Add(5 * time.Minute)
-	novos, _ = s.UpdateFromPoll([]github.PRSummary{pr})
+	novos, _ = s.UpdateFromPoll(context.Background(), []github.PRSummary{pr})
 	if len(novos) != 1 {
 		t.Fatalf("re-request: want 1 novo, got %d", len(novos))
 	}
@@ -87,7 +87,7 @@ func TestSQLite_UpdateFromPoll_ReRequestDetected(t *testing.T) {
 	if novos[0].ReviewState != "PENDING" {
 		t.Fatalf("re-request should reset review_state to PENDING, got %q", novos[0].ReviewState)
 	}
-	pending := s.GetPending()
+	pending := s.GetPending(context.Background())
 	if len(pending) != 1 || !pending[0].ReviewPending {
 		t.Fatal("expected ReviewPending=true after re-request")
 	}
@@ -98,13 +98,13 @@ func TestSQLite_UpdateFromPoll_UpdatesMutableFields(t *testing.T) {
 	s := newMemoryStore(t, WithClock(clock))
 
 	pr := mkSummary("octocat/hello#1", "octocat/hello", 1, "feat: foo", "alice", false)
-	s.UpdateFromPoll([]github.PRSummary{pr})
+	s.UpdateFromPoll(context.Background(), []github.PRSummary{pr})
 
 	pr.Title = "feat: foo (edited)"
 	pr.IsDraft = true
-	s.UpdateFromPoll([]github.PRSummary{pr})
+	s.UpdateFromPoll(context.Background(), []github.PRSummary{pr})
 
-	got := s.GetPending()[0]
+	got := s.GetPending(context.Background())[0]
 	if got.Title != "feat: foo (edited)" || !got.IsDraft {
 		t.Fatalf("mutable fields not updated: %+v", got)
 	}
@@ -115,21 +115,21 @@ func TestSQLite_RefreshPRStatus(t *testing.T) {
 	s := newMemoryStore(t, WithClock(clock))
 
 	pr := mkSummary("octocat/hello#1", "octocat/hello", 1, "feat: foo", "alice", false)
-	s.UpdateFromPoll([]github.PRSummary{pr})
+	s.UpdateFromPoll(context.Background(), []github.PRSummary{pr})
 
 	merged := time.Date(2026, 4, 24, 10, 0, 0, 0, time.UTC)
-	err := s.RefreshPRStatus(pr.ID, github.PRDetails{
+	err := s.RefreshPRStatus(context.Background(), pr.ID, github.PRDetails{
 		Additions: 10, Deletions: 5, State: "CLOSED", MergedAt: &merged, IsDraft: false,
 	})
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}
-	got := s.GetAll()[0]
+	got := s.GetAll(context.Background())[0]
 	if got.Additions != 10 || got.Deletions != 5 || got.State != "MERGED" {
 		t.Fatalf("status not applied: %+v", got)
 	}
 
-	if err := s.RefreshPRStatus("nope", github.PRDetails{}); !errors.Is(err, ErrNotFound) {
+	if err := s.RefreshPRStatus(context.Background(), "nope", github.PRDetails{}); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("want ErrNotFound, got %v", err)
 	}
 }
@@ -140,17 +140,17 @@ func TestSQLite_Retention_DropsOldNonOpen_InPoll(t *testing.T) {
 
 	prOpen := mkSummary("a/b#1", "a/b", 1, "open", "x", false)
 	prClosed := mkSummary("a/b#2", "a/b", 2, "closed", "x", false)
-	s.UpdateFromPoll([]github.PRSummary{prOpen, prClosed})
-	if err := s.RefreshPRStatus(prClosed.ID, github.PRDetails{State: "CLOSED"}); err != nil {
+	s.UpdateFromPoll(context.Background(), []github.PRSummary{prOpen, prClosed})
+	if err := s.RefreshPRStatus(context.Background(), prClosed.ID, github.PRDetails{State: "CLOSED"}); err != nil {
 		t.Fatal(err)
 	}
 
 	// 40 days pass; prClosed disappears from the search. Retention runs on
 	// the next UpdateFromPoll tx — prClosed gets purged, prOpen stays.
 	*tp = tp.Add(40 * 24 * time.Hour)
-	s.UpdateFromPoll([]github.PRSummary{prOpen})
+	s.UpdateFromPoll(context.Background(), []github.PRSummary{prOpen})
 
-	all := s.GetAll()
+	all := s.GetAll(context.Background())
 	if len(all) != 1 || all[0].ID != prOpen.ID {
 		t.Fatalf("want only open pr, got %+v", all)
 	}
@@ -161,13 +161,13 @@ func TestSQLite_Retention_DisabledWhenZero(t *testing.T) {
 	s := newMemoryStore(t, WithClock(clock), WithRetention(0))
 
 	pr := mkSummary("a/b#1", "a/b", 1, "t", "x", false)
-	s.UpdateFromPoll([]github.PRSummary{pr})
-	if err := s.RefreshPRStatus(pr.ID, github.PRDetails{State: "CLOSED"}); err != nil {
+	s.UpdateFromPoll(context.Background(), []github.PRSummary{pr})
+	if err := s.RefreshPRStatus(context.Background(), pr.ID, github.PRDetails{State: "CLOSED"}); err != nil {
 		t.Fatal(err)
 	}
 	*tp = tp.Add(365 * 24 * time.Hour)
-	s.UpdateFromPoll(nil)
-	if len(s.GetAll()) != 1 {
+	s.UpdateFromPoll(context.Background(), nil)
+	if len(s.GetAll(context.Background())) != 1 {
 		t.Fatal("retention=0 should keep everything")
 	}
 }
@@ -177,15 +177,15 @@ func TestSQLite_Retention_RespectsRuntimeChange(t *testing.T) {
 	s := newMemoryStore(t, WithClock(clock), WithRetention(365))
 
 	pr := mkSummary("a/b#1", "a/b", 1, "t", "x", false)
-	s.UpdateFromPoll([]github.PRSummary{pr})
-	if err := s.RefreshPRStatus(pr.ID, github.PRDetails{State: "CLOSED"}); err != nil {
+	s.UpdateFromPoll(context.Background(), []github.PRSummary{pr})
+	if err := s.RefreshPRStatus(context.Background(), pr.ID, github.PRDetails{State: "CLOSED"}); err != nil {
 		t.Fatal(err)
 	}
 	*tp = tp.Add(30 * 24 * time.Hour)
 
 	s.SetRetentionDays(7)
-	s.UpdateFromPoll(nil)
-	if len(s.GetAll()) != 0 {
+	s.UpdateFromPoll(context.Background(), nil)
+	if len(s.GetAll(context.Background())) != 0 {
 		t.Fatal("tightened retention should have dropped the closed PR")
 	}
 }
@@ -195,17 +195,17 @@ func TestSQLite_GetPendingAndHistoryPartition(t *testing.T) {
 	s := newMemoryStore(t, WithClock(clock))
 	prA := mkSummary("a/b#1", "a/b", 1, "A", "x", false)
 	prB := mkSummary("a/b#2", "a/b", 2, "B", "x", false)
-	s.UpdateFromPoll([]github.PRSummary{prA, prB})
+	s.UpdateFromPoll(context.Background(), []github.PRSummary{prA, prB})
 	// B is reviewed (approved) and then the author merges it. Under REV-16
 	// only the combination "state != OPEN" AND "review submitted" lands in
 	// history; apply both so the test actually exercises the history tab.
-	if err := s.RefreshPRStatus(prB.ID, github.PRDetails{State: "MERGED", ReviewState: "APPROVED"}); err != nil {
+	if err := s.RefreshPRStatus(context.Background(), prB.ID, github.PRDetails{State: "MERGED", ReviewState: "APPROVED"}); err != nil {
 		t.Fatalf("refresh prB: %v", err)
 	}
-	s.UpdateFromPoll([]github.PRSummary{prA})
+	s.UpdateFromPoll(context.Background(), []github.PRSummary{prA})
 
-	pending := s.GetPending()
-	history := s.GetHistory()
+	pending := s.GetPending(context.Background())
+	history := s.GetHistory(context.Background())
 	if len(pending) != 1 || pending[0].ID != prA.ID {
 		t.Fatalf("pending mismatch: %+v", pending)
 	}
@@ -226,7 +226,7 @@ func TestSQLite_HistoryRule_REV16(t *testing.T) {
 	prMergedPending := mkSummary("a/b#2", "a/b", 2, "merged-pending", "x", false)
 	prMergedApproved := mkSummary("a/b#3", "a/b", 3, "merged-approved", "x", false)
 	prClosedCommented := mkSummary("a/b#4", "a/b", 4, "closed-commented", "x", false)
-	s.UpdateFromPoll([]github.PRSummary{
+	s.UpdateFromPoll(context.Background(), []github.PRSummary{
 		prOpenApproved, prMergedPending, prMergedApproved, prClosedCommented,
 	})
 
@@ -235,8 +235,8 @@ func TestSQLite_HistoryRule_REV16(t *testing.T) {
 	mustRefresh(t, s, prMergedApproved.ID, "MERGED", "APPROVED")
 	mustRefresh(t, s, prClosedCommented.ID, "CLOSED", "COMMENTED")
 
-	pending := sortedIDs(s.GetPending())
-	history := sortedIDs(s.GetHistory())
+	pending := sortedIDs(s.GetPending(context.Background()))
+	history := sortedIDs(s.GetHistory(context.Background()))
 	wantPending := sortedIDs([]PRRecord{{ID: prOpenApproved.ID}})
 	wantHistory := sortedIDs([]PRRecord{
 		{ID: prMergedPending.ID},
@@ -253,7 +253,7 @@ func TestSQLite_HistoryRule_REV16(t *testing.T) {
 
 func mustRefresh(t *testing.T, s *sqliteStore, id, state, review string) {
 	t.Helper()
-	if err := s.RefreshPRStatus(id, github.PRDetails{State: state, ReviewState: review}); err != nil {
+	if err := s.RefreshPRStatus(context.Background(), id, github.PRDetails{State: state, ReviewState: review}); err != nil {
 		t.Fatalf("refresh %s: %v", id, err)
 	}
 }
@@ -262,17 +262,17 @@ func TestSQLite_GetAll_SortedByLastSeenDesc(t *testing.T) {
 	clock, tp := newClock(time.Date(2026, 4, 23, 10, 0, 0, 0, time.UTC))
 	s := newMemoryStore(t, WithClock(clock))
 
-	s.UpdateFromPoll([]github.PRSummary{mkSummary("a/b#1", "a/b", 1, "A", "x", false)})
+	s.UpdateFromPoll(context.Background(), []github.PRSummary{mkSummary("a/b#1", "a/b", 1, "A", "x", false)})
 	*tp = tp.Add(time.Minute)
-	s.UpdateFromPoll([]github.PRSummary{
+	s.UpdateFromPoll(context.Background(), []github.PRSummary{
 		mkSummary("a/b#1", "a/b", 1, "A", "x", false),
 		mkSummary("a/b#2", "a/b", 2, "B", "x", false),
 	})
-	all := s.GetAll()
+	all := s.GetAll(context.Background())
 	if len(all) != 2 {
 		t.Fatalf("want 2, got %d", len(all))
 	}
-	all2 := s.GetAll()
+	all2 := s.GetAll(context.Background())
 	if !reflect.DeepEqual(sortedIDs(all), sortedIDs(all2)) {
 		t.Fatal("GetAll ordering not stable")
 	}
@@ -305,7 +305,7 @@ func TestSQLite_LastPollAtPersisted(t *testing.T) {
 	start := time.Date(2026, 4, 23, 10, 0, 0, 0, time.UTC)
 	clock, _ := newClock(start)
 	s := newMemoryStore(t, WithClock(clock))
-	s.UpdateFromPoll([]github.PRSummary{
+	s.UpdateFromPoll(context.Background(), []github.PRSummary{
 		mkSummary("a/b#1", "a/b", 1, "t", "x", false),
 	})
 	v, ok, err := s.getMetaString(context.Background(), metaLastPollAt)
@@ -327,17 +327,17 @@ func TestSQLite_Close_Idempotent(t *testing.T) {
 		t.Fatalf("openDB: %v", err)
 	}
 	s := newSQLiteFromDB(db)
-	if err := s.Close(); err != nil {
+	if err := s.Close(context.Background()); err != nil {
 		t.Fatalf("first close: %v", err)
 	}
-	if err := s.Close(); err != nil {
+	if err := s.Close(context.Background()); err != nil {
 		t.Fatalf("second close: %v", err)
 	}
 }
 
 func TestSQLite_Save_NoOp(t *testing.T) {
 	s := newMemoryStore(t)
-	if err := s.Save(); err != nil {
+	if err := s.Save(context.Background()); err != nil {
 		t.Fatalf("save: %v", err)
 	}
 }
@@ -346,17 +346,17 @@ func TestSQLite_Save_NoOp(t *testing.T) {
 // Segunda chamada de Load() retorna nil sem reabrir/migrar o DB.
 func TestSQLite_Load_Idempotent(t *testing.T) {
 	st := New(":memory:").(*sqliteStore)
-	if err := st.Load(); err != nil {
+	if err := st.Load(context.Background()); err != nil {
 		t.Fatalf("first Load: %v", err)
 	}
-	t.Cleanup(func() { _ = st.Close() })
+	t.Cleanup(func() { _ = st.Close(context.Background()) })
 
 	first := st.db
 	if first == nil {
 		t.Fatal("first Load did not set db handle")
 	}
 
-	if err := st.Load(); err != nil {
+	if err := st.Load(context.Background()); err != nil {
 		t.Fatalf("second Load: %v", err)
 	}
 	if st.db != first {
@@ -368,7 +368,7 @@ func TestSQLite_Load_Idempotent(t *testing.T) {
 // GetByID. ID inexistente → (PRRecord{}, false).
 func TestSQLite_GetByID_NotFound(t *testing.T) {
 	s := newMemoryStore(t)
-	rec, ok := s.GetByID("does-not-exist")
+	rec, ok := s.GetByID(context.Background(), "does-not-exist")
 	if ok {
 		t.Fatal("missing id must return ok=false")
 	}
@@ -385,13 +385,17 @@ func TestSQLite_ClearHistory_DropsEveryHistoryRow(t *testing.T) {
 	prMerged := mkSummary("a/b#2", "a/b", 2, "merged", "x", false)
 	prClosed := mkSummary("a/b#3", "a/b", 3, "closed", "x", false)
 	prDropped := mkSummary("a/b#4", "a/b", 4, "dropped-from-search", "x", false)
-	s.UpdateFromPoll([]github.PRSummary{prStillPending, prMerged, prClosed, prDropped})
+	s.UpdateFromPoll(context.Background(), []github.PRSummary{prStillPending, prMerged, prClosed, prDropped})
 	// Finalize two PRs on GitHub — under REV-16 the state alone decides the
 	// tab, so both end up in history regardless of review state.
-	if err := s.RefreshPRStatus(prMerged.ID, github.PRDetails{State: "MERGED", ReviewState: "APPROVED"}); err != nil {
+	if err := s.RefreshPRStatus(context.Background(), prMerged.ID, github.PRDetails{State: "MERGED", ReviewState: "APPROVED"}); err != nil {
 		t.Fatalf("refresh merged: %v", err)
 	}
-	if err := s.RefreshPRStatus(prClosed.ID, github.PRDetails{State: "CLOSED", ReviewState: "COMMENTED"}); err != nil {
+	if err := s.RefreshPRStatus(
+		context.Background(),
+		prClosed.ID,
+		github.PRDetails{State: "CLOSED", ReviewState: "COMMENTED"},
+	); err != nil {
 		t.Fatalf("refresh closed: %v", err)
 	}
 
@@ -400,20 +404,20 @@ func TestSQLite_ClearHistory_DropsEveryHistoryRow(t *testing.T) {
 	// (never enriched) so still belongs to the pending tab; merged/closed
 	// rows land in history.
 	*tp = tp.Add(1 * time.Minute)
-	s.UpdateFromPoll([]github.PRSummary{prStillPending})
+	s.UpdateFromPoll(context.Background(), []github.PRSummary{prStillPending})
 
-	pending := sortedIDs(s.GetPending())
+	pending := sortedIDs(s.GetPending(context.Background()))
 	wantPending := sortedIDs([]PRRecord{{ID: prStillPending.ID}, {ID: prDropped.ID}})
 	if !reflect.DeepEqual(pending, wantPending) {
 		t.Fatalf("want %v in pending, got %v", wantPending, pending)
 	}
-	if history := s.GetHistory(); len(history) != 2 {
+	if history := s.GetHistory(context.Background()); len(history) != 2 {
 		t.Fatalf("want 2 rows in history, got %d: %+v", len(history), history)
 	}
 
 	// ClearHistory now wipes every merged/closed row; OPEN survivors stay
 	// regardless of their review_state.
-	n, err := s.ClearHistory()
+	n, err := s.ClearHistory(context.Background())
 	if err != nil {
 		t.Fatalf("clear history: %v", err)
 	}
@@ -421,7 +425,7 @@ func TestSQLite_ClearHistory_DropsEveryHistoryRow(t *testing.T) {
 		t.Fatalf("want 2 finalized rows cleared, got %d", n)
 	}
 
-	all := s.GetAll()
+	all := s.GetAll(context.Background())
 	ids := sortedIDs(all)
 	want := sortedIDs([]PRRecord{{ID: prStillPending.ID}, {ID: prDropped.ID}})
 	if !reflect.DeepEqual(ids, want) {
@@ -429,7 +433,7 @@ func TestSQLite_ClearHistory_DropsEveryHistoryRow(t *testing.T) {
 	}
 
 	// Idempotent: nothing else to finalize.
-	n, err = s.ClearHistory()
+	n, err = s.ClearHistory(context.Background())
 	if err != nil {
 		t.Fatalf("clear history second: %v", err)
 	}

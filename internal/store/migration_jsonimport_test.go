@@ -62,7 +62,7 @@ func TestMigrateJSON_HappyPath(t *testing.T) {
 
 	// PRs migrated.
 	s := newSQLiteFromDB(db)
-	all := s.GetAll()
+	all := s.GetAll(context.Background())
 	if len(all) != 2 {
 		t.Fatalf("want 2 PRs migrated, got %d", len(all))
 	}
@@ -142,7 +142,7 @@ func TestMigrateJSON_AlreadyMigrated_RenamesOrphan(t *testing.T) {
 	}
 	// Nothing re-imported.
 	s := newSQLiteFromDB(db)
-	if len(s.GetAll()) != 0 {
+	if len(s.GetAll(context.Background())) != 0 {
 		t.Fatal("orphan rename should not re-import PRs")
 	}
 }
@@ -168,7 +168,7 @@ func TestMigrateJSON_CorruptJSON_ReturnsError(t *testing.T) {
 		t.Fatalf("state.json should be untouched on error: %v", err)
 	}
 	s := newSQLiteFromDB(db)
-	if len(s.GetAll()) != 0 {
+	if len(s.GetAll(context.Background())) != 0 {
 		t.Fatal("db should be empty after failed migration")
 	}
 }
@@ -205,7 +205,7 @@ func TestMigrateJSON_Idempotent(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := newSQLiteFromDB(db)
-	if len(s.GetAll()) != 1 {
-		t.Fatalf("want 1 PR (no dup), got %d", len(s.GetAll()))
+	if len(s.GetAll(context.Background())) != 1 {
+		t.Fatalf("want 1 PR (no dup), got %d", len(s.GetAll(context.Background())))
 	}
 }

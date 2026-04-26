@@ -88,8 +88,13 @@ type runtimeServices struct {
 
 // shutdown encerra recursos na ordem inversa de inicialização. Idempotente
 // — chamado via defer no runApp.
+//
+// Close usa [context.Background] porque shutdown roda no defer de runApp,
+// depois que `wails.Run` retornou — momento em que o ctx raiz já está
+// cancelado. Passar esse ctx abortaria o `PRAGMA wal_checkpoint(TRUNCATE)`
+// e deixaria o WAL gordo no disco.
 func (r *runtimeServices) shutdown() {
-	if err := r.store.Close(); err != nil {
+	if err := r.store.Close(context.Background()); err != nil {
 		r.log.Warn("close store", "err", err)
 	}
 	_ = r.ntf.Close()
@@ -131,7 +136,7 @@ func bootstrapServices(ctx context.Context, paths runtimePaths) (*runtimeService
 		store.WithLogger(log),
 		store.WithJSONMigration(paths.legacy),
 	)
-	if err := st.Load(); err != nil {
+	if err := st.Load(ctx); err != nil {
 		return nil, fmt.Errorf("carregar store: %w", err)
 	}
 
@@ -148,13 +153,13 @@ func bootstrapServices(ctx context.Context, paths runtimePaths) (*runtimeService
 	// the ambient session (checked via AuthStatus); keyring profiles must
 	// have a valid token — validated via a cheap ValidateToken round-trip.
 	if err := preflightAuth(ctx, client, profSvc); err != nil {
-		_ = st.Close()
+		_ = st.Close(context.Background())
 		return nil, fmt.Errorf("pré-requisito falhou: %w", err)
 	}
 
 	ntf, err := notifier.New(notifier.WithExpireTimeout(time.Duration(cfg.NotificationTimeoutSeconds) * time.Second))
 	if err != nil {
-		_ = st.Close()
+		_ = st.Close(context.Background())
 		return nil, fmt.Errorf("inicializar notifier: %w", err)
 	}
 	ntf.SetEnabled(cfg.NotificationsEnabled)
@@ -224,7 +229,7 @@ func buildTray(ctx context.Context, svc *runtimeServices, bridge *app.App, stop 
 	)
 	// Seed initial state from the already-loaded store; saves one icon
 	// flicker on startup when there are pending PRs waiting.
-	tr.SetState(stateFromStore(svc.store))
+	tr.SetState(stateFromStore(ctx, svc.store))
 	return tr
 }
 
@@ -397,20 +402,22 @@ func legacyStateJSONPath() (string, error) {
 }
 
 // stateFromStore derives the initial tray state from the loaded store.
-func stateFromStore(s store.Store) tray.State {
-	if len(s.GetPending()) > 0 {
+func stateFromStore(ctx context.Context, s store.Store) tray.State {
+	if len(s.GetPending(ctx)) > 0 {
 		return tray.StatePending
 	}
 	return tray.StateIdle
 }
 
 // syncTrayState reacts to poller events. Any completed poll re-reads the
-// store and picks idle vs pending.
+// store and picks idle vs pending. Usa Background() porque o callback é
+// disparado fora do escopo do ctx do bootstrap; a query é curta e
+// fire-and-forget — WithTimeout aqui seria over-engineering.
 func syncTrayState(tr *tray.Tray, s store.Store, e poller.Event) {
 	if e.Kind != poller.EventPollCompleted {
 		return
 	}
-	tr.SetState(stateFromStore(s))
+	tr.SetState(stateFromStore(context.Background(), s))
 }
 
 // preflightAuth verifies the active profile can talk to GitHub before the

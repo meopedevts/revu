@@ -165,7 +165,7 @@ func (p *Poller) tick(ctx context.Context) {
 	}
 	p.resetBackoff()
 
-	novos, vanished := p.store.UpdateFromPoll(summaries)
+	novos, vanished := p.store.UpdateFromPoll(ctx, summaries)
 	for i := range novos {
 		rec := novos[i]
 		enriched := p.enrich(ctx, rec)
@@ -185,7 +185,7 @@ func (p *Poller) tick(ctx context.Context) {
 	for i := range vanished {
 		p.enrich(ctx, vanished[i])
 	}
-	if err := p.store.Save(); err != nil {
+	if err := p.store.Save(ctx); err != nil {
 		p.log.WarnContext(ctx, "save store", "err", err)
 	}
 	p.emit(Event{Kind: EventPollCompleted})
@@ -202,7 +202,7 @@ func (p *Poller) enrich(ctx context.Context, rec store.PRRecord) store.PRRecord 
 		return rec
 	}
 	prevState := rec.State
-	if err := p.store.RefreshPRStatus(rec.ID, *details); err != nil {
+	if err := p.store.RefreshPRStatus(ctx, rec.ID, *details); err != nil {
 		p.log.WarnContext(ctx, "refresh status", "pr", rec.ID, "err", err)
 	}
 	rec.Additions = details.Additions

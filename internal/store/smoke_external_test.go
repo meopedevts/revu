@@ -3,6 +3,7 @@
 package store
 
 import (
+	"context"
 	"io"
 	"log/slog"
 	"os"
@@ -37,14 +38,14 @@ func TestSmoke_RealStateJSON(t *testing.T) {
 		WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
 		WithJSONMigration(jsonPath),
 	)
-	if err := s.Load(); err != nil {
+	if err := s.Load(context.Background()); err != nil {
 		t.Fatalf("load: %v", err)
 	}
-	defer s.Close()
+	defer s.Close(context.Background())
 
-	all := s.GetAll()
-	pending := s.GetPending()
-	history := s.GetHistory()
+	all := s.GetAll(context.Background())
+	pending := s.GetPending(context.Background())
+	history := s.GetHistory(context.Background())
 
 	t.Logf("migrated: total=%d pending=%d history=%d", len(all), len(pending), len(history))
 	for _, pr := range all {
@@ -78,11 +79,11 @@ func TestSmoke_RealStateJSON(t *testing.T) {
 		WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
 		WithJSONMigration(jsonPath),
 	)
-	if err := s2.Load(); err != nil {
+	if err := s2.Load(context.Background()); err != nil {
 		t.Fatalf("reload: %v", err)
 	}
-	defer s2.Close()
-	if got := len(s2.GetAll()); got != len(all) {
+	defer s2.Close(context.Background())
+	if got := len(s2.GetAll(context.Background())); got != len(all) {
 		t.Fatalf("reload count drift: first=%d second=%d", len(all), got)
 	}
 }

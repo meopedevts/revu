@@ -121,12 +121,12 @@ func (a *App) WailsCtx() context.Context { return a.getCtx() }
 
 // ListPendingPRs returns PRs with review_pending=true, most-recent first.
 func (a *App) ListPendingPRs() []store.PRRecord {
-	return a.store.GetPending()
+	return a.store.GetPending(a.callCtx())
 }
 
 // ListHistoryPRs returns PRs with review_pending=false, most-recent first.
 func (a *App) ListHistoryPRs() []store.PRRecord {
-	return a.store.GetHistory()
+	return a.store.GetHistory(a.callCtx())
 }
 
 // OpenPRInBrowser hands the URL off to xdg-open. Errors are logged, not
@@ -212,7 +212,7 @@ func (a *App) UpdateConfig(c appconfig.Config) error {
 // ClearHistory deletes every non-OPEN record and returns the row count.
 // Used by the settings "Limpar histórico agora" button.
 func (a *App) ClearHistory() (int, error) {
-	return a.store.ClearHistory()
+	return a.store.ClearHistory(a.callCtx())
 }
 
 const (
@@ -261,11 +261,12 @@ func (a *App) GetPRDetails(prID string) (*github.PRFullDetails, error) {
 	if a.gh == nil {
 		return nil, errGitHubUnavailable
 	}
-	rec, ok := a.store.GetByID(prID)
+	ctx := a.callCtx()
+	rec, ok := a.store.GetByID(ctx, prID)
 	if !ok {
 		return nil, errPRNotFound
 	}
-	return a.gh.GetPRFullDetails(a.callCtx(), rec.URL)
+	return a.gh.GetPRFullDetails(ctx, rec.URL)
 }
 
 // GetPRDiff returns the raw unified diff for the PR, or an empty string if
@@ -275,14 +276,15 @@ func (a *App) GetPRDiff(prID string) (string, error) {
 	if a.gh == nil {
 		return "", errGitHubUnavailable
 	}
-	rec, ok := a.store.GetByID(prID)
+	ctx := a.callCtx()
+	rec, ok := a.store.GetByID(ctx, prID)
 	if !ok {
 		return "", errPRNotFound
 	}
 	if rec.Additions+rec.Deletions > detailsDiffLimit {
 		return "", nil
 	}
-	return a.gh.GetPRDiff(a.callCtx(), rec.URL)
+	return a.gh.GetPRDiff(ctx, rec.URL)
 }
 
 // MergePR runs `gh pr merge` with the chosen method. On success it nudges
@@ -293,7 +295,8 @@ func (a *App) MergePR(prID string, method string) error {
 	if a.gh == nil {
 		return errGitHubUnavailable
 	}
-	rec, ok := a.store.GetByID(prID)
+	ctx := a.callCtx()
+	rec, ok := a.store.GetByID(ctx, prID)
 	if !ok {
 		return errPRNotFound
 	}
@@ -306,7 +309,7 @@ func (a *App) MergePR(prID string, method string) error {
 	default:
 		return fmt.Errorf("unsupported merge method: %q", method)
 	}
-	if err := a.gh.MergePR(a.callCtx(), rec.URL, m); err != nil {
+	if err := a.gh.MergePR(ctx, rec.URL, m); err != nil {
 		return err
 	}
 	// Nudge the poller out-of-schedule so the newly-merged state is picked

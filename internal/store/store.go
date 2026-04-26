@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"log/slog"
@@ -10,22 +11,25 @@ import (
 )
 
 // Store is the persistence surface used by the poller and the UI bridge.
+// I/O methods take a ctx so callers (poller, Wails bridge, CLI) can propagate
+// cancellation and deadlines down to the SQLite driver. Methods that don't
+// touch the DB (SetRetentionDays, SetActiveProfileID, DB) stay ctx-free.
 type Store interface {
-	Load() error
-	Save() error
-	Close() error
-	GetAll() []PRRecord
-	GetPending() []PRRecord
-	GetHistory() []PRRecord
+	Load(ctx context.Context) error
+	Save(ctx context.Context) error
+	Close(ctx context.Context) error
+	GetAll(ctx context.Context) []PRRecord
+	GetPending(ctx context.Context) []PRRecord
+	GetHistory(ctx context.Context) []PRRecord
 	// GetByID returns the record with the given id, or (zero, false) if the
 	// store does not track it. Used by the app bridge to resolve a PR id
 	// coming off the frontend into the URL needed for gh-backed calls.
-	GetByID(id string) (PRRecord, bool)
-	UpdateFromPoll(prs []github.PRSummary) (novos, vanished []PRRecord)
-	RefreshPRStatus(id string, details github.PRDetails) error
+	GetByID(ctx context.Context, id string) (PRRecord, bool)
+	UpdateFromPoll(ctx context.Context, prs []github.PRSummary) (novos, vanished []PRRecord)
+	RefreshPRStatus(ctx context.Context, id string, details github.PRDetails) error
 	SetRetentionDays(days int)
 	SetActiveProfileID(id string)
-	ClearHistory() (int, error)
+	ClearHistory(ctx context.Context) (int, error)
 	// DB returns the underlying *sql.DB so sibling packages (e.g. profiles)
 	// can share the same connection / WAL session instead of opening a
 	// second handle. Returns nil before Load or after Close.

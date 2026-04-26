@@ -38,7 +38,7 @@ type sqliteStore struct {
 // Load opens the underlying SQLite database, applies pending migrations, and
 // performs the one-shot JSON import if configured. Idempotent: calling Load
 // twice is a no-op for the second call.
-func (s *sqliteStore) Load() error {
+func (s *sqliteStore) Load(ctx context.Context) error {
 	s.dbMu.Lock()
 	defer s.dbMu.Unlock()
 	if s.db != nil {
@@ -49,7 +49,6 @@ func (s *sqliteStore) Load() error {
 		return err
 	}
 	if s.jsonStatePath != "" {
-		ctx := context.Background()
 		if err := migrateJSONIfPresent(ctx, db, s.jsonStatePath, s.now().UTC(), s.log); err != nil {
 			_ = db.Close()
 			return fmt.Errorf("import legacy state.json: %w", err)
@@ -61,26 +60,28 @@ func (s *sqliteStore) Load() error {
 
 // Save runs a WAL checkpoint so the main DB file absorbs pending WAL frames.
 // Does not close the handle.
-func (s *sqliteStore) Save() error {
+func (s *sqliteStore) Save(ctx context.Context) error {
 	db := s.handle()
 	if db == nil {
 		return nil
 	}
-	if _, err := db.ExecContext(context.Background(), `PRAGMA wal_checkpoint(PASSIVE)`); err != nil {
+	if _, err := db.ExecContext(ctx, `PRAGMA wal_checkpoint(PASSIVE)`); err != nil {
 		return fmt.Errorf("wal checkpoint: %w", err)
 	}
 	return nil
 }
 
 // Close flushes the WAL with a TRUNCATE checkpoint and closes the DB. Safe
-// to call multiple times — subsequent calls return nil.
-func (s *sqliteStore) Close() error {
+// to call multiple times — subsequent calls return nil. Callers running in a
+// shutdown defer should pass [context.Background] so an already-canceled
+// parent ctx doesn't abort the truncate pragma and leave a fat WAL on disk.
+func (s *sqliteStore) Close(ctx context.Context) error {
 	s.dbMu.Lock()
 	defer s.dbMu.Unlock()
 	if s.db == nil {
 		return nil
 	}
-	_, _ = s.db.ExecContext(context.Background(), `PRAGMA wal_checkpoint(TRUNCATE)`)
+	_, _ = s.db.ExecContext(ctx, `PRAGMA wal_checkpoint(TRUNCATE)`)
 	err := s.db.Close()
 	s.db = nil
 	if err != nil {
@@ -100,32 +101,32 @@ func (s *sqliteStore) handle() *sql.DB {
 // DB satisfies Store.DB — see Store interface doc.
 func (s *sqliteStore) DB() *sql.DB { return s.handle() }
 
-func (s *sqliteStore) GetAll() []PRRecord {
+func (s *sqliteStore) GetAll(ctx context.Context) []PRRecord {
 	db := s.handle()
 	if db == nil {
 		return nil
 	}
-	return s.mustScan(db, qSelectPRsAll, "all")
+	return s.mustScan(ctx, db, qSelectPRsAll, "all")
 }
 
-func (s *sqliteStore) GetPending() []PRRecord {
+func (s *sqliteStore) GetPending(ctx context.Context) []PRRecord {
 	db := s.handle()
 	if db == nil {
 		return nil
 	}
-	return s.mustScan(db, qSelectPRsPending, "pending")
+	return s.mustScan(ctx, db, qSelectPRsPending, "pending")
 }
 
-func (s *sqliteStore) GetHistory() []PRRecord {
+func (s *sqliteStore) GetHistory(ctx context.Context) []PRRecord {
 	db := s.handle()
 	if db == nil {
 		return nil
 	}
-	return s.mustScan(db, qSelectPRsHistory, "history")
+	return s.mustScan(ctx, db, qSelectPRsHistory, "history")
 }
 
-func (s *sqliteStore) GetByID(id string) (PRRecord, bool) {
-	rec, ok, err := s.loadRecord(context.Background(), id)
+func (s *sqliteStore) GetByID(ctx context.Context, id string) (PRRecord, bool) {
+	rec, ok, err := s.loadRecord(ctx, id)
 	if err != nil || !ok {
 		return PRRecord{}, false
 	}
@@ -152,12 +153,11 @@ func (s *sqliteStore) SetActiveProfileID(id string) {
 // ClearHistory removes every non-OPEN record from the store, regardless of
 // age. Returns the number of rows deleted. Backs the "Limpar histórico
 // agora" action in the settings UI.
-func (s *sqliteStore) ClearHistory() (int, error) {
+func (s *sqliteStore) ClearHistory(ctx context.Context) (int, error) {
 	db := s.handle()
 	if db == nil {
 		return 0, errors.New("store is not loaded")
 	}
-	ctx := context.Background()
 	res, err := db.ExecContext(ctx, qClearHistory)
 	if err != nil {
 		return 0, fmt.Errorf("clear history: %w", err)
@@ -182,12 +182,11 @@ func (s *sqliteStore) ClearHistory() (int, error) {
 //     re-enrichment so state + review_state converge with GitHub (the PR may
 //     have been merged/closed, or our review may have just been submitted).
 //     Callers must not notify on these — they're not new work.
-func (s *sqliteStore) UpdateFromPoll(prs []github.PRSummary) ([]PRRecord, []PRRecord) {
+func (s *sqliteStore) UpdateFromPoll(ctx context.Context, prs []github.PRSummary) ([]PRRecord, []PRRecord) {
 	db := s.handle()
 	if db == nil {
 		return nil, nil
 	}
-	ctx := context.Background()
 	now := s.now().UTC()
 
 	tx, err := db.BeginTx(ctx, nil)
@@ -444,12 +443,11 @@ func selectVanishedIDs(ctx context.Context, tx *sql.Tx, polled map[string]struct
 // Empty details.ReviewState leaves the stored value untouched, so callers that
 // only care about diff/status fields (legacy sites, tests) don't accidentally
 // reset the review flag.
-func (s *sqliteStore) RefreshPRStatus(id string, details github.PRDetails) error {
+func (s *sqliteStore) RefreshPRStatus(ctx context.Context, id string, details github.PRDetails) error {
 	db := s.handle()
 	if db == nil {
 		return ErrNotFound
 	}
-	ctx := context.Background()
 	rec, ok, err := s.loadRecord(ctx, id)
 	if err != nil {
 		return err
@@ -537,8 +535,7 @@ func scanRow(row interface {
 // se a query nem rodou — é devolvido pra UI consumir como "vazio". O
 // log preserva diagnóstico de DB corrompido sem cascatear erro pelo
 // bridge Wails.
-func (s *sqliteStore) mustScan(db *sql.DB, query, label string) []PRRecord {
-	ctx := context.Background()
+func (s *sqliteStore) mustScan(ctx context.Context, db *sql.DB, query, label string) []PRRecord {
 	rows, err := db.QueryContext(ctx, query)
 	if err != nil {
 		s.log.ErrorContext(ctx, "store query failed",

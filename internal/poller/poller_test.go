@@ -137,10 +137,10 @@ func freshStore(t *testing.T) store.Store {
 	s := store.New(filepath.Join(t.TempDir(), "revu.db"),
 		store.WithClock(func() time.Time { return time.Date(2026, 4, 23, 10, 0, 0, 0, time.UTC) }),
 	)
-	if err := s.Load(); err != nil {
+	if err := s.Load(context.Background()); err != nil {
 		t.Fatalf("store Load: %v", err)
 	}
-	t.Cleanup(func() { _ = s.Close() })
+	t.Cleanup(func() { _ = s.Close(context.Background()) })
 	return s
 }
 
@@ -438,7 +438,7 @@ func TestTick_VanishedPRGetsEnriched(t *testing.T) {
 	fc.detailsResponse = github.PRDetails{State: "MERGED", ReviewState: "APPROVED"}
 	p.tick(context.Background())
 
-	history := s.GetHistory()
+	history := s.GetHistory(context.Background())
 	if len(history) != 1 || history[0].ID != "a/b#1" {
 		t.Fatalf("vanished PR should be in history, got %+v", history)
 	}

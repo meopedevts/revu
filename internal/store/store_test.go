@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -66,8 +67,8 @@ func TestWithLogger_NilIsNoOp(t *testing.T) {
 		t.Fatal("log must remain default, got nil")
 	}
 	// Sanity: o store carrega e fecha sem panicar mesmo com Option nil.
-	if err := st.Load(); err != nil {
+	if err := st.Load(context.Background()); err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	t.Cleanup(func() { _ = st.Close() })
+	t.Cleanup(func() { _ = st.Close(context.Background()) })
 }

@@ -23,7 +23,7 @@ func TestSQLite_Load_OpenDBError(t *testing.T) {
 		return nil, sentinel
 	})).(*sqliteStore)
 
-	err := s.Load()
+	err := s.Load(context.Background())
 	if !errors.Is(err, sentinel) {
 		t.Fatalf("err: want sentinel, got %v", err)
 	}
@@ -47,7 +47,7 @@ func TestSQLite_Load_MigrateJSONError(t *testing.T) {
 
 	s := New(dbPath, WithJSONMigration(badJSON)).(*sqliteStore)
 
-	err := s.Load()
+	err := s.Load(context.Background())
 	if err == nil {
 		t.Fatal("err: expected failure from malformed json, got nil")
 	}
@@ -69,7 +69,7 @@ func TestUpsertPolled_QueryRowCtxCancel(t *testing.T) {
 	s := newMemoryStore(t, WithClock(clock))
 
 	pr := mkSummary("octocat/hello#1", "octocat/hello", 1, "feat: ctx", "alice", false)
-	if novos, _ := s.UpdateFromPoll([]github.PRSummary{pr}); len(novos) != 1 {
+	if novos, _ := s.UpdateFromPoll(context.Background(), []github.PRSummary{pr}); len(novos) != 1 {
 		t.Fatalf("seed: want 1 novo, got %d", len(novos))
 	}
 
@@ -89,5 +89,77 @@ func TestUpsertPolled_QueryRowCtxCancel(t *testing.T) {
 	}
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err: want context.Canceled, got %v", err)
+	}
+}
+
+// TestSQLite_GetByID_CtxCanceled valida que o ctx cancelado pelo caller
+// chega no driver SQLite na rota de leitura. Usa loadRecord direto pra
+// observar o erro (a fachada GetByID silencia e devolve (zero, false)).
+// Mata mutantes que troquem `db.QueryRowContext(ctx, ...)` por
+// `Background()` em loadRecord — cobertura REV-26 do critério "leitura".
+func TestSQLite_GetByID_CtxCanceled(t *testing.T) {
+	clock, _ := newClock(time.Date(2026, 4, 25, 10, 0, 0, 0, time.UTC))
+	s := newMemoryStore(t, WithClock(clock))
+
+	pr := mkSummary("octocat/hello#1", "octocat/hello", 1, "feat: ctx", "alice", false)
+	if novos, _ := s.UpdateFromPoll(context.Background(), []github.PRSummary{pr}); len(novos) != 1 {
+		t.Fatalf("seed: want 1 novo, got %d", len(novos))
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, _, err := s.loadRecord(ctx, pr.ID)
+	if err == nil {
+		t.Fatal("err: expected failure from canceled ctx, got nil")
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("err: want context.Canceled, got %v", err)
+	}
+
+	// Façade pública silencia o erro mas devolve zero/false — confirma o
+	// contrato externo do GetByID em ctx cancelado.
+	if rec, ok := s.GetByID(ctx, pr.ID); ok || rec.ID != "" {
+		t.Fatalf("GetByID with canceled ctx: want (zero,false), got (%+v,%v)", rec, ok)
+	}
+}
+
+// TestSQLite_ClearHistory_CtxCanceled valida que ClearHistory respeita
+// ctx cancelado e não apaga nada. Pré-popula um registro non-OPEN, então
+// cancela ctx antes de chamar. Mata mutantes que troquem
+// `db.ExecContext(ctx, ...)` por `Background()` ou `db.Exec(...)` —
+// cobertura REV-26 do critério "escrita".
+func TestSQLite_ClearHistory_CtxCanceled(t *testing.T) {
+	clock, _ := newClock(time.Date(2026, 4, 25, 10, 0, 0, 0, time.UTC))
+	s := newMemoryStore(t, WithClock(clock))
+
+	pr := mkSummary("octocat/hello#1", "octocat/hello", 1, "feat: ctx", "alice", false)
+	bg := context.Background()
+	s.UpdateFromPoll(bg, []github.PRSummary{pr})
+	if err := s.RefreshPRStatus(bg, pr.ID, github.PRDetails{State: "CLOSED"}); err != nil {
+		t.Fatalf("seed RefreshPRStatus: %v", err)
+	}
+	// Tira do polling pra entrar no histórico.
+	s.UpdateFromPoll(bg, nil)
+	if got := len(s.GetHistory(bg)); got != 1 {
+		t.Fatalf("seed: want 1 history record, got %d", got)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	n, err := s.ClearHistory(ctx)
+	if err == nil {
+		t.Fatal("err: expected failure from canceled ctx, got nil")
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("err: want context.Canceled, got %v", err)
+	}
+	if n != 0 {
+		t.Fatalf("rows affected: want 0 on canceled ctx, got %d", n)
+	}
+	// History deve continuar intocado.
+	if got := len(s.GetHistory(bg)); got != 1 {
+		t.Fatalf("history must survive canceled ClearHistory; got %d", got)
 	}
 }
