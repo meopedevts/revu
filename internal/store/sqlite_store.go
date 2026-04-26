@@ -105,7 +105,7 @@ func (s *sqliteStore) GetAll() []PRRecord {
 	if db == nil {
 		return nil
 	}
-	return mustScan(db, qSelectPRsAll)
+	return s.mustScan(db, qSelectPRsAll, "all")
 }
 
 func (s *sqliteStore) GetPending() []PRRecord {
@@ -113,7 +113,7 @@ func (s *sqliteStore) GetPending() []PRRecord {
 	if db == nil {
 		return nil
 	}
-	return mustScan(db, qSelectPRsPending)
+	return s.mustScan(db, qSelectPRsPending, "pending")
 }
 
 func (s *sqliteStore) GetHistory() []PRRecord {
@@ -121,7 +121,7 @@ func (s *sqliteStore) GetHistory() []PRRecord {
 	if db == nil {
 		return nil
 	}
-	return mustScan(db, qSelectPRsHistory)
+	return s.mustScan(db, qSelectPRsHistory, "history")
 }
 
 func (s *sqliteStore) GetByID(id string) (PRRecord, bool) {
@@ -532,9 +532,17 @@ func scanRow(row interface {
 	return rec, nil
 }
 
-func mustScan(db *sql.DB, query string) []PRRecord {
-	rows, err := db.QueryContext(context.Background(), query)
+// mustScan roda uma query de leitura e materializa as linhas. Erros de
+// query/scan são logados (não silenciados) e o slice parcial — ou nil,
+// se a query nem rodou — é devolvido pra UI consumir como "vazio". O
+// log preserva diagnóstico de DB corrompido sem cascatear erro pelo
+// bridge Wails.
+func (s *sqliteStore) mustScan(db *sql.DB, query, label string) []PRRecord {
+	ctx := context.Background()
+	rows, err := db.QueryContext(ctx, query)
 	if err != nil {
+		s.log.ErrorContext(ctx, "store query failed",
+			slog.String("query", label), slog.String("err", err.Error()))
 		return nil
 	}
 	defer rows.Close()
@@ -542,11 +550,15 @@ func mustScan(db *sql.DB, query string) []PRRecord {
 	for rows.Next() {
 		rec, err := scanRow(rows)
 		if err != nil {
+			s.log.ErrorContext(ctx, "store scan failed",
+				slog.String("query", label), slog.String("err", err.Error()))
 			return out
 		}
 		out = append(out, rec)
 	}
 	if err := rows.Err(); err != nil {
+		s.log.ErrorContext(ctx, "store rows iteration failed",
+			slog.String("query", label), slog.String("err", err.Error()))
 		return out
 	}
 	return out

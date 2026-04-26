@@ -17,12 +17,24 @@ import (
 )
 
 type fakeProfileProvider struct {
-	id  string
-	err error
+	mu    sync.Mutex
+	id    string
+	err   error
+	calls int
 }
 
 func (f *fakeProfileProvider) ActiveProfileID(_ context.Context) (string, error) {
-	return f.id, f.err
+	f.mu.Lock()
+	f.calls++
+	id, err := f.id, f.err
+	f.mu.Unlock()
+	return id, err
+}
+
+func (f *fakeProfileProvider) callCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.calls
 }
 
 type recordingStore struct {
@@ -545,6 +557,9 @@ func TestTick_AppliesActiveProfile(t *testing.T) {
 	calls := rs.profileCalls()
 	if len(calls) != 1 || calls[0] != "profile-xyz" {
 		t.Fatalf("want SetActiveProfileID(\"profile-xyz\") once, got %#v", calls)
+	}
+	if got := pp.callCount(); got != 1 {
+		t.Errorf("provider call count: want 1, got %d", got)
 	}
 }
 

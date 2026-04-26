@@ -179,6 +179,9 @@ func (p *Poller) tick(ctx context.Context) {
 	// + review_state converge with GitHub. These are not new work — no notify,
 	// no pr:new event. The enrich itself emits pr:status-changed when the
 	// stored state flips (e.g. OPEN → MERGED).
+	if len(vanished) > 0 {
+		p.log.DebugContext(ctx, "enriching vanished PRs", "count", len(vanished))
+	}
 	for i := range vanished {
 		p.enrich(ctx, vanished[i])
 	}

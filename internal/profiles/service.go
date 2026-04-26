@@ -130,7 +130,13 @@ func (s *Service) fanoutActive(p Profile) {
 	s.subsMu.Unlock()
 	for _, fn := range subs {
 		func() {
-			defer func() { _ = recover() }()
+			defer func() {
+				if r := recover(); r != nil {
+					s.log.Error("subscriber panic in fanoutActive",
+						slog.Any("panic", r),
+						slog.String("profile_id", p.ID))
+				}
+			}()
 			fn(p)
 		}()
 	}
@@ -261,16 +267,22 @@ func (s *Service) Update(ctx context.Context, id string, u Update) (Profile, err
 
 	tokenChanged := u.Token != nil && *u.Token != ""
 
+	var keyringRollback func()
 	switch next.AuthMethod {
 	case AuthKeyring:
-		if err := s.applyKeyringMethod(ctx, &next, cur, u, tokenChanged); err != nil {
+		rollback, err := s.applyKeyringMethod(ctx, &next, cur, u, tokenChanged)
+		if err != nil {
 			return Profile{}, err
 		}
+		keyringRollback = rollback
 	case AuthGHCLI:
 		s.applyGHCLIMethod(ctx, &next, cur)
 	}
 
 	if err := s.repo.UpdateFields(ctx, next); err != nil {
+		if keyringRollback != nil {
+			keyringRollback()
+		}
 		return Profile{}, err
 	}
 	if next.IsActive {
@@ -303,35 +315,67 @@ func applyMutableFields(next *Profile, u Update) error {
 // quando muda, persiste no keyring sob o ref correto, e atualiza
 // username + LastValidatedAt. Quando não há token e o método anterior
 // também não era keyring, exige o token (ErrTokenRequired).
+//
+// Retorna uma função de rollback quando o keyring foi tocado — caller
+// invoca se a persistência subsequente (repo.UpdateFields) falhar, pra
+// não deixar entrada órfã. Sem token novo, rollback é nil.
 func (s *Service) applyKeyringMethod(
 	ctx context.Context,
 	next *Profile,
 	cur Profile,
 	u Update,
 	tokenChanged bool,
-) error {
+) (func(), error) {
 	if !tokenChanged {
 		if cur.AuthMethod != AuthKeyring {
-			return ErrTokenRequired
+			return nil, ErrTokenRequired
 		}
-		return nil
+		return nil, nil
 	}
 	username, err := s.validateTokenString(ctx, *u.Token)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	ref := next.KeyringRef
 	if ref == "" || ref == string(AuthGHCLI) {
 		ref = s.refPref + next.ID
 	}
+
+	// Quando a ref é a mesma do current, captura o token velho antes do
+	// Set pra conseguir restaurar em rollback (Set sobrescreve). Se Get
+	// falhar (entrada nem existia, ou keyring transient), seguimos com
+	// rollback-via-Delete.
+	var oldToken string
+	var hadOldToken bool
+	if cur.AuthMethod == AuthKeyring && cur.KeyringRef == ref {
+		if t, gerr := s.keys.Get(ref); gerr == nil {
+			oldToken = t
+			hadOldToken = true
+		}
+	}
+
 	if err := s.keys.Set(ref, *u.Token); err != nil {
-		return fmt.Errorf("store token: %w", err)
+		return nil, fmt.Errorf("store token: %w", err)
 	}
 	next.KeyringRef = ref
 	next.GitHubUsername = username
 	now := s.now().UTC()
 	next.LastValidatedAt = &now
-	return nil
+
+	rollback := func() {
+		if hadOldToken {
+			if rerr := s.keys.Set(ref, oldToken); rerr != nil {
+				s.log.WarnContext(ctx, "rollback keyring entry",
+					slog.String("err", rerr.Error()))
+			}
+			return
+		}
+		if derr := s.keys.Delete(ref); derr != nil {
+			s.log.WarnContext(ctx, "rollback keyring entry",
+				slog.String("err", derr.Error()))
+		}
+	}
+	return rollback, nil
 }
 
 // applyGHCLIMethod aplica a transição pra AuthGHCLI: dropa o token
