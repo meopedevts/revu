@@ -18,19 +18,19 @@ export interface PRRecord {
   last_notified_at?: string
 }
 
-export type PRState = 'OPEN' | 'DRAFT' | 'MERGED' | 'CLOSED'
+export type PRState = "OPEN" | "DRAFT" | "MERGED" | "CLOSED"
 
 export type ReviewState =
-  | 'PENDING'
-  | 'APPROVED'
-  | 'CHANGES_REQUESTED'
-  | 'COMMENTED'
+  | "PENDING"
+  | "APPROVED"
+  | "CHANGES_REQUESTED"
+  | "COMMENTED"
 
 export function statusOf(pr: PRRecord): PRState {
-  if (pr.state === 'MERGED') return 'MERGED'
-  if (pr.state === 'CLOSED') return 'CLOSED'
-  if (pr.is_draft) return 'DRAFT'
-  return 'OPEN'
+  if (pr.state === "MERGED") return "MERGED"
+  if (pr.state === "CLOSED") return "CLOSED"
+  if (pr.is_draft) return "DRAFT"
+  return "OPEN"
 }
 
 // reviewStateOf normalizes the raw review_state string coming off the bridge
@@ -38,12 +38,12 @@ export function statusOf(pr: PRRecord): PRState {
 // PENDING so the badge never disappears.
 export function reviewStateOf(pr: PRRecord): ReviewState {
   switch (pr.review_state) {
-    case 'APPROVED':
-    case 'CHANGES_REQUESTED':
-    case 'COMMENTED':
+    case "APPROVED":
+    case "CHANGES_REQUESTED":
+    case "COMMENTED":
       return pr.review_state
     default:
-      return 'PENDING'
+      return "PENDING"
   }
 }
 
@@ -53,7 +53,7 @@ export interface WindowConfig {
   height: number
 }
 
-export type Theme = 'light' | 'dark'
+export type Theme = "light" | "dark"
 
 export interface AppConfig {
   polling_interval_seconds: number
@@ -87,12 +87,12 @@ export const DEFAULT_CONFIG: AppConfig = {
   history_retention_days: 30,
   start_hidden: true,
   window: { width: 480, height: 640 },
-  theme: 'light',
+  theme: "light",
 }
 
 // Mirrors internal/profiles.AuthMethod. The frontend never needs to look at
 // keyring_ref directly — tokens stay on the Go side.
-export type AuthMethod = 'gh-cli' | 'keyring'
+export type AuthMethod = "gh-cli" | "keyring"
 
 // Mirrors internal/profiles.Profile — the JSON tags on Go flatten to
 // snake_case, so we mirror them verbatim.
@@ -144,9 +144,9 @@ export interface ChangedFile {
   deletions: number
 }
 
-export type MergeableStatus = 'MERGEABLE' | 'CONFLICTING' | 'UNKNOWN'
+export type MergeableStatus = "MERGEABLE" | "CONFLICTING" | "UNKNOWN"
 
-export type MergeMethod = 'squash' | 'merge'
+export type MergeMethod = "squash" | "merge"
 
 export interface PRFullDetails {
   number: number

@@ -1,7 +1,7 @@
-import { Trash2 } from 'lucide-react'
-import { useCallback, useState } from 'react'
-import type { UseFormReturn } from 'react-hook-form'
-import { toast } from 'sonner'
+import { Trash2 } from "lucide-react"
+import { useCallback, useState } from "react"
+import type { UseFormReturn } from "react-hook-form"
+import { toast } from "sonner"
 
 import {
   AlertDialog,
@@ -13,19 +13,19 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from '@/components/ui/alert-dialog'
-import { Button } from '@/components/ui/button'
+} from "@/components/ui/alert-dialog"
+import { Button } from "@/components/ui/button"
 import {
   FormControl,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
-} from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
-import { Separator } from '@/components/ui/separator'
-import { clearHistory, refreshNow } from '@/src/lib/bridge'
-import type { AppConfig } from '@/src/lib/types'
+} from "@/components/ui/form"
+import { Input } from "@/components/ui/input"
+import { Separator } from "@/components/ui/separator"
+import { clearHistory, refreshNow } from "@/src/lib/bridge"
+import type { AppConfig } from "@/src/lib/types"
 
 interface HistorySectionProps {
   form: UseFormReturn<AppConfig>
@@ -39,12 +39,12 @@ export function HistorySection({ form }: HistorySectionProps) {
     try {
       const n = await clearHistory()
       toast.success(
-        `${n} PR${n === 1 ? '' : 's'} removido${n === 1 ? '' : 's'} do histórico`
+        `${n} PR${n === 1 ? "" : "s"} removido${n === 1 ? "" : "s"} do histórico`
       )
       await refreshNow()
     } catch (err: unknown) {
       toast.error(
-        err instanceof Error ? err.message : 'Falha ao limpar histórico'
+        err instanceof Error ? err.message : "Falha ao limpar histórico"
       )
     } finally {
       setClearing(false)

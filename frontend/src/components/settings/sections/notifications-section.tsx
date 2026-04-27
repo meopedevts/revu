@@ -1,4 +1,4 @@
-import type { UseFormReturn } from 'react-hook-form'
+import type { UseFormReturn } from "react-hook-form"
 
 import {
   FormControl,
@@ -7,10 +7,10 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
-import { Switch } from '@/components/ui/switch'
-import type { AppConfig } from '@/src/lib/types'
+} from "@/components/ui/form"
+import { Input } from "@/components/ui/input"
+import { Switch } from "@/components/ui/switch"
+import type { AppConfig } from "@/src/lib/types"
 
 interface NotificationsSectionProps {
   form: UseFormReturn<AppConfig>

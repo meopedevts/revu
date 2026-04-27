@@ -1,10 +1,10 @@
-'use client'
+"use client"
 
-import { CircleIcon } from 'lucide-react'
-import { RadioGroup as RadioGroupPrimitive } from 'radix-ui'
-import * as React from 'react'
+import { CircleIcon } from "lucide-react"
+import { RadioGroup as RadioGroupPrimitive } from "radix-ui"
+import * as React from "react"
 
-import { cn } from '@/lib/utils'
+import { cn } from "@/lib/utils"
 
 function RadioGroup({
   className,
@@ -13,7 +13,7 @@ function RadioGroup({
   return (
     <RadioGroupPrimitive.Root
       data-slot="radio-group"
-      className={cn('grid gap-2', className)}
+      className={cn("grid gap-2", className)}
       {...props}
     />
   )
@@ -27,7 +27,7 @@ function RadioGroupItem({
     <RadioGroupPrimitive.Item
       data-slot="radio-group-item"
       className={cn(
-        'aspect-square size-4 shrink-0 rounded-full border border-input text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50',
+        "aspect-square size-4 shrink-0 rounded-full border border-input text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
         className
       )}
       {...props}

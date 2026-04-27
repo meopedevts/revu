@@ -1,4 +1,4 @@
-import type { UseFormReturn } from 'react-hook-form'
+import type { UseFormReturn } from "react-hook-form"
 
 import {
   FormControl,
@@ -7,10 +7,10 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
-import { Slider } from '@/components/ui/slider'
-import type { AppConfig } from '@/src/lib/types'
+} from "@/components/ui/form"
+import { Input } from "@/components/ui/input"
+import { Slider } from "@/components/ui/slider"
+import type { AppConfig } from "@/src/lib/types"
 
 function formatInterval(seconds: number): string {
   if (seconds < 60) return `${seconds}s`
@@ -25,7 +25,7 @@ interface SyncSectionProps {
 }
 
 export function SyncSection({ form }: SyncSectionProps) {
-  const pollingValue = form.watch('polling_interval_seconds')
+  const pollingValue = form.watch("polling_interval_seconds")
 
   return (
     <div className="flex flex-col gap-4">

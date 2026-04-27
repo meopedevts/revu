@@ -1,4 +1,4 @@
-import type { UseFormReturn } from 'react-hook-form'
+import type { UseFormReturn } from "react-hook-form"
 
 import {
   FormControl,
@@ -7,13 +7,13 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
-import { Switch } from '@/components/ui/switch'
-import { useTheme } from '@/src/lib/theme/theme-provider'
-import type { AppConfig, Theme } from '@/src/lib/types'
+} from "@/components/ui/form"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Switch } from "@/components/ui/switch"
+import { useTheme } from "@/src/lib/theme/theme-provider"
+import type { AppConfig, Theme } from "@/src/lib/types"
 
 interface AppearanceSectionProps {
   form: UseFormReturn<AppConfig>

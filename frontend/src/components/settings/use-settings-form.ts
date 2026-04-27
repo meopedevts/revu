@@ -1,21 +1,21 @@
-import { zodResolver } from '@hookform/resolvers/zod'
-import { useCallback, useEffect, useState } from 'react'
-import { useForm, type UseFormReturn } from 'react-hook-form'
-import { toast } from 'sonner'
+import { zodResolver } from "@hookform/resolvers/zod"
+import { useCallback, useEffect, useState } from "react"
+import { useForm, type UseFormReturn } from "react-hook-form"
+import { toast } from "sonner"
 
-import { getConfig, updateConfig } from '@/src/lib/bridge'
-import { configSchema } from '@/src/lib/schemas/config-schema'
+import { getConfig, updateConfig } from "@/src/lib/bridge"
+import { configSchema } from "@/src/lib/schemas/config-schema"
 import {
   DEFAULT_CONFIG,
   type AppConfig,
   type ConfigValidationError,
-} from '@/src/lib/types'
+} from "@/src/lib/types"
 
 function isValidationError(err: unknown): err is ConfigValidationError {
   return (
-    typeof err === 'object' &&
+    typeof err === "object" &&
     err !== null &&
-    'errors' in err &&
+    "errors" in err &&
     Array.isArray(err.errors)
   )
 }
@@ -49,7 +49,7 @@ export function useSettingsForm(): SettingsFormBag {
   const form = useForm<AppConfig>({
     resolver: zodResolver(configSchema),
     defaultValues: DEFAULT_CONFIG,
-    mode: 'onChange',
+    mode: "onChange",
   })
 
   const loadConfig = useCallback(async (): Promise<void> => {
@@ -67,20 +67,20 @@ export function useSettingsForm(): SettingsFormBag {
     try {
       await updateConfig(values)
       form.reset(values)
-      toast.success('Configurações salvas')
+      toast.success("Configurações salvas")
     } catch (err: unknown) {
       const ve = parseBackendError(err)
       if (ve) {
         for (const fe of ve.errors) {
           form.setError(fe.field as keyof AppConfig, {
-            type: 'backend',
+            type: "backend",
             message: fe.msg,
           })
         }
-        toast.error('Corrija os campos destacados')
+        toast.error("Corrija os campos destacados")
       } else {
         toast.error(
-          err instanceof Error ? err.message : 'Falha ao salvar configurações'
+          err instanceof Error ? err.message : "Falha ao salvar configurações"
         )
       }
     } finally {
@@ -93,7 +93,7 @@ export function useSettingsForm(): SettingsFormBag {
   const restoreDefaults = useCallback(() => {
     form.reset(DEFAULT_CONFIG, { keepDefaultValues: true })
     form.setValue(
-      'polling_interval_seconds',
+      "polling_interval_seconds",
       DEFAULT_CONFIG.polling_interval_seconds,
       { shouldDirty: true, shouldValidate: true }
     )

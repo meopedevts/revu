@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from "react"
 
-import { listHistoryPRs, listPendingPRs } from '@/src/lib/bridge'
-import type { PRRecord } from '@/src/lib/types'
-import { EventsOff, EventsOn } from '@/wailsjs/runtime/runtime'
+import { listHistoryPRs, listPendingPRs } from "@/src/lib/bridge"
+import type { PRRecord } from "@/src/lib/types"
+import { EventsOff, EventsOn } from "@/wailsjs/runtime/runtime"
 
 interface PollCompletedEvent {
   kind: string
@@ -60,13 +60,13 @@ export function usePRs(): UsePRsResult {
   useEffect(() => {
     void reload()
 
-    EventsOn('pr:new', () => {
+    EventsOn("pr:new", () => {
       void reload()
     })
-    EventsOn('pr:status-changed', () => {
+    EventsOn("pr:status-changed", () => {
       void reload()
     })
-    EventsOn('poll:completed', (raw: PollCompletedEvent | undefined) => {
+    EventsOn("poll:completed", (raw: PollCompletedEvent | undefined) => {
       if (raw?.at) {
         setLastPollAt(new Date(raw.at))
       } else {
@@ -82,9 +82,9 @@ export function usePRs(): UsePRsResult {
     }, 120_000)
 
     return () => {
-      EventsOff('pr:new')
-      EventsOff('pr:status-changed')
-      EventsOff('poll:completed')
+      EventsOff("pr:new")
+      EventsOff("pr:status-changed")
+      EventsOff("poll:completed")
       clearInterval(safety)
     }
   }, [reload])

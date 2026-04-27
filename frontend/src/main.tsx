@@ -1,12 +1,12 @@
-import React from 'react'
-import { createRoot } from 'react-dom/client'
+import React from "react"
+import { createRoot } from "react-dom/client"
 
-import './style.css'
-import { ThemeProvider } from '@/src/lib/theme/theme-provider'
+import "./style.css"
+import { ThemeProvider } from "@/src/lib/theme/theme-provider"
 
-import App from './App'
+import App from "./App"
 
-const container = document.getElementById('root')
+const container = document.getElementById("root")
 
 const root = createRoot(container!)
 

@@ -6,13 +6,13 @@ import {
   useRef,
   useState,
   type ReactNode,
-} from 'react'
-import { toast } from 'sonner'
+} from "react"
+import { toast } from "sonner"
 
-import { getTheme, setTheme as setThemeRemote } from '@/src/lib/bridge'
-import type { Theme } from '@/src/lib/types'
+import { getTheme, setTheme as setThemeRemote } from "@/src/lib/bridge"
+import type { Theme } from "@/src/lib/types"
 
-const STORAGE_KEY = 'revu:theme'
+const STORAGE_KEY = "revu:theme"
 
 interface ThemeContextValue {
   theme: Theme
@@ -22,22 +22,22 @@ interface ThemeContextValue {
 const ThemeContext = createContext<ThemeContextValue | null>(null)
 
 function readCache(): Theme {
-  if (typeof window === 'undefined') return 'light'
+  if (typeof window === "undefined") return "light"
   try {
-    return window.localStorage.getItem(STORAGE_KEY) === 'dark'
-      ? 'dark'
-      : 'light'
+    return window.localStorage.getItem(STORAGE_KEY) === "dark"
+      ? "dark"
+      : "light"
   } catch {
-    return 'light'
+    return "light"
   }
 }
 
 function applyTheme(theme: Theme): void {
   const root = document.documentElement
-  if (theme === 'dark') {
-    root.classList.add('dark')
+  if (theme === "dark") {
+    root.classList.add("dark")
   } else {
-    root.classList.remove('dark')
+    root.classList.remove("dark")
   }
   try {
     window.localStorage.setItem(STORAGE_KEY, theme)
@@ -84,7 +84,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
       } catch (err: unknown) {
         applyTheme(previous)
         setThemeState(previous)
-        toast.error(err instanceof Error ? err.message : 'Falha ao salvar tema')
+        toast.error(err instanceof Error ? err.message : "Falha ao salvar tema")
       }
     },
     [theme]
@@ -99,6 +99,6 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
 
 export function useTheme(): ThemeContextValue {
   const ctx = useContext(ThemeContext)
-  if (!ctx) throw new Error('useTheme must be used within ThemeProvider')
+  if (!ctx) throw new Error("useTheme must be used within ThemeProvider")
   return ctx
 }

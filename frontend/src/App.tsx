@@ -1,27 +1,27 @@
-import { AlertCircle, RefreshCw, Settings } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { AlertCircle, RefreshCw, Settings } from "lucide-react"
+import { useCallback, useEffect, useState } from "react"
 
-import { EmptyState } from '@/components/empty-state'
-import { PRCard } from '@/components/pr-card'
-import { PRDetailsView } from '@/components/pr-details-view'
-import { Button } from '@/components/ui/button'
-import { Toaster } from '@/components/ui/sonner'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { TooltipProvider } from '@/components/ui/tooltip'
-import { MainHeaderProfileBadge } from '@/src/components/main-header-profile-badge'
-import type { SettingsSection } from '@/src/components/settings/settings-sidebar'
-import { SettingsView } from '@/src/components/settings-view'
-import { refreshNow } from '@/src/lib/bridge'
-import { usePRs } from '@/src/lib/hooks/use-prs'
-import { EventsOff, EventsOn } from '@/wailsjs/runtime/runtime'
+import { EmptyState } from "@/components/empty-state"
+import { PRCard } from "@/components/pr-card"
+import { PRDetailsView } from "@/components/pr-details-view"
+import { Button } from "@/components/ui/button"
+import { Toaster } from "@/components/ui/sonner"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { TooltipProvider } from "@/components/ui/tooltip"
+import { MainHeaderProfileBadge } from "@/src/components/main-header-profile-badge"
+import type { SettingsSection } from "@/src/components/settings/settings-sidebar"
+import { SettingsView } from "@/src/components/settings-view"
+import { refreshNow } from "@/src/lib/bridge"
+import { usePRs } from "@/src/lib/hooks/use-prs"
+import { EventsOff, EventsOn } from "@/wailsjs/runtime/runtime"
 
-type View = 'main' | 'settings' | 'pr-details'
+type View = "main" | "settings" | "pr-details"
 
 function formatSince(d: Date | null): string {
-  if (!d) return 'ainda não atualizado'
+  if (!d) return "ainda não atualizado"
   const diff = Date.now() - d.getTime()
   const s = Math.floor(diff / 1000)
-  if (s < 10) return 'atualizado agora'
+  if (s < 10) return "atualizado agora"
   if (s < 60) return `atualizado há ${s}s`
   const m = Math.floor(s / 60)
   if (m < 60) return `atualizado há ${m}min`
@@ -54,11 +54,11 @@ function MainView({ onOpenSettings, onOpenPR }: MainViewProps) {
           <div className="flex items-center gap-2">
             <div className="font-heading text-base font-medium">revu</div>
             <MainHeaderProfileBadge
-              onOpenAccounts={() => onOpenSettings('accounts')}
+              onOpenAccounts={() => onOpenSettings("accounts")}
             />
           </div>
           <div className="truncate text-xs text-muted-foreground">
-            {pending.length} pendente{pending.length === 1 ? '' : 's'} ·{' '}
+            {pending.length} pendente{pending.length === 1 ? "" : "s"} ·{" "}
             {history.length} no histórico · {formatSince(lastPollAt)}
           </div>
           {lastPollErr && (
@@ -134,45 +134,45 @@ function MainView({ onOpenSettings, onOpenPR }: MainViewProps) {
 }
 
 function App() {
-  const [view, setView] = useState<View>('main')
+  const [view, setView] = useState<View>("main")
   const [settingsSection, setSettingsSection] = useState<
     SettingsSection | undefined
   >(undefined)
   const [selectedPRId, setSelectedPRId] = useState<string | null>(null)
 
   useEffect(() => {
-    EventsOn('ui:navigate', (target: string) => {
-      if (target === 'settings') {
+    EventsOn("ui:navigate", (target: string) => {
+      if (target === "settings") {
         setSettingsSection(undefined)
-        setView('settings')
-      } else if (target === 'main') {
-        setView('main')
+        setView("settings")
+      } else if (target === "main") {
+        setView("main")
       }
     })
     return () => {
-      EventsOff('ui:navigate')
+      EventsOff("ui:navigate")
     }
   }, [])
 
   const openSettings = useCallback((section?: SettingsSection) => {
     setSettingsSection(section)
-    setView('settings')
+    setView("settings")
   }, [])
 
   const openPR = useCallback((prID: string) => {
     setSelectedPRId(prID)
-    setView('pr-details')
+    setView("pr-details")
   }, [])
 
   const backToMain = useCallback(() => {
-    setView('main')
+    setView("main")
   }, [])
 
   return (
     <TooltipProvider delayDuration={300}>
-      {view === 'pr-details' && selectedPRId ? (
+      {view === "pr-details" && selectedPRId ? (
         <PRDetailsView prID={selectedPRId} onBack={backToMain} />
-      ) : view === 'settings' ? (
+      ) : view === "settings" ? (
         <SettingsView onBack={backToMain} initialSection={settingsSection} />
       ) : (
         <MainView onOpenSettings={openSettings} onOpenPR={openPR} />

@@ -1,9 +1,9 @@
-import ReactMarkdown from 'react-markdown'
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
-import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
-import remarkGfm from 'remark-gfm'
+import ReactMarkdown from "react-markdown"
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
+import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism"
+import remarkGfm from "remark-gfm"
 
-import { openPRInBrowser } from '@/src/lib/bridge'
+import { openPRInBrowser } from "@/src/lib/bridge"
 
 interface PRDetailsBodyProps {
   body: string
@@ -22,7 +22,7 @@ export function PRDetailsBody({ body }: PRDetailsBodyProps) {
         components={{
           code(props) {
             const { className, children, ...rest } = props
-            const match = /language-(\w+)/.exec(className ?? '')
+            const match = /language-(\w+)/.exec(className ?? "")
             const inline = !className
             if (inline) {
               return (
@@ -36,31 +36,31 @@ export function PRDetailsBody({ body }: PRDetailsBodyProps) {
             }
             return (
               <SyntaxHighlighter
-                language={match?.[1] ?? 'text'}
+                language={match?.[1] ?? "text"}
                 style={oneDark}
                 PreTag="div"
                 customStyle={{
                   margin: 0,
-                  fontSize: '0.8rem',
-                  borderRadius: '0.5rem',
+                  fontSize: "0.8rem",
+                  borderRadius: "0.5rem",
                 }}
               >
-                {(typeof children === 'string' ? children : '').replace(
+                {(typeof children === "string" ? children : "").replace(
                   /\n$/,
-                  ''
+                  ""
                 )}
               </SyntaxHighlighter>
             )
           },
           a(props) {
-            const href = props.href ?? ''
+            const href = props.href ?? ""
             const { children: anchorChildren, ...rest } = props
             return (
               <a
                 {...rest}
                 href={href}
                 onClick={(e) => {
-                  if (href.startsWith('http')) {
+                  if (href.startsWith("http")) {
                     e.preventDefault()
                     void openPRInBrowser(href)
                   }
