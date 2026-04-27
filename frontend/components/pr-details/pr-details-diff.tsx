@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react'
-import ReactDiffViewer from 'react-diff-viewer-continued'
-import { ChevronDown, ChevronRight } from 'lucide-react'
+import { ChevronDown, ChevronRight } from "lucide-react"
+import { useMemo, useState } from "react"
+import ReactDiffViewer from "react-diff-viewer-continued"
 
-import { cn } from '@/lib/utils'
-import { type FileDiff, parseDiff } from './parse-diff'
+import { cn } from "@/lib/utils"
+
+import { type FileDiff, parseDiff } from "./parse-diff"
 
 interface PRDetailsDiffProps {
   diff: string
@@ -36,8 +37,8 @@ function FileDiffBlock({ file }: { file: FileDiff }) {
         type="button"
         onClick={() => setOpen((v) => !v)}
         className={cn(
-          'flex w-full items-center gap-2 px-3 py-2 text-left text-xs',
-          'hover:bg-muted',
+          "flex w-full items-center gap-2 px-3 py-2 text-left text-xs",
+          "hover:bg-muted"
         )}
       >
         <Chevron className="size-3 shrink-0" aria-hidden="true" />
@@ -53,8 +54,8 @@ function FileDiffBlock({ file }: { file: FileDiff }) {
             hideLineNumbers={false}
             disableWordDiff={false}
             styles={{
-              contentText: { fontSize: '0.78rem' },
-              gutter: { fontSize: '0.7rem', padding: '0 0.5rem' },
+              contentText: { fontSize: "0.78rem" },
+              gutter: { fontSize: "0.7rem", padding: "0 0.5rem" },
             }}
           />
         </div>

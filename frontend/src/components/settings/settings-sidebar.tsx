@@ -1,14 +1,14 @@
-import { Bell, Clock, Palette, RefreshCw, User } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { Bell, Clock, Palette, RefreshCw, User } from "lucide-react"
 
-import type { Profile } from '@/src/lib/types'
+import { cn } from "@/lib/utils"
+import type { Profile } from "@/src/lib/types"
 
 export type SettingsSection =
-  | 'accounts'
-  | 'sync'
-  | 'notifications'
-  | 'history'
-  | 'appearance'
+  | "accounts"
+  | "sync"
+  | "notifications"
+  | "history"
+  | "appearance"
 
 interface SidebarItem {
   id: SettingsSection
@@ -17,11 +17,11 @@ interface SidebarItem {
 }
 
 const ITEMS: SidebarItem[] = [
-  { id: 'accounts', label: 'Contas', icon: User },
-  { id: 'sync', label: 'Sincronização', icon: RefreshCw },
-  { id: 'notifications', label: 'Notificações', icon: Bell },
-  { id: 'history', label: 'Histórico', icon: Clock },
-  { id: 'appearance', label: 'Aparência', icon: Palette },
+  { id: "accounts", label: "Contas", icon: User },
+  { id: "sync", label: "Sincronização", icon: RefreshCw },
+  { id: "notifications", label: "Notificações", icon: Bell },
+  { id: "history", label: "Histórico", icon: Clock },
+  { id: "appearance", label: "Aparência", icon: Palette },
 ]
 
 interface SettingsSidebarProps {
@@ -49,16 +49,16 @@ export function SettingsSidebar({
             type="button"
             onClick={() => onSelect(item.id)}
             className={cn(
-              'flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs font-medium',
-              'transition-colors',
+              "flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs font-medium",
+              "transition-colors",
               isActive
-                ? 'bg-primary/10 text-primary'
-                : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                ? "bg-primary/10 text-primary"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground"
             )}
           >
             <Icon className="size-3.5" aria-hidden="true" />
             <span className="flex-1 truncate">{item.label}</span>
-            {item.id === 'accounts' && activeProfile ? (
+            {item.id === "accounts" && activeProfile ? (
               <span className="truncate text-[10px] font-normal text-muted-foreground">
                 {activeProfile.name}
               </span>

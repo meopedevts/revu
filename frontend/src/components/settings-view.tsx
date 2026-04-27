@@ -1,5 +1,5 @@
-import { SettingsLayout } from './settings/settings-layout'
-import type { SettingsSection } from './settings/settings-sidebar'
+import { SettingsLayout } from "./settings/settings-layout"
+import type { SettingsSection } from "./settings/settings-sidebar"
 
 interface SettingsViewProps {
   onBack: () => void

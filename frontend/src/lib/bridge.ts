@@ -7,7 +7,7 @@ import type {
   Profile,
   ProfileUpdate,
   Theme,
-} from './types'
+} from "./types"
 
 interface CreateProfileRequest {
   name: string
@@ -97,20 +97,20 @@ export async function getConfig(): Promise<AppConfig | null> {
 
 export async function updateConfig(c: AppConfig): Promise<void> {
   const b = bridge()
-  if (!b) throw new Error('bridge unavailable')
+  if (!b) throw new Error("bridge unavailable")
   await b.UpdateConfig(c)
 }
 
 export async function getTheme(): Promise<Theme> {
   const b = bridge()
-  if (!b?.GetTheme) return 'light'
+  if (!b?.GetTheme) return "light"
   const t = await b.GetTheme()
-  return t === 'dark' ? 'dark' : 'light'
+  return t === "dark" ? "dark" : "light"
 }
 
 export async function setTheme(theme: Theme): Promise<void> {
   const b = bridge()
-  if (!b?.SetTheme) throw new Error('bridge unavailable')
+  if (!b?.SetTheme) throw new Error("bridge unavailable")
   await b.SetTheme(theme)
 }
 
@@ -124,22 +124,22 @@ export async function clearHistory(): Promise<number> {
 
 export async function getPRDetails(prID: string): Promise<PRFullDetails> {
   const b = bridge()
-  if (!b?.GetPRDetails) throw new Error('bridge unavailable')
+  if (!b?.GetPRDetails) throw new Error("bridge unavailable")
   return b.GetPRDetails(prID)
 }
 
 export async function getPRDiff(prID: string): Promise<string> {
   const b = bridge()
-  if (!b?.GetPRDiff) throw new Error('bridge unavailable')
+  if (!b?.GetPRDiff) throw new Error("bridge unavailable")
   return b.GetPRDiff(prID)
 }
 
 export async function mergePR(
   prID: string,
-  method: MergeMethod,
+  method: MergeMethod
 ): Promise<void> {
   const b = bridge()
-  if (!b?.MergePR) throw new Error('bridge unavailable')
+  if (!b?.MergePR) throw new Error("bridge unavailable")
   await b.MergePR(prID, method)
 }
 
@@ -173,33 +173,33 @@ export async function createProfile(input: {
   make_active: boolean
 }): Promise<Profile> {
   const b = bridge()
-  if (!b?.CreateProfile) throw new Error('bridge unavailable')
+  if (!b?.CreateProfile) throw new Error("bridge unavailable")
   return b.CreateProfile(input)
 }
 
 export async function updateProfile(
   id: string,
-  patch: ProfileUpdate,
+  patch: ProfileUpdate
 ): Promise<Profile> {
   const b = bridge()
-  if (!b?.UpdateProfile) throw new Error('bridge unavailable')
+  if (!b?.UpdateProfile) throw new Error("bridge unavailable")
   return b.UpdateProfile({ id, ...patch })
 }
 
 export async function deleteProfile(id: string): Promise<void> {
   const b = bridge()
-  if (!b?.DeleteProfile) throw new Error('bridge unavailable')
+  if (!b?.DeleteProfile) throw new Error("bridge unavailable")
   await b.DeleteProfile(id)
 }
 
 export async function setActiveProfile(id: string): Promise<void> {
   const b = bridge()
-  if (!b?.SetActiveProfile) throw new Error('bridge unavailable')
+  if (!b?.SetActiveProfile) throw new Error("bridge unavailable")
   await b.SetActiveProfile(id)
 }
 
 export async function validateToken(token: string): Promise<string> {
   const b = bridge()
-  if (!b?.ValidateToken) throw new Error('bridge unavailable')
+  if (!b?.ValidateToken) throw new Error("bridge unavailable")
   return b.ValidateToken(token)
 }

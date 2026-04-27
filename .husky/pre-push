@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# revu pre-push hook — bloqueia push se task check falhar.
-# Instalar via `task install:hooks` (cria symlink em .git/hooks/pre-push).
-
+# revu pre-push — bloqueia push se task check falhar.
 set -euo pipefail
 
 repo_root="$(git rev-parse --show-toplevel)"

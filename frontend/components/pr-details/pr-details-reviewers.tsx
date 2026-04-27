@@ -1,6 +1,6 @@
-import { Badge } from '@/components/ui/badge'
-import { cn } from '@/lib/utils'
-import type { Review } from '@/src/lib/types'
+import { Badge } from "@/components/ui/badge"
+import { cn } from "@/lib/utils"
+import type { Review } from "@/src/lib/types"
 
 interface PRDetailsReviewersProps {
   reviews: Review[]
@@ -33,7 +33,7 @@ function ReviewerBadge({ review }: { review: Review }) {
   return (
     <Badge
       variant="outline"
-      className={cn('gap-1.5 border-transparent', toneClass(review.state))}
+      className={cn("gap-1.5 border-transparent", toneClass(review.state))}
     >
       <span className="inline-flex size-4 items-center justify-center rounded-full bg-muted-foreground/15 text-[10px] font-medium uppercase">
         {review.author.slice(0, 2)}
@@ -46,26 +46,26 @@ function ReviewerBadge({ review }: { review: Review }) {
 
 function labelFor(state: string): string {
   switch (state) {
-    case 'APPROVED':
-      return 'aprovou'
-    case 'CHANGES_REQUESTED':
-      return 'mudanças'
-    case 'COMMENTED':
-      return 'comentou'
+    case "APPROVED":
+      return "aprovou"
+    case "CHANGES_REQUESTED":
+      return "mudanças"
+    case "COMMENTED":
+      return "comentou"
     default:
-      return 'pendente'
+      return "pendente"
   }
 }
 
 function toneClass(state: string): string {
   switch (state) {
-    case 'APPROVED':
-      return 'bg-review-approved/15 text-review-approved'
-    case 'CHANGES_REQUESTED':
-      return 'bg-review-changes/15 text-review-changes'
-    case 'COMMENTED':
-      return 'bg-review-commented/15 text-review-commented'
+    case "APPROVED":
+      return "bg-review-approved/15 text-review-approved"
+    case "CHANGES_REQUESTED":
+      return "bg-review-changes/15 text-review-changes"
+    case "COMMENTED":
+      return "bg-review-commented/15 text-review-commented"
     default:
-      return 'bg-review-pending/15 text-review-pending'
+      return "bg-review-pending/15 text-review-pending"
   }
 }

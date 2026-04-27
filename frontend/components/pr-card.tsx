@@ -1,5 +1,7 @@
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight } from "lucide-react"
 
+import { ReviewBadge } from "@/components/review-badge"
+import { StatusBadge } from "@/components/status-badge"
 import {
   Card,
   CardAction,
@@ -7,10 +9,8 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card'
-import { ReviewBadge } from '@/components/review-badge'
-import { StatusBadge } from '@/components/status-badge'
-import { type PRRecord, reviewStateOf, statusOf } from '@/src/lib/types'
+} from "@/components/ui/card"
+import { type PRRecord, reviewStateOf, statusOf } from "@/src/lib/types"
 
 interface PRCardProps {
   pr: PRRecord
@@ -26,7 +26,7 @@ export function PRCard({ pr, onOpen }: PRCardProps) {
   }
 
   function handleKey(e: React.KeyboardEvent<HTMLDivElement>) {
-    if (e.key === 'Enter' || e.key === ' ') {
+    if (e.key === "Enter" || e.key === " ") {
       e.preventDefault()
       onOpen(pr.id)
     }
@@ -75,12 +75,12 @@ export function PRCard({ pr, onOpen }: PRCardProps) {
 }
 
 function relTime(iso: string): string {
-  if (!iso) return ''
+  if (!iso) return ""
   const then = new Date(iso).getTime()
-  if (Number.isNaN(then)) return ''
+  if (Number.isNaN(then)) return ""
   const diff = Date.now() - then
   const m = Math.floor(diff / 60_000)
-  if (m < 1) return 'agora'
+  if (m < 1) return "agora"
   if (m < 60) return `há ${m}min`
   const h = Math.floor(m / 60)
   if (h < 24) return `há ${h}h`

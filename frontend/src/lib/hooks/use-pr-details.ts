@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from "react"
 
-import { getPRDetails, getPRDiff } from '@/src/lib/bridge'
-import type { PRFullDetails } from '@/src/lib/types'
+import { getPRDetails, getPRDiff } from "@/src/lib/bridge"
+import type { PRFullDetails } from "@/src/lib/types"
 
 interface UsePRDetailsResult {
   details: PRFullDetails | null
@@ -47,7 +47,7 @@ export function usePRDetails(prID: string | null): UsePRDetailsResult {
           if (err instanceof Error) {
             throw err
           }
-          throw new Error('diff fetch failed')
+          throw new Error("diff fetch failed")
         }),
       ])
       if (fetchId.current !== myFetch) return
@@ -55,7 +55,7 @@ export function usePRDetails(prID: string | null): UsePRDetailsResult {
       setDiff(raw)
     } catch (err: unknown) {
       if (fetchId.current !== myFetch) return
-      setError(err instanceof Error ? err.message : 'erro ao carregar PR')
+      setError(err instanceof Error ? err.message : "erro ao carregar PR")
       setDetails(null)
       setDiff(null)
     } finally {

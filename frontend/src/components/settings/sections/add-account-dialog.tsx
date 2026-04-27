@@ -1,8 +1,8 @@
-import { useState } from 'react'
-import { Eye, Loader2 } from 'lucide-react'
-import { toast } from 'sonner'
+import { Eye, Loader2 } from "lucide-react"
+import { useState } from "react"
+import { toast } from "sonner"
 
-import { Button } from '@/components/ui/button'
+import { Button } from "@/components/ui/button"
 import {
   Dialog,
   DialogContent,
@@ -10,13 +10,12 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
-
-import { createProfile, validateToken } from '@/src/lib/bridge'
-import type { AuthMethod } from '@/src/lib/types'
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { createProfile, validateToken } from "@/src/lib/bridge"
+import type { AuthMethod } from "@/src/lib/types"
 
 interface AddAccountDialogProps {
   open: boolean
@@ -29,20 +28,20 @@ export function AddAccountDialog({
   onOpenChange,
   onCreated,
 }: AddAccountDialogProps) {
-  const [name, setName] = useState('')
-  const [method, setMethod] = useState<AuthMethod>('keyring')
-  const [token, setToken] = useState('')
+  const [name, setName] = useState("")
+  const [method, setMethod] = useState<AuthMethod>("keyring")
+  const [token, setToken] = useState("")
   const [makeActive, setMakeActive] = useState(true)
   const [revealing, setRevealing] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [previewedUsername, setPreviewedUsername] = useState<string | null>(
-    null,
+    null
   )
 
   function reset() {
-    setName('')
-    setMethod('keyring')
-    setToken('')
+    setName("")
+    setMethod("keyring")
+    setToken("")
     setMakeActive(true)
     setRevealing(false)
     setPreviewedUsername(null)
@@ -50,30 +49,30 @@ export function AddAccountDialog({
 
   async function onValidate() {
     if (!token) {
-      toast.error('Informe o token primeiro')
+      toast.error("Informe o token primeiro")
       return
     }
     try {
       const username = await validateToken(token)
-      setPreviewedUsername(username || '(username indisponível)')
+      setPreviewedUsername(username || "(username indisponível)")
       toast.success(
-        username ? `Token válido para @${username}` : 'Token válido',
+        username ? `Token válido para @${username}` : "Token válido"
       )
     } catch (err: unknown) {
       setPreviewedUsername(null)
       toast.error(
-        err instanceof Error ? err.message : 'Token inválido ou sem permissão',
+        err instanceof Error ? err.message : "Token inválido ou sem permissão"
       )
     }
   }
 
   async function onSave() {
     if (!name.trim()) {
-      toast.error('Informe um nome para a conta')
+      toast.error("Informe um nome para a conta")
       return
     }
-    if (method === 'keyring' && !token) {
-      toast.error('Informe o token')
+    if (method === "keyring" && !token) {
+      toast.error("Informe o token")
       return
     }
     setSubmitting(true)
@@ -84,13 +83,13 @@ export function AddAccountDialog({
         token,
         make_active: makeActive,
       })
-      toast.success('Conta adicionada')
+      toast.success("Conta adicionada")
       reset()
       onOpenChange(false)
       onCreated()
     } catch (err: unknown) {
       toast.error(
-        err instanceof Error ? err.message : 'Falha ao adicionar conta',
+        err instanceof Error ? err.message : "Falha ao adicionar conta"
       )
     } finally {
       setSubmitting(false)
@@ -132,24 +131,30 @@ export function AddAccountDialog({
               onValueChange={(v) => setMethod(v as AuthMethod)}
               className="flex gap-4"
             >
-              <label className="flex items-center gap-2 text-xs">
+              <label
+                htmlFor="m-keyring"
+                className="flex items-center gap-2 text-xs"
+              >
                 <RadioGroupItem value="keyring" id="m-keyring" />
                 Token (keyring)
               </label>
-              <label className="flex items-center gap-2 text-xs">
+              <label
+                htmlFor="m-ghcli"
+                className="flex items-center gap-2 text-xs"
+              >
                 <RadioGroupItem value="gh-cli" id="m-ghcli" />
                 gh auth login
               </label>
             </RadioGroup>
           </div>
 
-          {method === 'keyring' ? (
+          {method === "keyring" ? (
             <div className="flex flex-col gap-1">
               <Label htmlFor="acct-token">Personal Access Token</Label>
               <div className="flex items-center gap-2">
                 <Input
                   id="acct-token"
-                  type={revealing ? 'text' : 'password'}
+                  type={revealing ? "text" : "password"}
                   value={token}
                   onChange={(e) => setToken(e.target.value)}
                   placeholder="ghp_…"
@@ -172,14 +177,14 @@ export function AddAccountDialog({
                 </Button>
               </div>
               <p className="text-[11px] text-muted-foreground">
-                Use um{' '}
+                Use um{" "}
                 <a
                   className="underline underline-offset-3 hover:text-foreground"
                   href="https://github.com/settings/personal-access-tokens/new"
                 >
                   fine-grained PAT
-                </a>{' '}
-                com escopos <code>Pull requests: read</code> e{' '}
+                </a>{" "}
+                com escopos <code>Pull requests: read</code> e{" "}
                 <code>Metadata: read</code>. Ao salvar, o keyring pode pedir
                 autorização.
               </p>

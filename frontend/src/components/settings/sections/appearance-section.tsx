@@ -1,4 +1,4 @@
-import type { UseFormReturn } from 'react-hook-form'
+import type { UseFormReturn } from "react-hook-form"
 
 import {
   FormControl,
@@ -7,13 +7,13 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
-import { Switch } from '@/components/ui/switch'
-import { useTheme } from '@/src/lib/theme/theme-provider'
-import type { AppConfig, Theme } from '@/src/lib/types'
+} from "@/components/ui/form"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Switch } from "@/components/ui/switch"
+import { useTheme } from "@/src/lib/theme/theme-provider"
+import type { AppConfig, Theme } from "@/src/lib/types"
 
 interface AppearanceSectionProps {
   form: UseFormReturn<AppConfig>
@@ -68,14 +68,11 @@ export function AppearanceSection({ form }: AppearanceSectionProps) {
             <div className="space-y-0.5">
               <FormLabel>Iniciar minimizado</FormLabel>
               <FormDescription>
-                Abre só no tray; janela aparece ao clicar em "Abrir".
+                Abre só no tray; janela aparece ao clicar em &quot;Abrir&quot;.
               </FormDescription>
             </div>
             <FormControl>
-              <Switch
-                checked={field.value}
-                onCheckedChange={field.onChange}
-              />
+              <Switch checked={field.value} onCheckedChange={field.onChange} />
             </FormControl>
           </FormItem>
         )}
@@ -94,9 +91,7 @@ export function AppearanceSection({ form }: AppearanceSectionProps) {
                   min={240}
                   max={3840}
                   {...field}
-                  onChange={(e) =>
-                    field.onChange(e.target.valueAsNumber || 0)
-                  }
+                  onChange={(e) => field.onChange(e.target.valueAsNumber || 0)}
                 />
               </FormControl>
               <FormMessage />
@@ -115,9 +110,7 @@ export function AppearanceSection({ form }: AppearanceSectionProps) {
                   min={240}
                   max={2160}
                   {...field}
-                  onChange={(e) =>
-                    field.onChange(e.target.valueAsNumber || 0)
-                  }
+                  onChange={(e) => field.onChange(e.target.valueAsNumber || 0)}
                 />
               </FormControl>
               <FormMessage />

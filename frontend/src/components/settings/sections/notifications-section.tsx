@@ -1,4 +1,4 @@
-import type { UseFormReturn } from 'react-hook-form'
+import type { UseFormReturn } from "react-hook-form"
 
 import {
   FormControl,
@@ -7,10 +7,10 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
-import { Switch } from '@/components/ui/switch'
-import type { AppConfig } from '@/src/lib/types'
+} from "@/components/ui/form"
+import { Input } from "@/components/ui/input"
+import { Switch } from "@/components/ui/switch"
+import type { AppConfig } from "@/src/lib/types"
 
 interface NotificationsSectionProps {
   form: UseFormReturn<AppConfig>
@@ -38,10 +38,7 @@ export function NotificationsSection({ form }: NotificationsSectionProps) {
               </FormDescription>
             </div>
             <FormControl>
-              <Switch
-                checked={field.value}
-                onCheckedChange={field.onChange}
-              />
+              <Switch checked={field.value} onCheckedChange={field.onChange} />
             </FormControl>
           </FormItem>
         )}
@@ -59,9 +56,7 @@ export function NotificationsSection({ form }: NotificationsSectionProps) {
                 min={1}
                 max={30}
                 {...field}
-                onChange={(e) =>
-                  field.onChange(e.target.valueAsNumber || 0)
-                }
+                onChange={(e) => field.onChange(e.target.valueAsNumber || 0)}
               />
             </FormControl>
             <FormMessage />

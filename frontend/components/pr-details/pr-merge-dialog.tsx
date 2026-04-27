@@ -7,8 +7,8 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
-import type { MergeMethod } from '@/src/lib/types'
+} from "@/components/ui/alert-dialog"
+import type { MergeMethod } from "@/src/lib/types"
 
 interface PRMergeDialogProps {
   open: boolean
@@ -29,7 +29,7 @@ export function PRMergeDialog({
   onConfirm,
   busy,
 }: PRMergeDialogProps) {
-  const label = method === 'squash' ? 'Squash & merge' : 'Merge commit'
+  const label = method === "squash" ? "Squash & merge" : "Merge commit"
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
@@ -56,7 +56,7 @@ export function PRMergeDialog({
             }}
             disabled={busy}
           >
-            {busy ? 'Executando…' : 'Confirmar'}
+            {busy ? "Executando…" : "Confirmar"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

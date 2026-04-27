@@ -1,15 +1,7 @@
-import { useCallback, useEffect, useState } from 'react'
-import { MoreHorizontal, Plus } from 'lucide-react'
-import { toast } from 'sonner'
+import { MoreHorizontal, Plus } from "lucide-react"
+import { useCallback, useEffect, useState } from "react"
+import { toast } from "sonner"
 
-import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,18 +11,21 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
-import { Badge } from '@/components/ui/badge'
-
+} from "@/components/ui/alert-dialog"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import {
-  deleteProfile,
-  listProfiles,
-  setActiveProfile,
-} from '@/src/lib/bridge'
-import type { Profile } from '@/src/lib/types'
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import { deleteProfile, listProfiles, setActiveProfile } from "@/src/lib/bridge"
+import type { Profile } from "@/src/lib/types"
 
-import { AddAccountDialog } from './add-account-dialog'
-import { EditAccountDialog } from './edit-account-dialog'
+import { AddAccountDialog } from "./add-account-dialog"
+import { EditAccountDialog } from "./edit-account-dialog"
 
 export function AccountsSection() {
   const [profiles, setProfiles] = useState<Profile[]>([])
@@ -43,7 +38,7 @@ export function AccountsSection() {
     try {
       setProfiles(await listProfiles())
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Falha ao listar contas')
+      toast.error(err instanceof Error ? err.message : "Falha ao listar contas")
     } finally {
       setLoading(false)
     }
@@ -58,7 +53,7 @@ export function AccountsSection() {
       await setActiveProfile(id)
       void refresh()
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Falha ao trocar conta')
+      toast.error(err instanceof Error ? err.message : "Falha ao trocar conta")
     }
   }
 
@@ -66,11 +61,11 @@ export function AccountsSection() {
     if (!confirmDelete) return
     try {
       await deleteProfile(confirmDelete.id)
-      toast.success('Conta removida')
+      toast.success("Conta removida")
       setConfirmDelete(null)
       void refresh()
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Falha ao remover conta')
+      toast.error(err instanceof Error ? err.message : "Falha ao remover conta")
     }
   }
 
@@ -83,11 +78,7 @@ export function AccountsSection() {
             Gerencie as credenciais GitHub usadas pelo revu.
           </p>
         </div>
-        <Button
-          type="button"
-          size="sm"
-          onClick={() => setAddOpen(true)}
-        >
+        <Button type="button" size="sm" onClick={() => setAddOpen(true)}>
           <Plus />
           Adicionar conta
         </Button>
@@ -110,10 +101,10 @@ export function AccountsSection() {
                     ) : null}
                   </CardTitle>
                   <CardDescription>
-                    {p.auth_method === 'keyring'
-                      ? 'Token (keyring)'
-                      : 'gh auth login'}
-                    {p.github_username ? ` · @${p.github_username}` : ''}
+                    {p.auth_method === "keyring"
+                      ? "Token (keyring)"
+                      : "gh auth login"}
+                    {p.github_username ? ` · @${p.github_username}` : ""}
                   </CardDescription>
                 </div>
               </CardHeader>

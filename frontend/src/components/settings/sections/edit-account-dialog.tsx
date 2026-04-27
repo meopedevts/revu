@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react'
-import { Eye, Loader2 } from 'lucide-react'
-import { toast } from 'sonner'
+import { Eye, Loader2 } from "lucide-react"
+import { useEffect, useState } from "react"
+import { toast } from "sonner"
 
-import { Button } from '@/components/ui/button'
+import { Button } from "@/components/ui/button"
 import {
   Dialog,
   DialogContent,
@@ -10,12 +10,11 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-
-import { updateProfile } from '@/src/lib/bridge'
-import type { Profile } from '@/src/lib/types'
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { updateProfile } from "@/src/lib/bridge"
+import type { Profile } from "@/src/lib/types"
 
 interface EditAccountDialogProps {
   open: boolean
@@ -30,15 +29,15 @@ export function EditAccountDialog({
   onSaved,
   profile,
 }: EditAccountDialogProps) {
-  const [name, setName] = useState('')
-  const [token, setToken] = useState('')
+  const [name, setName] = useState("")
+  const [token, setToken] = useState("")
   const [revealing, setRevealing] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
     if (profile) {
       setName(profile.name)
-      setToken('')
+      setToken("")
       setRevealing(false)
     }
   }, [profile])
@@ -46,7 +45,7 @@ export function EditAccountDialog({
   async function onSave() {
     if (!profile) return
     if (!name.trim()) {
-      toast.error('Informe um nome')
+      toast.error("Informe um nome")
       return
     }
     setSubmitting(true)
@@ -55,17 +54,17 @@ export function EditAccountDialog({
       if (name.trim() !== profile.name) patch.name = name.trim()
       if (token) patch.token = token
       if (Object.keys(patch).length === 0) {
-        toast.info('Nada mudou')
+        toast.info("Nada mudou")
         onOpenChange(false)
         return
       }
       await updateProfile(profile.id, patch)
-      toast.success('Conta atualizada')
+      toast.success("Conta atualizada")
       onSaved()
       onOpenChange(false)
     } catch (err: unknown) {
       toast.error(
-        err instanceof Error ? err.message : 'Falha ao atualizar conta',
+        err instanceof Error ? err.message : "Falha ao atualizar conta"
       )
     } finally {
       setSubmitting(false)
@@ -94,13 +93,13 @@ export function EditAccountDialog({
             />
           </div>
 
-          {profile?.auth_method === 'keyring' ? (
+          {profile?.auth_method === "keyring" ? (
             <div className="flex flex-col gap-1">
               <Label htmlFor="edit-token">Novo token (opcional)</Label>
               <div className="flex items-center gap-2">
                 <Input
                   id="edit-token"
-                  type={revealing ? 'text' : 'password'}
+                  type={revealing ? "text" : "password"}
                   value={token}
                   onChange={(e) => setToken(e.target.value)}
                   placeholder="deixe vazio para manter"

@@ -14,7 +14,7 @@ export interface FileDiff {
 export function parseDiff(raw: string): FileDiff[] {
   if (!raw) return []
   const out: FileDiff[] = []
-  const lines = raw.split('\n')
+  const lines = raw.split("\n")
 
   let current: {
     path: string
@@ -28,8 +28,8 @@ export function parseDiff(raw: string): FileDiff[] {
       out.push({
         path: current.path,
         language: detectLanguage(current.path),
-        oldContent: current.oldLines.join('\n'),
-        newContent: current.newLines.join('\n'),
+        oldContent: current.oldLines.join("\n"),
+        newContent: current.newLines.join("\n"),
       })
     }
     current = null
@@ -37,46 +37,46 @@ export function parseDiff(raw: string): FileDiff[] {
   }
 
   for (const line of lines) {
-    if (line.startsWith('diff --git ')) {
+    if (line.startsWith("diff --git ")) {
       flush()
-      const m = line.match(/^diff --git a\/(.+?) b\/(.+)$/)
-      const path = m ? m[2] : 'unknown'
+      const m = /^diff --git a\/(.+?) b\/(.+)$/.exec(line)
+      const path = m ? m[2] : "unknown"
       current = { path, oldLines: [], newLines: [] }
       continue
     }
     if (!current) continue
     if (
-      line.startsWith('index ') ||
-      line.startsWith('--- ') ||
-      line.startsWith('+++ ') ||
-      line.startsWith('new file mode') ||
-      line.startsWith('deleted file mode') ||
-      line.startsWith('rename from') ||
-      line.startsWith('rename to') ||
-      line.startsWith('similarity index') ||
-      line.startsWith('Binary files ')
+      line.startsWith("index ") ||
+      line.startsWith("--- ") ||
+      line.startsWith("+++ ") ||
+      line.startsWith("new file mode") ||
+      line.startsWith("deleted file mode") ||
+      line.startsWith("rename from") ||
+      line.startsWith("rename to") ||
+      line.startsWith("similarity index") ||
+      line.startsWith("Binary files ")
     ) {
       continue
     }
-    if (line.startsWith('@@')) {
+    if (line.startsWith("@@")) {
       inHunk = true
       continue
     }
     if (!inHunk) continue
-    if (line.startsWith('+')) {
+    if (line.startsWith("+")) {
       current.newLines.push(line.slice(1))
-    } else if (line.startsWith('-')) {
+    } else if (line.startsWith("-")) {
       current.oldLines.push(line.slice(1))
-    } else if (line.startsWith(' ')) {
+    } else if (line.startsWith(" ")) {
       const body = line.slice(1)
       current.oldLines.push(body)
       current.newLines.push(body)
-    } else if (line === '' || line.startsWith('\\')) {
+    } else if (line === "" || line.startsWith("\\")) {
       // blank line inside a hunk is a legitimate diff line; backslash
       // lines like "\ No newline at end of file" are metadata we drop.
-      if (line === '') {
-        current.oldLines.push('')
-        current.newLines.push('')
+      if (line === "") {
+        current.oldLines.push("")
+        current.newLines.push("")
       }
     }
   }
@@ -89,41 +89,41 @@ export function parseDiff(raw: string): FileDiff[] {
 // without crashing.
 export function detectLanguage(path: string): string {
   const lower = path.toLowerCase()
-  const dot = lower.lastIndexOf('.')
-  const ext = dot >= 0 ? lower.slice(dot + 1) : ''
+  const dot = lower.lastIndexOf(".")
+  const ext = dot >= 0 ? lower.slice(dot + 1) : ""
   const map: Record<string, string> = {
-    ts: 'typescript',
-    tsx: 'tsx',
-    js: 'javascript',
-    jsx: 'jsx',
-    go: 'go',
-    py: 'python',
-    rs: 'rust',
-    rb: 'ruby',
-    java: 'java',
-    kt: 'kotlin',
-    swift: 'swift',
-    c: 'c',
-    h: 'c',
-    cpp: 'cpp',
-    cc: 'cpp',
-    hpp: 'cpp',
-    cs: 'csharp',
-    php: 'php',
-    sh: 'bash',
-    bash: 'bash',
-    zsh: 'bash',
-    yml: 'yaml',
-    yaml: 'yaml',
-    json: 'json',
-    toml: 'toml',
-    md: 'markdown',
-    sql: 'sql',
-    css: 'css',
-    scss: 'scss',
-    html: 'html',
-    xml: 'xml',
-    dockerfile: 'docker',
+    ts: "typescript",
+    tsx: "tsx",
+    js: "javascript",
+    jsx: "jsx",
+    go: "go",
+    py: "python",
+    rs: "rust",
+    rb: "ruby",
+    java: "java",
+    kt: "kotlin",
+    swift: "swift",
+    c: "c",
+    h: "c",
+    cpp: "cpp",
+    cc: "cpp",
+    hpp: "cpp",
+    cs: "csharp",
+    php: "php",
+    sh: "bash",
+    bash: "bash",
+    zsh: "bash",
+    yml: "yaml",
+    yaml: "yaml",
+    json: "json",
+    toml: "toml",
+    md: "markdown",
+    sql: "sql",
+    css: "css",
+    scss: "scss",
+    html: "html",
+    xml: "xml",
+    dockerfile: "docker",
   }
-  return map[ext] ?? 'text'
+  return map[ext] ?? "text"
 }

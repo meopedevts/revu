@@ -1,7 +1,6 @@
-import { useCallback, useState } from 'react'
-import { ArrowLeft, Loader2, RotateCcw } from 'lucide-react'
-import { Form } from '@/components/ui/form'
-import { Button } from '@/components/ui/button'
+import { ArrowLeft, Loader2, RotateCcw } from "lucide-react"
+import { useCallback, useState } from "react"
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -11,19 +10,18 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
+} from "@/components/ui/alert-dialog"
+import { Button } from "@/components/ui/button"
+import { Form } from "@/components/ui/form"
 
-import { useSettingsForm } from './use-settings-form'
-import { useActiveProfile } from './use-active-profile'
-import {
-  SettingsSidebar,
-  type SettingsSection,
-} from './settings-sidebar'
-import { AccountsSection } from './sections/accounts-section'
-import { AppearanceSection } from './sections/appearance-section'
-import { HistorySection } from './sections/history-section'
-import { NotificationsSection } from './sections/notifications-section'
-import { SyncSection } from './sections/sync-section'
+import { AccountsSection } from "./sections/accounts-section"
+import { AppearanceSection } from "./sections/appearance-section"
+import { HistorySection } from "./sections/history-section"
+import { NotificationsSection } from "./sections/notifications-section"
+import { SyncSection } from "./sections/sync-section"
+import { SettingsSidebar, type SettingsSection } from "./settings-sidebar"
+import { useActiveProfile } from "./use-active-profile"
+import { useSettingsForm } from "./use-settings-form"
 
 interface SettingsLayoutProps {
   onBack: () => void
@@ -32,29 +30,29 @@ interface SettingsLayoutProps {
 
 export function SettingsLayout({
   onBack,
-  initialSection = 'sync',
+  initialSection = "sync",
 }: SettingsLayoutProps) {
   const { form, loading, saving, submit, discard, restoreDefaults } =
     useSettingsForm()
   const { profile: activeProfile } = useActiveProfile()
 
   const [section, setSection] = useState<SettingsSection>(initialSection)
-  const [pendingSection, setPendingSection] =
-    useState<SettingsSection | null>(null)
+  const [pendingSection, setPendingSection] = useState<SettingsSection | null>(
+    null
+  )
 
   const onSelectSection = useCallback(
     (next: SettingsSection) => {
       if (next === section) return
       // Contas is CRUD (no form) — no unsaved guard needed in or out.
-      const leavingForm =
-        section !== 'accounts' && form.formState.isDirty
+      const leavingForm = section !== "accounts" && form.formState.isDirty
       if (leavingForm) {
         setPendingSection(next)
         return
       }
       setSection(next)
     },
-    [form.formState.isDirty, section],
+    [form.formState.isDirty, section]
   )
 
   const confirmDiscardAndSwitch = useCallback(async () => {
@@ -68,7 +66,7 @@ export function SettingsLayout({
   const cancelSwitch = useCallback(() => setPendingSection(null), [])
 
   const canSave =
-    section !== 'accounts' &&
+    section !== "accounts" &&
     form.formState.isDirty &&
     form.formState.isValid &&
     !saving
@@ -81,7 +79,7 @@ export function SettingsLayout({
     )
   }
 
-  const showFooter = section !== 'accounts'
+  const showFooter = section !== "accounts"
 
   return (
     <div className="flex h-screen flex-col bg-background text-foreground">
@@ -107,13 +105,13 @@ export function SettingsLayout({
               activeProfile={activeProfile}
             />
             <div className="flex-1 overflow-y-auto px-4 py-4">
-              {section === 'accounts' ? (
+              {section === "accounts" ? (
                 <AccountsSection />
-              ) : section === 'sync' ? (
+              ) : section === "sync" ? (
                 <SyncSection form={form} />
-              ) : section === 'notifications' ? (
+              ) : section === "notifications" ? (
                 <NotificationsSection form={form} />
-              ) : section === 'history' ? (
+              ) : section === "history" ? (
                 <HistorySection form={form} />
               ) : (
                 <AppearanceSection form={form} />
@@ -170,7 +168,7 @@ export function SettingsLayout({
             <AlertDialogCancel onClick={cancelSwitch}>
               Cancelar
             </AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDiscardAndSwitch}>
+            <AlertDialogAction onClick={() => void confirmDiscardAndSwitch()}>
               Descartar e continuar
             </AlertDialogAction>
           </AlertDialogFooter>

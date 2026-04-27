@@ -1,21 +1,21 @@
-import { ArrowLeft, ExternalLink, GitMerge, Loader2 } from 'lucide-react'
+import { ArrowLeft, ExternalLink, GitMerge, Loader2 } from "lucide-react"
 
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { ReviewBadge } from '@/components/review-badge'
-import { StatusBadge } from '@/components/status-badge'
+import { ReviewBadge } from "@/components/review-badge"
+import { StatusBadge } from "@/components/status-badge"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from '@/components/ui/tooltip'
-import { cn } from '@/lib/utils'
-import { openPRInBrowser } from '@/src/lib/bridge'
+} from "@/components/ui/tooltip"
+import { cn } from "@/lib/utils"
+import { openPRInBrowser } from "@/src/lib/bridge"
 import {
   type PRFullDetails,
   type ReviewState,
   type PRState,
-} from '@/src/lib/types'
+} from "@/src/lib/types"
 
 interface PRDetailsHeaderProps {
   details: PRFullDetails
@@ -25,7 +25,7 @@ interface PRDetailsHeaderProps {
   canMerge: boolean
   mergeBlockReason: string | null
   merging: boolean
-  onRequestMerge: (method: 'squash' | 'merge') => void
+  onRequestMerge: (method: "squash" | "merge") => void
 }
 
 export function PRDetailsHeader({
@@ -41,12 +41,7 @@ export function PRDetailsHeader({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between gap-2">
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={onBack}
-          aria-label="Voltar"
-        >
+        <Button size="sm" variant="ghost" onClick={onBack} aria-label="Voltar">
           <ArrowLeft data-icon="inline-start" />
           Voltar
         </Button>
@@ -116,12 +111,12 @@ export function PRDetailsHeader({
 
 interface MergeButtonProps {
   label: string
-  method: 'squash' | 'merge'
+  method: "squash" | "merge"
   primary: boolean
   canMerge: boolean
   reason: string | null
   merging: boolean
-  onClick: (method: 'squash' | 'merge') => void
+  onClick: (method: "squash" | "merge") => void
 }
 
 function MergeButton({
@@ -137,10 +132,10 @@ function MergeButton({
   const btn = (
     <Button
       size="sm"
-      variant={primary ? 'default' : 'outline'}
+      variant={primary ? "default" : "outline"}
       disabled={disabled}
       onClick={() => onClick(method)}
-      className={cn(primary ? 'bg-status-merged text-white' : '')}
+      className={cn(primary ? "bg-status-merged text-white" : "")}
     >
       {merging ? (
         <Loader2 className="animate-spin" data-icon="inline-start" />
@@ -154,6 +149,7 @@ function MergeButton({
     return (
       <Tooltip>
         <TooltipTrigger asChild>
+          {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- wrapper precisa receber foco pro Tooltip funcionar com botão disabled (padrão Radix) */}
           <span tabIndex={0}>{btn}</span>
         </TooltipTrigger>
         <TooltipContent>{reason}</TooltipContent>
