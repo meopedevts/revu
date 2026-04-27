@@ -1,42 +1,81 @@
 import { z } from "zod"
 
-// Mirrors internal/config.validateStrict — keep the bounds in sync with the
-// Go source of truth. Client-side validation is for UX; the backend still
-// enforces the same rules on UpdateConfig.
+import { CONFIG_BOUNDS, VALID_THEMES } from "@/src/shared/generated/constants"
+
+// Bounds come from internal/config.Limits via cmd/gentsconst — single source
+// of truth for both server-side validation and the Zod schema below.
+// Client-side validation is for UX; the backend still enforces the same
+// rules on UpdateConfig.
 export const configSchema = z.object({
   polling_interval_seconds: z
     .number()
     .int("deve ser inteiro")
-    .min(30, "mínimo 30 segundos")
-    .max(3600, "máximo 3600 segundos"),
+    .min(
+      CONFIG_BOUNDS.pollingIntervalSeconds.min,
+      `mínimo ${CONFIG_BOUNDS.pollingIntervalSeconds.min} segundos`
+    )
+    .max(
+      CONFIG_BOUNDS.pollingIntervalSeconds.max,
+      `máximo ${CONFIG_BOUNDS.pollingIntervalSeconds.max} segundos`
+    ),
   notifications_enabled: z.boolean(),
   notification_timeout_seconds: z
     .number()
     .int("deve ser inteiro")
-    .min(1, "mínimo 1 segundo")
-    .max(30, "máximo 30 segundos"),
+    .min(
+      CONFIG_BOUNDS.notificationTimeoutSeconds.min,
+      `mínimo ${CONFIG_BOUNDS.notificationTimeoutSeconds.min} segundo`
+    )
+    .max(
+      CONFIG_BOUNDS.notificationTimeoutSeconds.max,
+      `máximo ${CONFIG_BOUNDS.notificationTimeoutSeconds.max} segundos`
+    ),
   status_refresh_every_n_ticks: z
     .number()
     .int("deve ser inteiro")
-    .min(1, "mínimo 1 tick")
-    .max(1000, "máximo 1000 ticks"),
+    .min(
+      CONFIG_BOUNDS.statusRefreshEveryNTicks.min,
+      `mínimo ${CONFIG_BOUNDS.statusRefreshEveryNTicks.min} tick`
+    )
+    .max(
+      CONFIG_BOUNDS.statusRefreshEveryNTicks.max,
+      `máximo ${CONFIG_BOUNDS.statusRefreshEveryNTicks.max} ticks`
+    ),
   history_retention_days: z
     .number()
     .int("deve ser inteiro")
-    .min(1, "mínimo 1 dia")
-    .max(365, "máximo 365 dias"),
+    .min(
+      CONFIG_BOUNDS.historyRetentionDays.min,
+      `mínimo ${CONFIG_BOUNDS.historyRetentionDays.min} dia`
+    )
+    .max(
+      CONFIG_BOUNDS.historyRetentionDays.max,
+      `máximo ${CONFIG_BOUNDS.historyRetentionDays.max} dias`
+    ),
   start_hidden: z.boolean(),
   window: z.object({
     width: z
       .number()
       .int("deve ser inteiro")
-      .min(240, "mínimo 240 pixels")
-      .max(3840, "máximo 3840 pixels"),
+      .min(
+        CONFIG_BOUNDS.windowWidth.min,
+        `mínimo ${CONFIG_BOUNDS.windowWidth.min} pixels`
+      )
+      .max(
+        CONFIG_BOUNDS.windowWidth.max,
+        `máximo ${CONFIG_BOUNDS.windowWidth.max} pixels`
+      ),
     height: z
       .number()
       .int("deve ser inteiro")
-      .min(240, "mínimo 240 pixels")
-      .max(2160, "máximo 2160 pixels"),
+      .min(
+        CONFIG_BOUNDS.windowHeight.min,
+        `mínimo ${CONFIG_BOUNDS.windowHeight.min} pixels`
+      )
+      .max(
+        CONFIG_BOUNDS.windowHeight.max,
+        `máximo ${CONFIG_BOUNDS.windowHeight.max} pixels`
+      ),
   }),
-  theme: z.enum(["light", "dark"]),
+  theme: z.enum(VALID_THEMES),
 })

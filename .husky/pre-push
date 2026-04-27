@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# revu pre-push — bloqueia push se task check falhar.
+# revu pre-push — bloqueia push se task check falhar ou se constantes
+# geradas (Go → TS) estiverem dessincronizadas.
 set -euo pipefail
 
 repo_root="$(git rev-parse --show-toplevel)"
@@ -11,6 +12,17 @@ if ! task check; then
 	echo
 	echo "[pre-push] BLOQUEADO: task check falhou. Corrija antes de push."
 	echo "[pre-push] Para emergência (use com cautela): git push --no-verify"
+	exit 1
+fi
+
+echo "[pre-push] verificando drift de constantes geradas (Go → TS) ..."
+
+task gen >/dev/null
+
+if ! git diff --exit-code -- frontend/src/shared/generated >/dev/null; then
+	echo
+	echo "[pre-push] BLOQUEADO: frontend/src/shared/generated/constants.ts está dessincronizado."
+	echo "[pre-push] Rode 'task gen' e comite o resultado antes de push."
 	exit 1
 fi
 

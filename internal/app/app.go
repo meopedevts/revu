@@ -18,13 +18,8 @@ import (
 	"github.com/meopedevts/revu/internal/poller"
 	"github.com/meopedevts/revu/internal/profiles"
 	"github.com/meopedevts/revu/internal/store"
+	"github.com/meopedevts/revu/internal/uilimits"
 )
-
-// detailsDiffLimit caps the (additions+deletions) a PR can have before the
-// inline diff view is skipped. Matches the REV-13 decision to always fall
-// back to "open in GitHub" on large PRs instead of blocking the UI while a
-// huge diff loads.
-const detailsDiffLimit = 500
 
 // EventProfilesActiveChanged is emitted on the Wails bus whenever the active
 // profile changes. Frontend listens to refresh the header badge.
@@ -270,7 +265,7 @@ func (a *App) GetPRDetails(prID string) (*github.PRFullDetails, error) {
 }
 
 // GetPRDiff returns the raw unified diff for the PR, or an empty string if
-// (additions+deletions) exceeds the configured detailsDiffLimit. The
+// (additions+deletions) exceeds the configured uilimits.DetailsDiffLimit. The
 // frontend treats "" as "PR too big, show the open-in-GitHub fallback".
 func (a *App) GetPRDiff(prID string) (string, error) {
 	if a.gh == nil {
@@ -281,7 +276,7 @@ func (a *App) GetPRDiff(prID string) (string, error) {
 	if !ok {
 		return "", errPRNotFound
 	}
-	if rec.Additions+rec.Deletions > detailsDiffLimit {
+	if rec.Additions+rec.Deletions > uilimits.DetailsDiffLimit {
 		return "", nil
 	}
 	return a.gh.GetPRDiff(ctx, rec.URL)
