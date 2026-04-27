@@ -52,6 +52,36 @@ tasks:
     generates:
       - dist/**
 
+  install:frontend:
+    desc: Instala deps do frontend (e dispara husky prepare → registra .husky/_/ como core.hooksPath)
+    dir: frontend
+    cmds:
+      - pnpm install
+
+  lint:frontend:
+    desc: ESLint flat no frontend (zero warnings esperado)
+    dir: frontend
+    cmds:
+      - pnpm lint
+
+  lint:frontend:fix:
+    desc: ESLint flat com autofix
+    dir: frontend
+    cmds:
+      - pnpm lint:fix
+
+  fmt:frontend:
+    desc: Prettier --write em todo o frontend
+    dir: frontend
+    cmds:
+      - pnpm format
+
+  typecheck:frontend:
+    desc: tsc --noEmit no frontend
+    dir: frontend
+    cmds:
+      - pnpm typecheck
+
   dev:
     desc: Hot-reload com wails dev (frontend + backend)
     cmds:
@@ -144,11 +174,11 @@ tasks:
       - install -Dm755 {{.BUILD_DIR}}/{{.BINARY}} "$HOME/.local/bin/{{.BINARY}}"
 
   install:hooks:
-    desc: Symlinka scripts/pre-push em .git/hooks/pre-push (gate de qualidade)
+    desc: Instala git hooks via husky (pre-commit lint-staged + pre-push task check)
+    deps: [install:frontend]
     cmds:
-      - mkdir -p .git/hooks
-      - ln -sf ../../scripts/pre-push .git/hooks/pre-push
-      - echo "pre-push hook instalado — task check vai rodar antes de cada push"
+      - echo "hooks instalados via husky — core.hooksPath = .husky/_/"
+      - echo "pre-commit roda lint-staged no frontend; pre-push roda task check"
 
   release:
     desc: Build otimizado (strip + trimpath + ldflags) — binário em build/bin/revu

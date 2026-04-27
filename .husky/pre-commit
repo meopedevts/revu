@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# revu pre-commit — roda lint-staged no frontend (eslint --fix + prettier --write).
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root/frontend"
+
+pnpm exec lint-staged

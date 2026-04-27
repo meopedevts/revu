@@ -68,17 +68,24 @@ Qualquer falha bloqueia o commit. Se um lint novo aparecer, corrija no
 código — **não** desabilite o linter sem justificativa explícita no
 `.golangci.yml` ou via `//nolint:<linter> // <motivo>` direcionado.
 
-### Hook de pre-push
+### Git hooks (husky)
 
-`scripts/pre-push` roda `task check` antes de cada `git push`. Para ativar
-no clone local:
+Hooks gerenciados por husky 9 (`.husky/` na raiz, `core.hooksPath = .husky/_`):
+
+- **pre-commit** (`.husky/pre-commit`) — roda `lint-staged` no frontend:
+  `eslint --fix` + `prettier --write` nos arquivos staged.
+- **pre-push** (`.husky/pre-push`) — roda `task check` (Go fmt+lint+vet+test).
+
+Pra ativar no clone local:
 
 ```bash
-task install:hooks
+task install:hooks      # equivale a `cd frontend && pnpm install`
 ```
 
-Cria symlink em `.git/hooks/pre-push`. Falha do check bloqueia o push.
-Bypass de emergência: `git push --no-verify` (use só em emergência real).
+`pnpm install` no frontend dispara o `prepare` script que registra
+`.husky/_/` como `core.hooksPath`. Falha do hook bloqueia commit/push.
+Bypass de emergência: `git commit --no-verify` ou `git push --no-verify`
+(use só em emergência real).
 
 ### Mutation testing (gremlins)
 
