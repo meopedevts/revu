@@ -51,7 +51,11 @@ function SettingsLayout() {
 
   const onSelectSection = (next: SettingsSection) => {
     if (next === section) return
-    void navigate({ to: "/settings/$section", params: { section: next } })
+    void navigate({
+      to: "/settings/$section",
+      params: { section: next },
+      replace: true,
+    })
   }
 
   const onBack = () => {
