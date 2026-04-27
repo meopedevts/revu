@@ -1,6 +1,6 @@
 import { Bell, Clock, Palette, RefreshCw, User } from 'lucide-react'
-import { cn } from '@/lib/utils'
 
+import { cn } from '@/lib/utils'
 import type { Profile } from '@/src/lib/types'
 
 export type SettingsSection =
@@ -53,7 +53,7 @@ export function SettingsSidebar({
               'transition-colors',
               isActive
                 ? 'bg-primary/10 text-primary'
-                : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
             )}
           >
             <Icon className="size-3.5" aria-hidden="true" />

@@ -68,14 +68,11 @@ export function AppearanceSection({ form }: AppearanceSectionProps) {
             <div className="space-y-0.5">
               <FormLabel>Iniciar minimizado</FormLabel>
               <FormDescription>
-                Abre só no tray; janela aparece ao clicar em "Abrir".
+                Abre só no tray; janela aparece ao clicar em &quot;Abrir&quot;.
               </FormDescription>
             </div>
             <FormControl>
-              <Switch
-                checked={field.value}
-                onCheckedChange={field.onChange}
-              />
+              <Switch checked={field.value} onCheckedChange={field.onChange} />
             </FormControl>
           </FormItem>
         )}
@@ -94,9 +91,7 @@ export function AppearanceSection({ form }: AppearanceSectionProps) {
                   min={240}
                   max={3840}
                   {...field}
-                  onChange={(e) =>
-                    field.onChange(e.target.valueAsNumber || 0)
-                  }
+                  onChange={(e) => field.onChange(e.target.valueAsNumber || 0)}
                 />
               </FormControl>
               <FormMessage />
@@ -115,9 +110,7 @@ export function AppearanceSection({ form }: AppearanceSectionProps) {
                   min={240}
                   max={2160}
                   {...field}
-                  onChange={(e) =>
-                    field.onChange(e.target.valueAsNumber || 0)
-                  }
+                  onChange={(e) => field.onChange(e.target.valueAsNumber || 0)}
                 />
               </FormControl>
               <FormMessage />

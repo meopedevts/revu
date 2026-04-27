@@ -39,7 +39,7 @@ export function parseDiff(raw: string): FileDiff[] {
   for (const line of lines) {
     if (line.startsWith('diff --git ')) {
       flush()
-      const m = line.match(/^diff --git a\/(.+?) b\/(.+)$/)
+      const m = /^diff --git a\/(.+?) b\/(.+)$/.exec(line)
       const path = m ? m[2] : 'unknown'
       current = { path, oldLines: [], newLines: [] }
       continue

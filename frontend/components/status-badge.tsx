@@ -21,7 +21,7 @@ export function StatusBadge({ status, className }: StatusBadgeProps) {
       className={cn(
         'border-transparent uppercase tracking-wide',
         STATUS_CLASS[status],
-        className,
+        className
       )}
     >
       {status}

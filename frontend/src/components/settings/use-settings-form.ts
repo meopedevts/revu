@@ -1,6 +1,6 @@
+import { zodResolver } from '@hookform/resolvers/zod'
 import { useCallback, useEffect, useState } from 'react'
 import { useForm, type UseFormReturn } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
 
 import { getConfig, updateConfig } from '@/src/lib/bridge'
@@ -8,7 +8,6 @@ import { configSchema } from '@/src/lib/schemas/config-schema'
 import {
   DEFAULT_CONFIG,
   type AppConfig,
-  type ConfigFieldError,
   type ConfigValidationError,
 } from '@/src/lib/types'
 
@@ -17,7 +16,7 @@ function isValidationError(err: unknown): err is ConfigValidationError {
     typeof err === 'object' &&
     err !== null &&
     'errors' in err &&
-    Array.isArray((err as { errors: unknown }).errors)
+    Array.isArray(err.errors)
   )
 }
 
@@ -72,7 +71,7 @@ export function useSettingsForm(): SettingsFormBag {
     } catch (err: unknown) {
       const ve = parseBackendError(err)
       if (ve) {
-        for (const fe of ve.errors as ConfigFieldError[]) {
+        for (const fe of ve.errors) {
           form.setError(fe.field as keyof AppConfig, {
             type: 'backend',
             message: fe.msg,
@@ -81,7 +80,7 @@ export function useSettingsForm(): SettingsFormBag {
         toast.error('Corrija os campos destacados')
       } else {
         toast.error(
-          err instanceof Error ? err.message : 'Falha ao salvar configurações',
+          err instanceof Error ? err.message : 'Falha ao salvar configurações'
         )
       }
     } finally {
@@ -96,7 +95,7 @@ export function useSettingsForm(): SettingsFormBag {
     form.setValue(
       'polling_interval_seconds',
       DEFAULT_CONFIG.polling_interval_seconds,
-      { shouldDirty: true, shouldValidate: true },
+      { shouldDirty: true, shouldValidate: true }
     )
   }, [form])
 

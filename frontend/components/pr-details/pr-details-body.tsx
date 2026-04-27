@@ -45,15 +45,19 @@ export function PRDetailsBody({ body }: PRDetailsBodyProps) {
                   borderRadius: '0.5rem',
                 }}
               >
-                {String(children).replace(/\n$/, '')}
+                {(typeof children === 'string' ? children : '').replace(
+                  /\n$/,
+                  ''
+                )}
               </SyntaxHighlighter>
             )
           },
           a(props) {
             const href = props.href ?? ''
+            const { children: anchorChildren, ...rest } = props
             return (
               <a
-                {...props}
+                {...rest}
                 href={href}
                 onClick={(e) => {
                   if (href.startsWith('http')) {
@@ -62,7 +66,9 @@ export function PRDetailsBody({ body }: PRDetailsBodyProps) {
                   }
                 }}
                 className="text-primary underline"
-              />
+              >
+                {anchorChildren}
+              </a>
             )
           },
         }}

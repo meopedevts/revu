@@ -28,7 +28,7 @@ export function ReviewBadge({ state, className }: ReviewBadgeProps) {
       className={cn(
         'border-transparent uppercase tracking-wide',
         REVIEW_CLASS[state],
-        className,
+        className
       )}
     >
       {REVIEW_LABEL[state]}

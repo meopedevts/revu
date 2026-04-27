@@ -24,7 +24,9 @@ const ThemeContext = createContext<ThemeContextValue | null>(null)
 function readCache(): Theme {
   if (typeof window === 'undefined') return 'light'
   try {
-    return window.localStorage.getItem(STORAGE_KEY) === 'dark' ? 'dark' : 'light'
+    return window.localStorage.getItem(STORAGE_KEY) === 'dark'
+      ? 'dark'
+      : 'light'
   } catch {
     return 'light'
   }
@@ -82,12 +84,10 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
       } catch (err: unknown) {
         applyTheme(previous)
         setThemeState(previous)
-        toast.error(
-          err instanceof Error ? err.message : 'Falha ao salvar tema',
-        )
+        toast.error(err instanceof Error ? err.message : 'Falha ao salvar tema')
       }
     },
-    [theme],
+    [theme]
   )
 
   return (

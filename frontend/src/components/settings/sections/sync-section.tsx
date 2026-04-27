@@ -73,13 +73,12 @@ export function SyncSection({ form }: SyncSectionProps) {
                 min={1}
                 max={1000}
                 {...field}
-                onChange={(e) =>
-                  field.onChange(e.target.valueAsNumber || 0)
-                }
+                onChange={(e) => field.onChange(e.target.valueAsNumber || 0)}
               />
             </FormControl>
             <FormDescription>
-              A cada N ticks, revu revisa status de PRs antigos (merged / closed) no histórico.
+              A cada N ticks, revu revisa status de PRs antigos (merged /
+              closed) no histórico.
             </FormDescription>
             <FormMessage />
           </FormItem>

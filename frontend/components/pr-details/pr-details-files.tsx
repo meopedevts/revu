@@ -11,7 +11,7 @@ export function PRDetailsFiles({ files }: PRDetailsFilesProps) {
     )
   }
   const sorted = [...files].sort(
-    (a, b) => b.additions + b.deletions - (a.additions + a.deletions),
+    (a, b) => b.additions + b.deletions - (a.additions + a.deletions)
   )
   return (
     <ul className="flex flex-col divide-y divide-border rounded-lg border border-border bg-card">

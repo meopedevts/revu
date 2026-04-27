@@ -1,8 +1,9 @@
+import { ChevronDown, ChevronRight } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import ReactDiffViewer from 'react-diff-viewer-continued'
-import { ChevronDown, ChevronRight } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
+
 import { type FileDiff, parseDiff } from './parse-diff'
 
 interface PRDetailsDiffProps {
@@ -37,7 +38,7 @@ function FileDiffBlock({ file }: { file: FileDiff }) {
         onClick={() => setOpen((v) => !v)}
         className={cn(
           'flex w-full items-center gap-2 px-3 py-2 text-left text-xs',
-          'hover:bg-muted',
+          'hover:bg-muted'
         )}
       >
         <Chevron className="size-3 shrink-0" aria-hidden="true" />

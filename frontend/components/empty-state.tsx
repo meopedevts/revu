@@ -4,7 +4,10 @@ interface EmptyStateProps {
   variant: 'pending' | 'history'
 }
 
-const COPY: Record<EmptyStateProps['variant'], { title: string; hint: string }> = {
+const COPY: Record<
+  EmptyStateProps['variant'],
+  { title: string; hint: string }
+> = {
   pending: {
     title: 'Nenhum PR aguardando review.',
     hint: 'Quando alguém te marcar como reviewer, ele aparece aqui.',

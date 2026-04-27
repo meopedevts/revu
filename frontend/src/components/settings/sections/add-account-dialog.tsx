@@ -1,5 +1,5 @@
-import { useState } from 'react'
 import { Eye, Loader2 } from 'lucide-react'
+import { useState } from 'react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -14,7 +14,6 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
-
 import { createProfile, validateToken } from '@/src/lib/bridge'
 import type { AuthMethod } from '@/src/lib/types'
 
@@ -36,7 +35,7 @@ export function AddAccountDialog({
   const [revealing, setRevealing] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [previewedUsername, setPreviewedUsername] = useState<string | null>(
-    null,
+    null
   )
 
   function reset() {
@@ -57,12 +56,12 @@ export function AddAccountDialog({
       const username = await validateToken(token)
       setPreviewedUsername(username || '(username indisponível)')
       toast.success(
-        username ? `Token válido para @${username}` : 'Token válido',
+        username ? `Token válido para @${username}` : 'Token válido'
       )
     } catch (err: unknown) {
       setPreviewedUsername(null)
       toast.error(
-        err instanceof Error ? err.message : 'Token inválido ou sem permissão',
+        err instanceof Error ? err.message : 'Token inválido ou sem permissão'
       )
     }
   }
@@ -90,7 +89,7 @@ export function AddAccountDialog({
       onCreated()
     } catch (err: unknown) {
       toast.error(
-        err instanceof Error ? err.message : 'Falha ao adicionar conta',
+        err instanceof Error ? err.message : 'Falha ao adicionar conta'
       )
     } finally {
       setSubmitting(false)
@@ -132,11 +131,17 @@ export function AddAccountDialog({
               onValueChange={(v) => setMethod(v as AuthMethod)}
               className="flex gap-4"
             >
-              <label className="flex items-center gap-2 text-xs">
+              <label
+                htmlFor="m-keyring"
+                className="flex items-center gap-2 text-xs"
+              >
                 <RadioGroupItem value="keyring" id="m-keyring" />
                 Token (keyring)
               </label>
-              <label className="flex items-center gap-2 text-xs">
+              <label
+                htmlFor="m-ghcli"
+                className="flex items-center gap-2 text-xs"
+              >
                 <RadioGroupItem value="gh-cli" id="m-ghcli" />
                 gh auth login
               </label>

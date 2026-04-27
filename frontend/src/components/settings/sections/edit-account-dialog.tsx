@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
 import { Eye, Loader2 } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -13,7 +13,6 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-
 import { updateProfile } from '@/src/lib/bridge'
 import type { Profile } from '@/src/lib/types'
 
@@ -65,7 +64,7 @@ export function EditAccountDialog({
       onOpenChange(false)
     } catch (err: unknown) {
       toast.error(
-        err instanceof Error ? err.message : 'Falha ao atualizar conta',
+        err instanceof Error ? err.message : 'Falha ao atualizar conta'
       )
     } finally {
       setSubmitting(false)

@@ -52,7 +52,7 @@ export function PRDetailsView({ prID, onBack }: PRDetailsViewProps) {
   const prState = useMemo<PRState>(() => derivePRState(details), [details])
   const reviewState = useMemo<ReviewState>(
     () => deriveReviewState(details),
-    [details],
+    [details]
   )
 
   const handleRequestMerge = useCallback((method: MergeMethod) => {
@@ -65,7 +65,7 @@ export function PRDetailsView({ prID, onBack }: PRDetailsViewProps) {
     try {
       await mergePR(prID, mergeMethod)
       toast.success(
-        `PR ${mergeMethod === 'squash' ? 'squash-merged' : 'merged'} com sucesso`,
+        `PR ${mergeMethod === 'squash' ? 'squash-merged' : 'merged'} com sucesso`
       )
       setMergeMethod(null)
       onBack()
@@ -171,9 +171,7 @@ export function PRDetailsView({ prID, onBack }: PRDetailsViewProps) {
         {diffTooBig ? (
           <BigPRPlaceholder url={details.url} totalLines={totalLines} />
         ) : diffEmpty ? (
-          <div className="text-xs text-muted-foreground italic">
-            diff vazio
-          </div>
+          <div className="text-xs text-muted-foreground italic">diff vazio</div>
         ) : (
           <PRDetailsDiff diff={diff ?? ''} />
         )}
@@ -187,7 +185,7 @@ export function PRDetailsView({ prID, onBack }: PRDetailsViewProps) {
         prNumber={details.number}
         prTitle={details.title}
         method={mergeMethod}
-        onConfirm={handleConfirmMerge}
+        onConfirm={() => void handleConfirmMerge()}
         busy={merging}
       />
     </div>

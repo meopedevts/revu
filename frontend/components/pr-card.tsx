@@ -1,5 +1,7 @@
 import { ChevronRight } from 'lucide-react'
 
+import { ReviewBadge } from '@/components/review-badge'
+import { StatusBadge } from '@/components/status-badge'
 import {
   Card,
   CardAction,
@@ -8,8 +10,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { ReviewBadge } from '@/components/review-badge'
-import { StatusBadge } from '@/components/status-badge'
 import { type PRRecord, reviewStateOf, statusOf } from '@/src/lib/types'
 
 interface PRCardProps {

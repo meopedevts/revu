@@ -1,12 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import {
-  EventsOff,
-  EventsOn,
-} from '@/wailsjs/runtime/runtime'
-
 import { listHistoryPRs, listPendingPRs } from '@/src/lib/bridge'
 import type { PRRecord } from '@/src/lib/types'
+import { EventsOff, EventsOn } from '@/wailsjs/runtime/runtime'
 
 interface PollCompletedEvent {
   kind: string

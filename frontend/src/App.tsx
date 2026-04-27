@@ -1,26 +1,19 @@
-import { useCallback, useEffect, useState } from 'react'
 import { AlertCircle, RefreshCw, Settings } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
 
-import { EventsOff, EventsOn } from '@/wailsjs/runtime/runtime'
-
-import { Button } from '@/components/ui/button'
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@/components/ui/tabs'
-import { Toaster } from '@/components/ui/sonner'
-import { TooltipProvider } from '@/components/ui/tooltip'
 import { EmptyState } from '@/components/empty-state'
 import { PRCard } from '@/components/pr-card'
 import { PRDetailsView } from '@/components/pr-details-view'
-
-import { refreshNow } from '@/src/lib/bridge'
-import { usePRs } from '@/src/lib/hooks/use-prs'
-import { SettingsView } from '@/src/components/settings-view'
+import { Button } from '@/components/ui/button'
+import { Toaster } from '@/components/ui/sonner'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { MainHeaderProfileBadge } from '@/src/components/main-header-profile-badge'
 import type { SettingsSection } from '@/src/components/settings/settings-sidebar'
+import { SettingsView } from '@/src/components/settings-view'
+import { refreshNow } from '@/src/lib/bridge'
+import { usePRs } from '@/src/lib/hooks/use-prs'
+import { EventsOff, EventsOn } from '@/wailsjs/runtime/runtime'
 
 type View = 'main' | 'settings' | 'pr-details'
 
@@ -44,7 +37,8 @@ interface MainViewProps {
 }
 
 function MainView({ onOpenSettings, onOpenPR }: MainViewProps) {
-  const { pending, history, lastPollAt, lastPollErr, loading, reload } = usePRs()
+  const { pending, history, lastPollAt, lastPollErr, loading, reload } =
+    usePRs()
 
   const handleRefresh = useCallback(async () => {
     await refreshNow()
@@ -86,7 +80,7 @@ function MainView({ onOpenSettings, onOpenPR }: MainViewProps) {
           <Button
             size="sm"
             variant="outline"
-            onClick={handleRefresh}
+            onClick={() => void handleRefresh()}
             disabled={loading}
           >
             <RefreshCw data-icon="inline-start" />
@@ -179,10 +173,7 @@ function App() {
       {view === 'pr-details' && selectedPRId ? (
         <PRDetailsView prID={selectedPRId} onBack={backToMain} />
       ) : view === 'settings' ? (
-        <SettingsView
-          onBack={backToMain}
-          initialSection={settingsSection}
-        />
+        <SettingsView onBack={backToMain} initialSection={settingsSection} />
       ) : (
         <MainView onOpenSettings={openSettings} onOpenPR={openPR} />
       )}

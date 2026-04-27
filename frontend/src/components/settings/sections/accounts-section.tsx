@@ -1,15 +1,7 @@
-import { useCallback, useEffect, useState } from 'react'
 import { MoreHorizontal, Plus } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
-import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,12 +13,15 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
-
+import { Button } from '@/components/ui/button'
 import {
-  deleteProfile,
-  listProfiles,
-  setActiveProfile,
-} from '@/src/lib/bridge'
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import { deleteProfile, listProfiles, setActiveProfile } from '@/src/lib/bridge'
 import type { Profile } from '@/src/lib/types'
 
 import { AddAccountDialog } from './add-account-dialog'
@@ -83,11 +78,7 @@ export function AccountsSection() {
             Gerencie as credenciais GitHub usadas pelo revu.
           </p>
         </div>
-        <Button
-          type="button"
-          size="sm"
-          onClick={() => setAddOpen(true)}
-        >
+        <Button type="button" size="sm" onClick={() => setAddOpen(true)}>
           <Plus />
           Adicionar conta
         </Button>

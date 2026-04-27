@@ -136,7 +136,7 @@ export async function getPRDiff(prID: string): Promise<string> {
 
 export async function mergePR(
   prID: string,
-  method: MergeMethod,
+  method: MergeMethod
 ): Promise<void> {
   const b = bridge()
   if (!b?.MergePR) throw new Error('bridge unavailable')
@@ -179,7 +179,7 @@ export async function createProfile(input: {
 
 export async function updateProfile(
   id: string,
-  patch: ProfileUpdate,
+  patch: ProfileUpdate
 ): Promise<Profile> {
   const b = bridge()
   if (!b?.UpdateProfile) throw new Error('bridge unavailable')

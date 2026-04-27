@@ -1,9 +1,9 @@
 import { ArrowLeft, ExternalLink, GitMerge, Loader2 } from 'lucide-react'
 
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { ReviewBadge } from '@/components/review-badge'
 import { StatusBadge } from '@/components/status-badge'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import {
   Tooltip,
   TooltipContent,
@@ -41,12 +41,7 @@ export function PRDetailsHeader({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between gap-2">
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={onBack}
-          aria-label="Voltar"
-        >
+        <Button size="sm" variant="ghost" onClick={onBack} aria-label="Voltar">
           <ArrowLeft data-icon="inline-start" />
           Voltar
         </Button>
@@ -154,6 +149,7 @@ function MergeButton({
     return (
       <Tooltip>
         <TooltipTrigger asChild>
+          {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- wrapper precisa receber foco pro Tooltip funcionar com botão disabled (padrão Radix) */}
           <span tabIndex={0}>{btn}</span>
         </TooltipTrigger>
         <TooltipContent>{reason}</TooltipContent>

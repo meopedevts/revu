@@ -1,7 +1,6 @@
-import { useCallback, useState } from 'react'
 import { ArrowLeft, Loader2, RotateCcw } from 'lucide-react'
-import { Form } from '@/components/ui/form'
-import { Button } from '@/components/ui/button'
+import { useCallback, useState } from 'react'
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -12,18 +11,17 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { Button } from '@/components/ui/button'
+import { Form } from '@/components/ui/form'
 
-import { useSettingsForm } from './use-settings-form'
-import { useActiveProfile } from './use-active-profile'
-import {
-  SettingsSidebar,
-  type SettingsSection,
-} from './settings-sidebar'
 import { AccountsSection } from './sections/accounts-section'
 import { AppearanceSection } from './sections/appearance-section'
 import { HistorySection } from './sections/history-section'
 import { NotificationsSection } from './sections/notifications-section'
 import { SyncSection } from './sections/sync-section'
+import { SettingsSidebar, type SettingsSection } from './settings-sidebar'
+import { useActiveProfile } from './use-active-profile'
+import { useSettingsForm } from './use-settings-form'
 
 interface SettingsLayoutProps {
   onBack: () => void
@@ -39,22 +37,22 @@ export function SettingsLayout({
   const { profile: activeProfile } = useActiveProfile()
 
   const [section, setSection] = useState<SettingsSection>(initialSection)
-  const [pendingSection, setPendingSection] =
-    useState<SettingsSection | null>(null)
+  const [pendingSection, setPendingSection] = useState<SettingsSection | null>(
+    null
+  )
 
   const onSelectSection = useCallback(
     (next: SettingsSection) => {
       if (next === section) return
       // Contas is CRUD (no form) — no unsaved guard needed in or out.
-      const leavingForm =
-        section !== 'accounts' && form.formState.isDirty
+      const leavingForm = section !== 'accounts' && form.formState.isDirty
       if (leavingForm) {
         setPendingSection(next)
         return
       }
       setSection(next)
     },
-    [form.formState.isDirty, section],
+    [form.formState.isDirty, section]
   )
 
   const confirmDiscardAndSwitch = useCallback(async () => {
@@ -170,7 +168,7 @@ export function SettingsLayout({
             <AlertDialogCancel onClick={cancelSwitch}>
               Cancelar
             </AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDiscardAndSwitch}>
+            <AlertDialogAction onClick={() => void confirmDiscardAndSwitch()}>
               Descartar e continuar
             </AlertDialogAction>
           </AlertDialogFooter>
