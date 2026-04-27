@@ -1,9 +1,9 @@
 import { Outlet, createRootRoute, useRouter } from "@tanstack/react-router"
 import { lazy, Suspense, useEffect } from "react"
 
+import { isSettingsSection } from "@/components/settings/settings-sidebar"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import { isSettingsSection } from "@/src/components/settings/settings-sidebar"
 import { EventsOff, EventsOn } from "@/wailsjs/runtime/runtime"
 
 interface NavigatePayload {

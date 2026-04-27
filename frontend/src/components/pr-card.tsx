@@ -10,7 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { type PRRecord, reviewStateOf, statusOf } from "@/src/lib/types"
+import { type PRRecord, reviewStateOf, statusOf } from "@/lib/types"
 
 interface PRCardProps {
   pr: PRRecord

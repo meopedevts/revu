@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 
-import { getPRDetails, getPRDiff } from "@/src/lib/bridge"
-import type { PRFullDetails } from "@/src/lib/types"
+import { getPRDetails, getPRDiff } from "@/lib/bridge"
+import type { PRFullDetails } from "@/lib/types"
 
 interface UsePRDetailsResult {
   details: PRFullDetails | null

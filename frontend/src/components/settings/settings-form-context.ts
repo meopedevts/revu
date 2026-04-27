@@ -1,7 +1,7 @@
 import { createContext, useContext } from "react"
 import type { UseFormReturn } from "react-hook-form"
 
-import type { AppConfig } from "@/src/lib/types"
+import type { AppConfig } from "@/lib/types"
 
 export const SettingsFormContext =
   createContext<UseFormReturn<AppConfig> | null>(null)

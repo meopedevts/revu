@@ -7,8 +7,8 @@ import React from "react"
 import { createRoot } from "react-dom/client"
 
 import "./style.css"
-import { ThemeProvider } from "@/src/lib/theme/theme-provider"
-import { routeTree } from "@/src/routeTree.gen"
+import { ThemeProvider } from "@/lib/theme/theme-provider"
+import { routeTree } from "@/routeTree.gen"
 
 const router = createRouter({
   routeTree,

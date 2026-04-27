@@ -1,6 +1,6 @@
 import { Badge } from "@/components/ui/badge"
+import type { ReviewState } from "@/lib/types"
 import { cn } from "@/lib/utils"
-import type { ReviewState } from "@/src/lib/types"
 
 const REVIEW_CLASS: Record<ReviewState, string> = {
   PENDING: "bg-review-pending text-review-pending-foreground",

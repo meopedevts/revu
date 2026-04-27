@@ -1,11 +1,11 @@
 import { createFileRoute, notFound } from "@tanstack/react-router"
 
-import { AccountsSection } from "@/src/components/settings/sections/accounts-section"
-import { AppearanceSection } from "@/src/components/settings/sections/appearance-section"
-import { HistorySection } from "@/src/components/settings/sections/history-section"
-import { NotificationsSection } from "@/src/components/settings/sections/notifications-section"
-import { SyncSection } from "@/src/components/settings/sections/sync-section"
-import { isSettingsSection } from "@/src/components/settings/settings-sidebar"
+import { AccountsSection } from "@/components/settings/sections/accounts-section"
+import { AppearanceSection } from "@/components/settings/sections/appearance-section"
+import { HistorySection } from "@/components/settings/sections/history-section"
+import { NotificationsSection } from "@/components/settings/sections/notifications-section"
+import { SyncSection } from "@/components/settings/sections/sync-section"
+import { isSettingsSection } from "@/components/settings/settings-sidebar"
 
 export const Route = createFileRoute("/settings/$section")({
   parseParams: ({ section }) => {

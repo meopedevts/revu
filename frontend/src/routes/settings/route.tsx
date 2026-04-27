@@ -8,6 +8,13 @@ import {
 } from "@tanstack/react-router"
 import { ArrowLeft, Loader2, RotateCcw } from "lucide-react"
 
+import { SettingsFormContext } from "@/components/settings/settings-form-context"
+import {
+  SettingsSidebar,
+  type SettingsSection,
+} from "@/components/settings/settings-sidebar"
+import { useActiveProfile } from "@/components/settings/use-active-profile"
+import { useSettingsForm } from "@/components/settings/use-settings-form"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,13 +27,6 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Form } from "@/components/ui/form"
-import { SettingsFormContext } from "@/src/components/settings/settings-form-context"
-import {
-  SettingsSidebar,
-  type SettingsSection,
-} from "@/src/components/settings/settings-sidebar"
-import { useActiveProfile } from "@/src/components/settings/use-active-profile"
-import { useSettingsForm } from "@/src/components/settings/use-settings-form"
 
 export const Route = createFileRoute("/settings")({
   component: SettingsLayout,

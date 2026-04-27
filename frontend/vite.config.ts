@@ -20,8 +20,12 @@ export default defineConfig({
     tailwindcss(),
   ],
   resolve: {
-    alias: {
-      "@": dirname,
-    },
+    alias: [
+      {
+        find: /^@\/wailsjs\/(.*)$/,
+        replacement: path.resolve(dirname, "wailsjs/$1"),
+      },
+      { find: "@", replacement: path.resolve(dirname, "src") },
+    ],
   },
 })

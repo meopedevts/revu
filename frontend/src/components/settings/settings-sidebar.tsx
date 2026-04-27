@@ -1,7 +1,7 @@
 import { Bell, Clock, Palette, RefreshCw, User } from "lucide-react"
 
+import type { Profile } from "@/lib/types"
 import { cn } from "@/lib/utils"
-import type { Profile } from "@/src/lib/types"
 
 export const SETTINGS_SECTIONS = [
   "accounts",

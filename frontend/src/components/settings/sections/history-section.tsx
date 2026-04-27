@@ -2,6 +2,7 @@ import { Trash2 } from "lucide-react"
 import { useCallback, useState } from "react"
 import { toast } from "sonner"
 
+import { useSettingsFormContext } from "@/components/settings/settings-form-context"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,8 +24,7 @@ import {
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
-import { useSettingsFormContext } from "@/src/components/settings/settings-form-context"
-import { clearHistory, refreshNow } from "@/src/lib/bridge"
+import { clearHistory, refreshNow } from "@/lib/bridge"
 
 export function HistorySection() {
   const form = useSettingsFormContext()

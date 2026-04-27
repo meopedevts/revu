@@ -1,3 +1,4 @@
+import { useSettingsFormContext } from "@/components/settings/settings-form-context"
 import {
   FormControl,
   FormDescription,
@@ -8,7 +9,6 @@ import {
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { Slider } from "@/components/ui/slider"
-import { useSettingsFormContext } from "@/src/components/settings/settings-form-context"
 
 function formatInterval(seconds: number): string {
   if (seconds < 60) return `${seconds}s`

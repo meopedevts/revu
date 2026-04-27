@@ -54,9 +54,9 @@ export interface WindowConfig {
 }
 
 // Theme literal union is generated from internal/config.Limits().ValidThemes.
-export type { Theme } from "@/src/shared/generated/constants"
+export type { Theme } from "@/shared/generated/constants"
 
-import type { Theme } from "@/src/shared/generated/constants"
+import type { Theme } from "@/shared/generated/constants"
 
 export interface AppConfig {
   polling_interval_seconds: number
@@ -81,8 +81,8 @@ export interface ConfigValidationError {
 }
 
 // DEFAULT_CONFIG comes from cmd/gentsconst (internal/config.Defaults). Re-
-// exported here so existing imports from "@/src/lib/types" keep working.
-export { DEFAULT_CONFIG } from "@/src/shared/generated/constants"
+// exported here so existing imports from "@/lib/types" keep working.
+export { DEFAULT_CONFIG } from "@/shared/generated/constants"
 
 // Mirrors internal/profiles.AuthMethod. The frontend never needs to look at
 // keyring_ref directly — tokens stay on the Go side.

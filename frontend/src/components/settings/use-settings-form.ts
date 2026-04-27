@@ -3,13 +3,13 @@ import { useCallback, useEffect, useState } from "react"
 import { useForm, type UseFormReturn } from "react-hook-form"
 import { toast } from "sonner"
 
-import { getConfig, updateConfig } from "@/src/lib/bridge"
-import { configSchema } from "@/src/lib/schemas/config-schema"
+import { getConfig, updateConfig } from "@/lib/bridge"
+import { configSchema } from "@/lib/schemas/config-schema"
 import {
   DEFAULT_CONFIG,
   type AppConfig,
   type ConfigValidationError,
-} from "@/src/lib/types"
+} from "@/lib/types"
 
 function isValidationError(err: unknown): err is ConfigValidationError {
   return (

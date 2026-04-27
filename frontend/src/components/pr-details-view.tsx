@@ -2,15 +2,15 @@ import { useCallback, useMemo, useState } from "react"
 import { toast } from "sonner"
 
 import { Skeleton } from "@/components/ui/skeleton"
-import { mergePR, openPRInBrowser } from "@/src/lib/bridge"
-import { usePRDetails } from "@/src/lib/hooks/use-pr-details"
+import { mergePR, openPRInBrowser } from "@/lib/bridge"
+import { usePRDetails } from "@/lib/hooks/use-pr-details"
 import {
   type MergeMethod,
   type PRFullDetails,
   type PRState,
   type ReviewState,
-} from "@/src/lib/types"
-import { DETAILS_DIFF_LIMIT } from "@/src/shared/generated/constants"
+} from "@/lib/types"
+import { DETAILS_DIFF_LIMIT } from "@/shared/generated/constants"
 
 import { PRDetailsBody } from "./pr-details/pr-details-body"
 import { PRDetailsChecks } from "./pr-details/pr-details-checks"

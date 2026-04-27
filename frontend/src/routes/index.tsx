@@ -3,13 +3,13 @@ import { AlertCircle, RefreshCw, Settings } from "lucide-react"
 import { useCallback } from "react"
 
 import { EmptyState } from "@/components/empty-state"
+import { MainHeaderProfileBadge } from "@/components/main-header-profile-badge"
 import { PRCard } from "@/components/pr-card"
+import type { SettingsSection } from "@/components/settings/settings-sidebar"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { MainHeaderProfileBadge } from "@/src/components/main-header-profile-badge"
-import type { SettingsSection } from "@/src/components/settings/settings-sidebar"
-import { refreshNow } from "@/src/lib/bridge"
-import { usePRs } from "@/src/lib/hooks/use-prs"
+import { refreshNow } from "@/lib/bridge"
+import { usePRs } from "@/lib/hooks/use-prs"
 
 export const Route = createFileRoute("/")({
   component: MainView,

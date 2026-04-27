@@ -1,3 +1,4 @@
+import { useSettingsFormContext } from "@/components/settings/settings-form-context"
 import {
   FormControl,
   FormDescription,
@@ -10,9 +11,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Switch } from "@/components/ui/switch"
-import { useSettingsFormContext } from "@/src/components/settings/settings-form-context"
-import { useTheme } from "@/src/lib/theme/theme-provider"
-import type { Theme } from "@/src/lib/types"
+import { useTheme } from "@/lib/theme/theme-provider"
+import type { Theme } from "@/lib/types"
 
 export function AppearanceSection() {
   const form = useSettingsFormContext()
