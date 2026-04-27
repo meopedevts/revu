@@ -13,6 +13,7 @@ export default tseslint.config(
       "dist/**",
       "node_modules/**",
       "src/shared/generated/**",
+      "src/routeTree.gen.ts",
       "wailsjs/**",
       "*.config.js",
       "*.config.ts",

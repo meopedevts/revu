@@ -173,16 +173,32 @@ func (a *App) HideWindow() {
 	wruntime.WindowHide(ctx)
 }
 
+// NavigatePayload é o payload do evento "ui:navigate". Section é opcional
+// e permite deep-link em uma seção específica de settings (ex.: "sync").
+type NavigatePayload struct {
+	Target  string `json:"target"`
+	Section string `json:"section,omitempty"`
+}
+
 // ShowSettings shows the window (if hidden) and emits ui:navigate so the
 // frontend switches to the settings view. Wired from the tray "Configurações"
 // item.
 func (a *App) ShowSettings() {
+	a.ShowSettingsSection("")
+}
+
+// ShowSettingsSection é como ShowSettings mas indica a seção alvo
+// (ex.: "accounts","sync"). Section vazia → frontend usa default.
+func (a *App) ShowSettingsSection(section string) {
 	ctx := a.getCtx()
 	if ctx == nil {
 		return
 	}
 	wruntime.WindowShow(ctx)
-	wruntime.EventsEmit(ctx, "ui:navigate", "settings")
+	wruntime.EventsEmit(ctx, "ui:navigate", NavigatePayload{
+		Target:  "settings",
+		Section: section,
+	})
 }
 
 // GetConfig returns the current runtime configuration. Falls back to the

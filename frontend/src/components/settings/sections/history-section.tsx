@@ -1,6 +1,5 @@
 import { Trash2 } from "lucide-react"
 import { useCallback, useState } from "react"
-import type { UseFormReturn } from "react-hook-form"
 import { toast } from "sonner"
 
 import {
@@ -24,14 +23,11 @@ import {
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
+import { useSettingsFormContext } from "@/src/components/settings/settings-form-context"
 import { clearHistory, refreshNow } from "@/src/lib/bridge"
-import type { AppConfig } from "@/src/lib/types"
 
-interface HistorySectionProps {
-  form: UseFormReturn<AppConfig>
-}
-
-export function HistorySection({ form }: HistorySectionProps) {
+export function HistorySection() {
+  const form = useSettingsFormContext()
   const [clearing, setClearing] = useState(false)
 
   const onConfirmClearHistory = useCallback(async () => {

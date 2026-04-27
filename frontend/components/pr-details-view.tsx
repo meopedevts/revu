@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useMemo, useState } from "react"
 import { toast } from "sonner"
 
 import { Skeleton } from "@/components/ui/skeleton"
@@ -28,16 +28,6 @@ interface PRDetailsViewProps {
 
 export function PRDetailsView({ prID, onBack }: PRDetailsViewProps) {
   const { details, diff, loading, error, reload } = usePRDetails(prID)
-
-  // Esc → back. Scoped to the component so the listener unmounts when we
-  // leave the details view.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onBack()
-    }
-    window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
-  }, [onBack])
 
   const [mergeMethod, setMergeMethod] = useState<MergeMethod | null>(null)
   const [merging, setMerging] = useState(false)

@@ -1,5 +1,3 @@
-import type { UseFormReturn } from "react-hook-form"
-
 import {
   FormControl,
   FormDescription,
@@ -10,13 +8,10 @@ import {
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
-import type { AppConfig } from "@/src/lib/types"
+import { useSettingsFormContext } from "@/src/components/settings/settings-form-context"
 
-interface NotificationsSectionProps {
-  form: UseFormReturn<AppConfig>
-}
-
-export function NotificationsSection({ form }: NotificationsSectionProps) {
+export function NotificationsSection() {
+  const form = useSettingsFormContext()
   return (
     <div className="flex flex-col gap-4">
       <header className="flex flex-col gap-0.5">

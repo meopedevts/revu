@@ -3,12 +3,19 @@ import { Bell, Clock, Palette, RefreshCw, User } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Profile } from "@/src/lib/types"
 
-export type SettingsSection =
-  | "accounts"
-  | "sync"
-  | "notifications"
-  | "history"
-  | "appearance"
+export const SETTINGS_SECTIONS = [
+  "accounts",
+  "sync",
+  "notifications",
+  "history",
+  "appearance",
+] as const
+
+export type SettingsSection = (typeof SETTINGS_SECTIONS)[number]
+
+export function isSettingsSection(s: string): s is SettingsSection {
+  return (SETTINGS_SECTIONS as readonly string[]).includes(s)
+}
 
 interface SidebarItem {
   id: SettingsSection
