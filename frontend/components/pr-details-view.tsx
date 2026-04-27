@@ -10,6 +10,7 @@ import {
   type PRState,
   type ReviewState,
 } from "@/src/lib/types"
+import { DETAILS_DIFF_LIMIT } from "@/src/shared/generated/constants"
 
 import { PRDetailsBody } from "./pr-details/pr-details-body"
 import { PRDetailsChecks } from "./pr-details/pr-details-checks"
@@ -24,11 +25,6 @@ interface PRDetailsViewProps {
   prID: string
   onBack: () => void
 }
-
-// detailsDiffLimit mirrors internal/app/app.go — 500 adds+deletions caps
-// inline diff rendering. Backend returns "" above the limit; we keep the
-// constant here too so the fallback message can explain the threshold.
-const DETAILS_DIFF_LIMIT = 500
 
 export function PRDetailsView({ prID, onBack }: PRDetailsViewProps) {
   const { details, diff, loading, error, reload } = usePRDetails(prID)

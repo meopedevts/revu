@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 
 import { listHistoryPRs, listPendingPRs } from "@/src/lib/bridge"
 import type { PRRecord } from "@/src/lib/types"
+import { POLL_SAFETY_INTERVAL_MS } from "@/src/shared/generated/constants"
 import { EventsOff, EventsOn } from "@/wailsjs/runtime/runtime"
 
 interface PollCompletedEvent {
@@ -79,7 +80,7 @@ export function usePRs(): UsePRsResult {
     // the store every couple minutes regardless.
     const safety = setInterval(() => {
       void reload()
-    }, 120_000)
+    }, POLL_SAFETY_INTERVAL_MS)
 
     return () => {
       EventsOff("pr:new")

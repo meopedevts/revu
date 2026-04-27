@@ -53,7 +53,10 @@ export interface WindowConfig {
   height: number
 }
 
-export type Theme = "light" | "dark"
+// Theme literal union is generated from internal/config.Limits().ValidThemes.
+export type { Theme } from "@/src/shared/generated/constants"
+
+import type { Theme } from "@/src/shared/generated/constants"
 
 export interface AppConfig {
   polling_interval_seconds: number
@@ -77,18 +80,9 @@ export interface ConfigValidationError {
   errors: ConfigFieldError[]
 }
 
-// Defaults echo internal/config.Defaults — used by the settings view's
-// "Restaurar padrões" button.
-export const DEFAULT_CONFIG: AppConfig = {
-  polling_interval_seconds: 300,
-  notifications_enabled: true,
-  notification_timeout_seconds: 5,
-  status_refresh_every_n_ticks: 12,
-  history_retention_days: 30,
-  start_hidden: true,
-  window: { width: 480, height: 640 },
-  theme: "light",
-}
+// DEFAULT_CONFIG comes from cmd/gentsconst (internal/config.Defaults). Re-
+// exported here so existing imports from "@/src/lib/types" keep working.
+export { DEFAULT_CONFIG } from "@/src/shared/generated/constants"
 
 // Mirrors internal/profiles.AuthMethod. The frontend never needs to look at
 // keyring_ref directly — tokens stay on the Go side.
