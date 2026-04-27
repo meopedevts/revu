@@ -21,8 +21,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { deleteProfile, listProfiles, setActiveProfile } from "@/src/lib/bridge"
-import type { Profile } from "@/src/lib/types"
+import { deleteProfile, listProfiles, setActiveProfile } from "@/lib/bridge"
+import type { Profile } from "@/lib/types"
 
 import { AddAccountDialog } from "./add-account-dialog"
 import { EditAccountDialog } from "./edit-account-dialog"

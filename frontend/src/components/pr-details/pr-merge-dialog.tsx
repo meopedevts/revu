@@ -8,7 +8,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import type { MergeMethod } from "@/src/lib/types"
+import type { MergeMethod } from "@/lib/types"
 
 interface PRMergeDialogProps {
   open: boolean

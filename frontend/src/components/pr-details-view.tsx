@@ -1,16 +1,16 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useMemo, useState } from "react"
 import { toast } from "sonner"
 
 import { Skeleton } from "@/components/ui/skeleton"
-import { mergePR, openPRInBrowser } from "@/src/lib/bridge"
-import { usePRDetails } from "@/src/lib/hooks/use-pr-details"
+import { mergePR, openPRInBrowser } from "@/lib/bridge"
+import { usePRDetails } from "@/lib/hooks/use-pr-details"
 import {
   type MergeMethod,
   type PRFullDetails,
   type PRState,
   type ReviewState,
-} from "@/src/lib/types"
-import { DETAILS_DIFF_LIMIT } from "@/src/shared/generated/constants"
+} from "@/lib/types"
+import { DETAILS_DIFF_LIMIT } from "@/shared/generated/constants"
 
 import { PRDetailsBody } from "./pr-details/pr-details-body"
 import { PRDetailsChecks } from "./pr-details/pr-details-checks"
@@ -28,16 +28,6 @@ interface PRDetailsViewProps {
 
 export function PRDetailsView({ prID, onBack }: PRDetailsViewProps) {
   const { details, diff, loading, error, reload } = usePRDetails(prID)
-
-  // Esc → back. Scoped to the component so the listener unmounts when we
-  // leave the details view.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onBack()
-    }
-    window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
-  }, [onBack])
 
   const [mergeMethod, setMergeMethod] = useState<MergeMethod | null>(null)
   const [merging, setMerging] = useState(false)

@@ -1,6 +1,6 @@
 import { GitBranch } from "lucide-react"
 
-import type { PRFullDetails } from "@/src/lib/types"
+import type { PRFullDetails } from "@/lib/types"
 
 interface PRDetailsMetaProps {
   details: PRFullDetails

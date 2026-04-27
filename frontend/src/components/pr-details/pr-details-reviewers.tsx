@@ -1,6 +1,6 @@
 import { Badge } from "@/components/ui/badge"
+import type { Review } from "@/lib/types"
 import { cn } from "@/lib/utils"
-import type { Review } from "@/src/lib/types"
 
 interface PRDetailsReviewersProps {
   reviews: Review[]

@@ -1,6 +1,6 @@
 import { Badge } from "@/components/ui/badge"
+import type { PRState } from "@/lib/types"
 import { cn } from "@/lib/utils"
-import type { PRState } from "@/src/lib/types"
 
 const STATUS_CLASS: Record<PRState, string> = {
   OPEN: "bg-status-open text-status-open-foreground",

@@ -1,21 +1,19 @@
+import { createFileRoute, useNavigate } from "@tanstack/react-router"
 import { AlertCircle, RefreshCw, Settings } from "lucide-react"
-import { useCallback, useEffect, useState } from "react"
+import { useCallback } from "react"
 
 import { EmptyState } from "@/components/empty-state"
+import { MainHeaderProfileBadge } from "@/components/main-header-profile-badge"
 import { PRCard } from "@/components/pr-card"
-import { PRDetailsView } from "@/components/pr-details-view"
+import type { SettingsSection } from "@/components/settings/settings-sidebar"
 import { Button } from "@/components/ui/button"
-import { Toaster } from "@/components/ui/sonner"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { TooltipProvider } from "@/components/ui/tooltip"
-import { MainHeaderProfileBadge } from "@/src/components/main-header-profile-badge"
-import type { SettingsSection } from "@/src/components/settings/settings-sidebar"
-import { SettingsView } from "@/src/components/settings-view"
-import { refreshNow } from "@/src/lib/bridge"
-import { usePRs } from "@/src/lib/hooks/use-prs"
-import { EventsOff, EventsOn } from "@/wailsjs/runtime/runtime"
+import { refreshNow } from "@/lib/bridge"
+import { usePRs } from "@/lib/hooks/use-prs"
 
-type View = "main" | "settings" | "pr-details"
+export const Route = createFileRoute("/")({
+  component: MainView,
+})
 
 function formatSince(d: Date | null): string {
   if (!d) return "ainda não atualizado"
@@ -31,12 +29,8 @@ function formatSince(d: Date | null): string {
   return `atualizado há ${days}d`
 }
 
-interface MainViewProps {
-  onOpenSettings: (section?: SettingsSection) => void
-  onOpenPR: (prID: string) => void
-}
-
-function MainView({ onOpenSettings, onOpenPR }: MainViewProps) {
+function MainView() {
+  const navigate = useNavigate()
   const { pending, history, lastPollAt, lastPollErr, loading, reload } =
     usePRs()
 
@@ -47,6 +41,20 @@ function MainView({ onOpenSettings, onOpenPR }: MainViewProps) {
     }, 600)
   }, [reload])
 
+  const openSettings = useCallback(
+    (section: SettingsSection = "sync") => {
+      void navigate({ to: "/settings/$section", params: { section } })
+    },
+    [navigate]
+  )
+
+  const openPR = useCallback(
+    (prID: string) => {
+      void navigate({ to: "/pr/$prId", params: { prId: prID } })
+    },
+    [navigate]
+  )
+
   return (
     <div className="flex h-screen flex-col gap-3 bg-background p-3 text-foreground">
       <header className="flex items-start justify-between gap-2">
@@ -54,7 +62,7 @@ function MainView({ onOpenSettings, onOpenPR }: MainViewProps) {
           <div className="flex items-center gap-2">
             <div className="font-heading text-base font-medium">revu</div>
             <MainHeaderProfileBadge
-              onOpenAccounts={() => onOpenSettings("accounts")}
+              onOpenAccounts={() => openSettings("accounts")}
             />
           </div>
           <div className="truncate text-xs text-muted-foreground">
@@ -72,7 +80,7 @@ function MainView({ onOpenSettings, onOpenPR }: MainViewProps) {
           <Button
             size="sm"
             variant="ghost"
-            onClick={() => onOpenSettings()}
+            onClick={() => openSettings()}
             aria-label="Configurações"
           >
             <Settings />
@@ -111,7 +119,7 @@ function MainView({ onOpenSettings, onOpenPR }: MainViewProps) {
           ) : (
             <div className="flex flex-col gap-2">
               {pending.map((pr) => (
-                <PRCard key={pr.id} pr={pr} onOpen={onOpenPR} />
+                <PRCard key={pr.id} pr={pr} onOpen={openPR} />
               ))}
             </div>
           )}
@@ -123,7 +131,7 @@ function MainView({ onOpenSettings, onOpenPR }: MainViewProps) {
           ) : (
             <div className="flex flex-col gap-2">
               {history.map((pr) => (
-                <PRCard key={pr.id} pr={pr} onOpen={onOpenPR} />
+                <PRCard key={pr.id} pr={pr} onOpen={openPR} />
               ))}
             </div>
           )}
@@ -132,54 +140,3 @@ function MainView({ onOpenSettings, onOpenPR }: MainViewProps) {
     </div>
   )
 }
-
-function App() {
-  const [view, setView] = useState<View>("main")
-  const [settingsSection, setSettingsSection] = useState<
-    SettingsSection | undefined
-  >(undefined)
-  const [selectedPRId, setSelectedPRId] = useState<string | null>(null)
-
-  useEffect(() => {
-    EventsOn("ui:navigate", (target: string) => {
-      if (target === "settings") {
-        setSettingsSection(undefined)
-        setView("settings")
-      } else if (target === "main") {
-        setView("main")
-      }
-    })
-    return () => {
-      EventsOff("ui:navigate")
-    }
-  }, [])
-
-  const openSettings = useCallback((section?: SettingsSection) => {
-    setSettingsSection(section)
-    setView("settings")
-  }, [])
-
-  const openPR = useCallback((prID: string) => {
-    setSelectedPRId(prID)
-    setView("pr-details")
-  }, [])
-
-  const backToMain = useCallback(() => {
-    setView("main")
-  }, [])
-
-  return (
-    <TooltipProvider delayDuration={300}>
-      {view === "pr-details" && selectedPRId ? (
-        <PRDetailsView prID={selectedPRId} onBack={backToMain} />
-      ) : view === "settings" ? (
-        <SettingsView onBack={backToMain} initialSection={settingsSection} />
-      ) : (
-        <MainView onOpenSettings={openSettings} onOpenPR={openPR} />
-      )}
-      <Toaster />
-    </TooltipProvider>
-  )
-}
-
-export default App

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react"
 
-import { getActiveProfile } from "@/src/lib/bridge"
-import type { Profile } from "@/src/lib/types"
+import { getActiveProfile } from "@/lib/bridge"
+import type { Profile } from "@/lib/types"
 import { EventsOff, EventsOn } from "@/wailsjs/runtime/runtime"
 
 const EVENT = "profiles:active-changed"

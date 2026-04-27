@@ -1,5 +1,4 @@
-import type { UseFormReturn } from "react-hook-form"
-
+import { useSettingsFormContext } from "@/components/settings/settings-form-context"
 import {
   FormControl,
   FormDescription,
@@ -10,7 +9,6 @@ import {
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { Slider } from "@/components/ui/slider"
-import type { AppConfig } from "@/src/lib/types"
 
 function formatInterval(seconds: number): string {
   if (seconds < 60) return `${seconds}s`
@@ -20,11 +18,8 @@ function formatInterval(seconds: number): string {
   return `${m} min ${s}s`
 }
 
-interface SyncSectionProps {
-  form: UseFormReturn<AppConfig>
-}
-
-export function SyncSection({ form }: SyncSectionProps) {
+export function SyncSection() {
+  const form = useSettingsFormContext()
   const pollingValue = form.watch("polling_interval_seconds")
 
   return (

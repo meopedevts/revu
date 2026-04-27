@@ -1,4 +1,4 @@
-import type { ChangedFile } from "@/src/lib/types"
+import type { ChangedFile } from "@/lib/types"
 
 interface PRDetailsFilesProps {
   files: ChangedFile[]
