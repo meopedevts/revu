@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 
@@ -270,29 +271,48 @@ func (m *Manager) applyDefaults() {
 
 // validateStrict enforces UI-facing bounds and returns a *ValidationError
 // listing every offending field. Used by Update so the frontend can render
-// inline messages instead of silently coercing values. Ranges intentionally
-// match the zod schema on the frontend — keep them in sync.
+// inline messages instead of silently coercing values. Bounds come from
+// Limits and are mirrored to the frontend by cmd/gentsconst.
 func validateStrict(c *Config) error {
+	b := Limits()
 	var fe []FieldError
-	if c.PollingIntervalSeconds < 30 || c.PollingIntervalSeconds > 3600 {
-		fe = append(fe, FieldError{Field: "polling_interval_seconds", Msg: "deve estar entre 30 e 3600 segundos"})
+	if c.PollingIntervalSeconds < b.PollingIntervalSeconds.Min || c.PollingIntervalSeconds > b.PollingIntervalSeconds.Max {
+		fe = append(fe, FieldError{
+			Field: "polling_interval_seconds",
+			Msg:   fmt.Sprintf("deve estar entre %d e %d segundos", b.PollingIntervalSeconds.Min, b.PollingIntervalSeconds.Max),
+		})
 	}
-	if c.NotificationTimeoutSeconds < 1 || c.NotificationTimeoutSeconds > 30 {
-		fe = append(fe, FieldError{Field: "notification_timeout_seconds", Msg: "deve estar entre 1 e 30 segundos"})
+	if c.NotificationTimeoutSeconds < b.NotificationTimeoutSeconds.Min || c.NotificationTimeoutSeconds > b.NotificationTimeoutSeconds.Max {
+		fe = append(fe, FieldError{
+			Field: "notification_timeout_seconds",
+			Msg:   fmt.Sprintf("deve estar entre %d e %d segundos", b.NotificationTimeoutSeconds.Min, b.NotificationTimeoutSeconds.Max),
+		})
 	}
-	if c.StatusRefreshEveryNTicks < 1 || c.StatusRefreshEveryNTicks > 1000 {
-		fe = append(fe, FieldError{Field: "status_refresh_every_n_ticks", Msg: "deve estar entre 1 e 1000 ticks"})
+	if c.StatusRefreshEveryNTicks < b.StatusRefreshEveryNTicks.Min || c.StatusRefreshEveryNTicks > b.StatusRefreshEveryNTicks.Max {
+		fe = append(fe, FieldError{
+			Field: "status_refresh_every_n_ticks",
+			Msg:   fmt.Sprintf("deve estar entre %d e %d ticks", b.StatusRefreshEveryNTicks.Min, b.StatusRefreshEveryNTicks.Max),
+		})
 	}
-	if c.HistoryRetentionDays < 1 || c.HistoryRetentionDays > 365 {
-		fe = append(fe, FieldError{Field: "history_retention_days", Msg: "deve estar entre 1 e 365 dias"})
+	if c.HistoryRetentionDays < b.HistoryRetentionDays.Min || c.HistoryRetentionDays > b.HistoryRetentionDays.Max {
+		fe = append(fe, FieldError{
+			Field: "history_retention_days",
+			Msg:   fmt.Sprintf("deve estar entre %d e %d dias", b.HistoryRetentionDays.Min, b.HistoryRetentionDays.Max),
+		})
 	}
-	if c.Window.Width < 240 || c.Window.Width > 3840 {
-		fe = append(fe, FieldError{Field: "window.width", Msg: "deve estar entre 240 e 3840 pixels"})
+	if c.Window.Width < b.WindowWidth.Min || c.Window.Width > b.WindowWidth.Max {
+		fe = append(fe, FieldError{
+			Field: "window.width",
+			Msg:   fmt.Sprintf("deve estar entre %d e %d pixels", b.WindowWidth.Min, b.WindowWidth.Max),
+		})
 	}
-	if c.Window.Height < 240 || c.Window.Height > 2160 {
-		fe = append(fe, FieldError{Field: "window.height", Msg: "deve estar entre 240 e 2160 pixels"})
+	if c.Window.Height < b.WindowHeight.Min || c.Window.Height > b.WindowHeight.Max {
+		fe = append(fe, FieldError{
+			Field: "window.height",
+			Msg:   fmt.Sprintf("deve estar entre %d e %d pixels", b.WindowHeight.Min, b.WindowHeight.Max),
+		})
 	}
-	if c.Theme != "light" && c.Theme != "dark" {
+	if !slices.Contains(b.ValidThemes, c.Theme) {
 		fe = append(fe, FieldError{Field: "theme", Msg: "deve ser light ou dark"})
 	}
 	if len(fe) > 0 {
