@@ -9,6 +9,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -68,13 +69,13 @@ type tplData struct {
 func main() {
 	root, err := repoRoot()
 	if err != nil {
-		die("locate repo root: %v", err)
+		dief("locate repo root: %v", err)
 	}
 	out := filepath.Join(root, "frontend", "src", "shared", "generated", "constants.ts")
 
 	tpl, err := template.New("ts").Parse(tsTemplate)
 	if err != nil {
-		die("parse template: %v", err)
+		dief("parse template: %v", err)
 	}
 
 	data := tplData{
@@ -86,20 +87,20 @@ func main() {
 
 	var buf bytes.Buffer
 	if err := tpl.Execute(&buf, data); err != nil {
-		die("execute template: %v", err)
+		dief("execute template: %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Dir(out), 0o755); err != nil {
-		die("mkdir output dir: %v", err)
+	if err := os.MkdirAll(filepath.Dir(out), 0o750); err != nil {
+		dief("mkdir output dir: %v", err)
 	}
 
 	tmp := out + ".tmp"
-	if err := os.WriteFile(tmp, buf.Bytes(), 0o644); err != nil {
-		die("write tmp: %v", err)
+	if err := os.WriteFile(tmp, buf.Bytes(), 0o600); err != nil {
+		dief("write tmp: %v", err)
 	}
 	if err := os.Rename(tmp, out); err != nil {
 		_ = os.Remove(tmp)
-		die("rename tmp: %v", err)
+		dief("rename tmp: %v", err)
 	}
 	fmt.Printf("wrote %s\n", out)
 }
@@ -110,7 +111,7 @@ func main() {
 func repoRoot() (string, error) {
 	_, file, _, ok := runtime.Caller(0)
 	if !ok {
-		return "", fmt.Errorf("runtime.Caller failed")
+		return "", errors.New("runtime.Caller failed")
 	}
 	dir := filepath.Dir(file)
 	for {
@@ -125,7 +126,7 @@ func repoRoot() (string, error) {
 	}
 }
 
-func die(format string, args ...any) {
+func dief(format string, args ...any) {
 	fmt.Fprintf(os.Stderr, "gentsconst: "+format+"\n", args...)
 	os.Exit(1)
 }
