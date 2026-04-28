@@ -172,7 +172,7 @@ func (s *sqliteStore) ClearHistory(ctx context.Context) (int, error) {
 // single transaction. Retention runs at the end of the same tx so evicted
 // records never linger.
 //
-// Returns two slices:
+// Returns three slices:
 //   - novos: PRs that are new on this poll or that just came back into the
 //     search after having dropped out (re-request). The poller enriches and
 //     notifies these.
@@ -181,16 +181,20 @@ func (s *sqliteStore) ClearHistory(ctx context.Context) (int, error) {
 //     re-enrichment so state + review_state converge with GitHub (the PR may
 //     have been merged/closed, or our review may have just been submitted).
 //     Callers must not notify on these — they're not new work.
-func (s *sqliteStore) UpdateFromPoll(ctx context.Context, prs []github.PRSummary) ([]PRRecord, []PRRecord) {
+//   - changed: PRs that were already known and pending, and whose `updatedAt`
+//     advanced (force-push, new commit, edit). Caller re-enriches diff stats
+//     without notifying — same intent as vanished but the PR is still in the
+//     pending list.
+func (s *sqliteStore) UpdateFromPoll(ctx context.Context, prs []github.PRSummary) ([]PRRecord, []PRRecord, []PRRecord) {
 	db := s.handle()
 	if db == nil {
-		return nil, nil
+		return nil, nil, nil
 	}
 	now := s.now().UTC()
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
-		return nil, nil
+		return nil, nil, nil
 	}
 	committed := false
 	defer func() {
@@ -208,33 +212,33 @@ func (s *sqliteStore) UpdateFromPoll(ctx context.Context, prs []github.PRSummary
 
 	vanishedIDs, err := selectVanishedIDs(ctx, tx, polledIDs)
 	if err != nil {
-		return nil, nil
+		return nil, nil, nil
 	}
 
-	novos, err := upsertPolled(ctx, tx, prs, now, profID)
+	novos, changed, err := upsertPolled(ctx, tx, prs, now, profID)
 	if err != nil {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	if err := markNotPolled(ctx, tx, polledIDs); err != nil {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	vanished := loadVanishedRecords(ctx, tx, vanishedIDs)
 
 	if err := enforceRetention(ctx, tx, retention, now); err != nil {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	if _, err := tx.ExecContext(ctx, qSetMeta, metaLastPollAt, formatTime(now)); err != nil {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	if err := tx.Commit(); err != nil {
-		return nil, nil
+		return nil, nil, nil
 	}
 	committed = true
-	return novos, vanished
+	return novos, vanished, changed
 }
 
 // indexPolledIDs materializa um set dos PR IDs do poll corrente —
@@ -250,41 +254,52 @@ func indexPolledIDs(prs []github.PRSummary) map[string]struct{} {
 // upsertPolled aplica cada PR do poll corrente sobre a transação `tx`:
 // PRs novos viram INSERT, existentes ganham UPDATE de mutable fields,
 // e existentes que estavam fora de pendentes (re-request) são
-// devolvidos como `novos` pra o caller notificar. `profID` etiqueta
-// inserts; é capturado uma única vez antes do loop pra evitar lock
-// repetido.
+// devolvidos como `novos` pra o caller notificar. PRs já conhecidos e
+// ainda pendentes que tiveram `updatedAt` avançado (force-push, novo
+// commit) entram em `changed` — caller re-enriquece sem notificar.
+// `profID` etiqueta inserts; é capturado uma única vez antes do loop
+// pra evitar lock repetido.
 func upsertPolled(
 	ctx context.Context,
 	tx *sql.Tx,
 	prs []github.PRSummary,
 	now time.Time,
 	profID string,
-) ([]PRRecord, error) {
-	var novos []PRRecord
+) ([]PRRecord, []PRRecord, error) {
+	var novos, changed []PRRecord
 	for _, pr := range prs {
-		var prevPending int
-		err := tx.QueryRowContext(ctx, `SELECT review_pending FROM prs WHERE id = ?`, pr.ID).
-			Scan(&prevPending)
+		var (
+			prevPending   int
+			prevUpdatedAt sql.NullString
+		)
+		err := tx.QueryRowContext(ctx,
+			`SELECT review_pending, updated_at FROM prs WHERE id = ?`, pr.ID).
+			Scan(&prevPending, &prevUpdatedAt)
 		switch {
 		case errors.Is(err, sql.ErrNoRows):
 			rec, err := insertNewPolled(ctx, tx, pr, now, profID)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			novos = append(novos, rec)
 		case err != nil:
-			return nil, err
+			return nil, nil, err
 		default:
-			rec, isReRequest, err := updateExistingPolled(ctx, tx, pr, now, prevPending)
+			rec, isReRequest, isChanged, err := updateExistingPolled(
+				ctx, tx, pr, now, prevPending, prevUpdatedAt.String,
+			)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
-			if isReRequest {
+			switch {
+			case isReRequest:
 				novos = append(novos, rec)
+			case isChanged:
+				changed = append(changed, rec)
 			}
 		}
 	}
-	return novos, nil
+	return novos, changed, nil
 }
 
 // insertNewPolled cria um PRRecord novo a partir do summary e persiste
@@ -311,12 +326,15 @@ func insertNewPolled(
 		FirstSeenAt:   now,
 		LastSeenAt:    now,
 	}
+	rec.UpdatedAt = pr.UpdatedAt
 	if _, err := tx.ExecContext(ctx, qInsertPR,
 		rec.ID, rec.Number, rec.Repo, rec.Title, rec.Author, rec.URL,
 		rec.State, boolToInt(rec.IsDraft), rec.Additions, rec.Deletions,
 		boolToInt(rec.ReviewPending), rec.ReviewState,
 		formatTime(rec.FirstSeenAt),
-		formatTime(rec.LastSeenAt), formatTimePtr(rec.LastNotifiedAt),
+		formatTime(rec.LastSeenAt),
+		formatTime(rec.UpdatedAt),
+		formatTimePtr(rec.LastNotifiedAt),
 		profID,
 	); err != nil {
 		return PRRecord{}, err
@@ -325,30 +343,64 @@ func insertNewPolled(
 }
 
 // updateExistingPolled aplica os campos mutáveis de `pr` sobre o registro
-// existente e detecta re-request (quando review_pending era 0 e o PR
-// reapareceu no poll). Quando é re-request, retorna o registro pós-update
-// e isReRequest=true pra o caller acumular nos novos.
+// existente. Detecta dois sinais distintos:
+//   - re-request: quando review_pending era 0 e o PR reapareceu (caller
+//     trata como novo trabalho, notifica + emite pr:new).
+//   - changed: PR continuava pendente mas o `updatedAt` do summary avançou
+//     em relação ao armazenado (force-push, novo commit, edit). Caller
+//     re-enriquece sem notificar pra atualizar additions/deletions/state.
+//
+// Re-request e changed são mutuamente exclusivos — re-request já implica
+// re-enriquecer via fluxo de novos.
 func updateExistingPolled(
 	ctx context.Context,
 	tx *sql.Tx,
 	pr github.PRSummary,
 	now time.Time,
 	prevPending int,
-) (PRRecord, bool, error) {
+	prevUpdatedAt string,
+) (PRRecord, bool, bool, error) {
 	if _, err := tx.ExecContext(ctx, qUpdatePRMutable,
 		pr.Title, pr.Author, pr.URL, pr.Repo, boolToInt(pr.IsDraft),
-		formatTime(now), pr.ID,
+		formatTime(now), formatTime(pr.UpdatedAt), pr.ID,
 	); err != nil {
-		return PRRecord{}, false, err
+		return PRRecord{}, false, false, err
 	}
-	if prevPending != 0 {
-		return PRRecord{}, false, nil
+	if prevPending == 0 {
+		// Re-request — caller já vai re-enriquecer via novos.
+		rec, ok := loadRecordTx(ctx, tx, pr.ID)
+		if !ok {
+			return PRRecord{}, false, false, nil
+		}
+		return rec, true, false, nil
+	}
+	if !prUpdatedAdvanced(prevUpdatedAt, pr.UpdatedAt) {
+		return PRRecord{}, false, false, nil
 	}
 	rec, ok := loadRecordTx(ctx, tx, pr.ID)
 	if !ok {
-		return PRRecord{}, false, nil
+		return PRRecord{}, false, false, nil
 	}
-	return rec, true, nil
+	return rec, false, true, nil
+}
+
+// prUpdatedAdvanced compara o updated_at armazenado contra o vindo do
+// gh search. Trata o legacy "" (rows pré-migration sem timestamp) como
+// "qualquer valor novo é avanço" pra garantir que PRs antigos sejam
+// re-enriquecidos pelo menos uma vez. Erro de parse do legado também
+// dispara avanço — re-enrich é seguro mesmo se for falso positivo.
+func prUpdatedAdvanced(prev string, next time.Time) bool {
+	if next.IsZero() {
+		return false
+	}
+	if prev == "" {
+		return true
+	}
+	prevT, err := parseTime(prev)
+	if err != nil {
+		return true
+	}
+	return next.After(prevT)
 }
 
 // markNotPolled garante que toda linha review_pending=1 que NÃO está no
@@ -499,12 +551,13 @@ func scanRow(row interface {
 		isDraft, pend   int
 		firstSeen       string
 		lastSeen        string
+		updatedAt       string
 		lastNotifiedRaw sql.NullString
 	)
 	err := row.Scan(
 		&rec.ID, &rec.Number, &rec.Repo, &rec.Title, &rec.Author, &rec.URL,
 		&rec.State, &isDraft, &rec.Additions, &rec.Deletions,
-		&pend, &rec.ReviewState, &firstSeen, &lastSeen, &lastNotifiedRaw,
+		&pend, &rec.ReviewState, &firstSeen, &lastSeen, &updatedAt, &lastNotifiedRaw,
 	)
 	if err != nil {
 		return PRRecord{}, err
@@ -518,6 +571,12 @@ func scanRow(row interface {
 	rec.LastSeenAt, err = parseTime(lastSeen)
 	if err != nil {
 		return PRRecord{}, err
+	}
+	if updatedAt != "" {
+		rec.UpdatedAt, err = parseTime(updatedAt)
+		if err != nil {
+			return PRRecord{}, err
+		}
 	}
 	rec.LastNotifiedAt, err = parseTimePtr(lastNotifiedRaw)
 	if err != nil {

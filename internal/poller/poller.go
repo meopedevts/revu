@@ -165,7 +165,7 @@ func (p *Poller) tick(ctx context.Context) {
 	}
 	p.resetBackoff()
 
-	novos, vanished := p.store.UpdateFromPoll(ctx, summaries)
+	novos, vanished, changed := p.store.UpdateFromPoll(ctx, summaries)
 	for i := range novos {
 		rec := novos[i]
 		enriched := p.enrich(ctx, rec)
@@ -184,6 +184,20 @@ func (p *Poller) tick(ctx context.Context) {
 	}
 	for i := range vanished {
 		p.enrich(ctx, vanished[i])
+	}
+	// PRs ainda pendentes que tiveram updatedAt avançado (force-push, novo
+	// commit) precisam de enrich pra atualizar additions/deletions/draft —
+	// sem isso o card mostra valores stale enquanto o PR continuar na lista.
+	// Também não é trabalho novo, então sem notify. Emite pr:status-changed
+	// explicitamente: o store já sabe que algo mudou (foi por isso que entrou
+	// em changed), e o frontend usa o evento pra recarregar as listas.
+	if len(changed) > 0 {
+		p.log.DebugContext(ctx, "enriching changed PRs", "count", len(changed))
+	}
+	for i := range changed {
+		enriched := p.enrich(ctx, changed[i])
+		prCopy := enriched
+		p.emit(Event{Kind: EventPRStatusChanged, PR: &prCopy})
 	}
 	if err := p.store.Save(ctx); err != nil {
 		p.log.WarnContext(ctx, "save store", "err", err)

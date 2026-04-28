@@ -34,13 +34,13 @@ func TestSQLite_UpdateFromPoll_InsertsAndIsIdempotent(t *testing.T) {
 		mkSummary("octocat/hello#1", "octocat/hello", 1, "feat: foo", "alice", false),
 		mkSummary("acme/widgets#7", "acme/widgets", 7, "chore: bump", "bob", true),
 	}
-	novos, _ := s.UpdateFromPoll(context.Background(), prs)
+	novos, _, _ := s.UpdateFromPoll(context.Background(), prs)
 	if len(novos) != 2 {
 		t.Fatalf("first poll: want 2 novos, got %d", len(novos))
 	}
 
 	*tp = tp.Add(5 * time.Minute)
-	novos, _ = s.UpdateFromPoll(context.Background(), prs)
+	novos, _, _ = s.UpdateFromPoll(context.Background(), prs)
 	if len(novos) != 0 {
 		t.Fatalf("second poll with same PRs: want 0 novos, got %d", len(novos))
 	}
@@ -54,7 +54,7 @@ func TestSQLite_UpdateFromPoll_ReRequestDetected(t *testing.T) {
 	s := newMemoryStore(t, WithClock(clock))
 
 	pr := mkSummary("octocat/hello#1", "octocat/hello", 1, "feat: foo", "alice", false)
-	if novos, _ := s.UpdateFromPoll(context.Background(), []github.PRSummary{pr}); len(novos) != 1 {
+	if novos, _, _ := s.UpdateFromPoll(context.Background(), []github.PRSummary{pr}); len(novos) != 1 {
 		t.Fatalf("initial insert: want 1 novo, got %d", len(novos))
 	}
 	// Simulate a review being submitted so the re-request branch has to reset
@@ -64,7 +64,7 @@ func TestSQLite_UpdateFromPoll_ReRequestDetected(t *testing.T) {
 	}
 
 	*tp = tp.Add(5 * time.Minute)
-	novos, vanished := s.UpdateFromPoll(context.Background(), nil)
+	novos, vanished, _ := s.UpdateFromPoll(context.Background(), nil)
 	if len(novos) != 0 {
 		t.Fatalf("empty poll: want 0 novos, got %d", len(novos))
 	}
@@ -77,7 +77,7 @@ func TestSQLite_UpdateFromPoll_ReRequestDetected(t *testing.T) {
 	}
 
 	*tp = tp.Add(5 * time.Minute)
-	novos, _ = s.UpdateFromPoll(context.Background(), []github.PRSummary{pr})
+	novos, _, _ = s.UpdateFromPoll(context.Background(), []github.PRSummary{pr})
 	if len(novos) != 1 {
 		t.Fatalf("re-request: want 1 novo, got %d", len(novos))
 	}
@@ -439,6 +439,71 @@ func TestSQLite_ClearHistory_DropsEveryHistoryRow(t *testing.T) {
 	}
 	if n != 0 {
 		t.Fatalf("second clear should remove 0 rows, got %d", n)
+	}
+}
+
+// TestSQLite_UpdateFromPoll_DetectsChanged garante que PRs já conhecidos
+// e ainda pendentes que tiveram updatedAt avançado entre polls são
+// devolvidos em `changed`. Sem esse sinal o poller não re-enriquece o
+// PR enquanto ele continuar na lista — additions/deletions ficavam stale
+// pra sempre depois de um force-push (bug raiz do fix/poller-refresh-stale).
+func TestSQLite_UpdateFromPoll_DetectsChanged(t *testing.T) {
+	clock, _ := newClock(time.Date(2026, 4, 23, 10, 0, 0, 0, time.UTC))
+	s := newMemoryStore(t, WithClock(clock))
+
+	// Primeiro poll seeda o PR com updated_at inicial.
+	pr := mkSummary("octocat/hello#1", "octocat/hello", 1, "feat: foo", "alice", false)
+	pr.UpdatedAt = time.Date(2026, 4, 23, 9, 0, 0, 0, time.UTC)
+	if novos, _, changed := s.UpdateFromPoll(context.Background(), []github.PRSummary{pr}); len(novos) != 1 || len(changed) != 0 {
+		t.Fatalf("seed: want 1 novo / 0 changed, got %d/%d", len(novos), len(changed))
+	}
+
+	// Mesmo updatedAt ⇒ não conta como changed.
+	if _, _, changed := s.UpdateFromPoll(context.Background(), []github.PRSummary{pr}); len(changed) != 0 {
+		t.Fatalf("same updatedAt: want 0 changed, got %d", len(changed))
+	}
+
+	// updatedAt avançado (force-push, novo commit) ⇒ aparece em changed.
+	pr.UpdatedAt = pr.UpdatedAt.Add(2 * time.Hour)
+	novos, vanished, changed := s.UpdateFromPoll(context.Background(), []github.PRSummary{pr})
+	if len(novos) != 0 || len(vanished) != 0 {
+		t.Fatalf("advanced updatedAt: want only changed, got novos=%d vanished=%d", len(novos), len(vanished))
+	}
+	if len(changed) != 1 || changed[0].ID != pr.ID {
+		t.Fatalf("advanced updatedAt: want pr in changed, got %+v", changed)
+	}
+	if !changed[0].UpdatedAt.Equal(pr.UpdatedAt) {
+		t.Fatalf("changed record updatedAt mismatch: got %s, want %s", changed[0].UpdatedAt, pr.UpdatedAt)
+	}
+}
+
+// TestSQLite_UpdateFromPoll_ChangedAndReRequestExclusive garante que um
+// PR re-requested (saiu do search e voltou) é tratado como `novos`, não
+// como `changed` — re-request já implica re-enriquecer + notificar via
+// fluxo de novos, então duplicar em changed disparria dupla chamada de
+// gh pr view.
+func TestSQLite_UpdateFromPoll_ChangedAndReRequestExclusive(t *testing.T) {
+	clock, tp := newClock(time.Date(2026, 4, 23, 10, 0, 0, 0, time.UTC))
+	s := newMemoryStore(t, WithClock(clock))
+
+	pr := mkSummary("octocat/hello#1", "octocat/hello", 1, "feat: foo", "alice", false)
+	pr.UpdatedAt = time.Date(2026, 4, 23, 9, 0, 0, 0, time.UTC)
+	s.UpdateFromPoll(context.Background(), []github.PRSummary{pr})
+
+	// Some pra simular review submetido.
+	*tp = tp.Add(5 * time.Minute)
+	s.UpdateFromPoll(context.Background(), nil)
+
+	// Volta com updatedAt avançado — deve contar como re-request (novos),
+	// não como changed.
+	*tp = tp.Add(5 * time.Minute)
+	pr.UpdatedAt = pr.UpdatedAt.Add(time.Hour)
+	novos, _, changed := s.UpdateFromPoll(context.Background(), []github.PRSummary{pr})
+	if len(novos) != 1 {
+		t.Fatalf("re-request: want 1 novo, got %d", len(novos))
+	}
+	if len(changed) != 0 {
+		t.Fatalf("re-request must not also land in changed, got %d", len(changed))
 	}
 }
 

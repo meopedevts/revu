@@ -69,7 +69,7 @@ func TestUpsertPolled_QueryRowCtxCancel(t *testing.T) {
 	s := newMemoryStore(t, WithClock(clock))
 
 	pr := mkSummary("octocat/hello#1", "octocat/hello", 1, "feat: ctx", "alice", false)
-	if novos, _ := s.UpdateFromPoll(context.Background(), []github.PRSummary{pr}); len(novos) != 1 {
+	if novos, _, _ := s.UpdateFromPoll(context.Background(), []github.PRSummary{pr}); len(novos) != 1 {
 		t.Fatalf("seed: want 1 novo, got %d", len(novos))
 	}
 
@@ -83,7 +83,7 @@ func TestUpsertPolled_QueryRowCtxCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	_, err = upsertPolled(ctx, tx, []github.PRSummary{pr}, time.Now(), "")
+	_, _, err = upsertPolled(ctx, tx, []github.PRSummary{pr}, time.Now(), "")
 	if err == nil {
 		t.Fatal("err: expected failure from canceled ctx, got nil")
 	}
@@ -102,7 +102,7 @@ func TestSQLite_GetByID_CtxCanceled(t *testing.T) {
 	s := newMemoryStore(t, WithClock(clock))
 
 	pr := mkSummary("octocat/hello#1", "octocat/hello", 1, "feat: ctx", "alice", false)
-	if novos, _ := s.UpdateFromPoll(context.Background(), []github.PRSummary{pr}); len(novos) != 1 {
+	if novos, _, _ := s.UpdateFromPoll(context.Background(), []github.PRSummary{pr}); len(novos) != 1 {
 		t.Fatalf("seed: want 1 novo, got %d", len(novos))
 	}
 
