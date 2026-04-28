@@ -450,6 +450,58 @@ func TestTick_VanishedPRGetsEnriched(t *testing.T) {
 	}
 }
 
+// TestTick_ChangedPRGetsEnriched cobre o fix pro bug "linhas não atualizam
+// após force-push": PR já conhecido e pendente que teve updatedAt avançado
+// entre polls deve passar por enrich (caminho silencioso, sem notify) pra
+// que additions/deletions/state convirjam com o GitHub.
+func TestTick_ChangedPRGetsEnriched(t *testing.T) {
+	pr := []github.PRSummary{
+		{
+			ID: "a/b#1", Number: 1, Repo: "a/b", Title: "t", Author: "x", URL: "u",
+			UpdatedAt: time.Date(2026, 4, 23, 9, 0, 0, 0, time.UTC),
+		},
+	}
+	prAdvanced := []github.PRSummary{pr[0]}
+	prAdvanced[0].UpdatedAt = prAdvanced[0].UpdatedAt.Add(2 * time.Hour)
+
+	fc := &fakeClient{
+		listResponses: []listResponse{
+			{prs: pr},         // tick 1: insere PR (cai em novos)
+			{prs: prAdvanced}, // tick 2: PR continua, updatedAt avançado → changed
+		},
+	}
+	fn := &fakeNotifier{}
+	s := freshStore(t)
+	p := New(fc, s, fn, WithLogger(quietLogger()))
+
+	// Tick 1: enrich captura adds=5 dels=1.
+	fc.detailsResponse = github.PRDetails{Additions: 5, Deletions: 1, State: "OPEN"}
+	p.tick(context.Background())
+	if got := fc.detailsCalls; got != 1 {
+		t.Fatalf("tick 1: want 1 details call, got %d", got)
+	}
+
+	// Tick 2: PR alterado — fakeClient retorna novos stats. O fix garante
+	// que enrich seja chamado pra esse PR mesmo continuando na lista.
+	fc.detailsResponse = github.PRDetails{Additions: 50, Deletions: 10, State: "OPEN"}
+	p.tick(context.Background())
+
+	if got := fc.detailsCalls; got != 2 {
+		t.Fatalf("tick 2 must enrich changed PR; want 2 details calls total, got %d", got)
+	}
+
+	// Notify só dispara em novos — changed é silencioso.
+	if got := len(fn.sent); got != 1 {
+		t.Fatalf("changed path must not notify; want 1 sent (from tick 1), got %d", got)
+	}
+
+	// Store reflete os stats novos.
+	pending := s.GetPending(context.Background())
+	if len(pending) != 1 || pending[0].Additions != 50 || pending[0].Deletions != 10 {
+		t.Fatalf("changed PR not re-enriched in store: %+v", pending)
+	}
+}
+
 func TestTrigger_ForcesImmediatePoll(t *testing.T) {
 	fc := &fakeClient{
 		listResponses: []listResponse{

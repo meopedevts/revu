@@ -25,7 +25,7 @@ type Store interface {
 	// store does not track it. Used by the app bridge to resolve a PR id
 	// coming off the frontend into the URL needed for gh-backed calls.
 	GetByID(ctx context.Context, id string) (PRRecord, bool)
-	UpdateFromPoll(ctx context.Context, prs []github.PRSummary) (novos, vanished []PRRecord)
+	UpdateFromPoll(ctx context.Context, prs []github.PRSummary) (novos, vanished, changed []PRRecord)
 	RefreshPRStatus(ctx context.Context, id string, details github.PRDetails) error
 	SetRetentionDays(days int)
 	SetActiveProfileID(id string)

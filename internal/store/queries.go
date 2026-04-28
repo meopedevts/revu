@@ -7,12 +7,12 @@ package store
 const (
 	qSelectPRByID = `SELECT id, number, repo, title, author, url, state, is_draft,
 		additions, deletions, review_pending, review_state, first_seen_at, last_seen_at,
-		last_notified_at
+		updated_at, last_notified_at
 		FROM prs WHERE id = ?`
 
 	qSelectPRsAll = `SELECT id, number, repo, title, author, url, state, is_draft,
 		additions, deletions, review_pending, review_state, first_seen_at, last_seen_at,
-		last_notified_at
+		updated_at, last_notified_at
 		FROM prs ORDER BY last_seen_at DESC, id ASC`
 
 	// qSelectPRsPending / qSelectPRsHistory encode the REV-16 rule (refined):
@@ -23,14 +23,14 @@ const (
 	// badge communicates what happened, but it no longer gates the tab.
 	qSelectPRsPending = `SELECT id, number, repo, title, author, url, state, is_draft,
 		additions, deletions, review_pending, review_state, first_seen_at, last_seen_at,
-		last_notified_at
+		updated_at, last_notified_at
 		FROM prs
 		WHERE state NOT IN ('MERGED', 'CLOSED')
 		ORDER BY last_seen_at DESC, id ASC`
 
 	qSelectPRsHistory = `SELECT id, number, repo, title, author, url, state, is_draft,
 		additions, deletions, review_pending, review_state, first_seen_at, last_seen_at,
-		last_notified_at
+		updated_at, last_notified_at
 		FROM prs
 		WHERE state IN ('MERGED', 'CLOSED')
 		ORDER BY last_seen_at DESC, id ASC`
@@ -38,8 +38,8 @@ const (
 	qInsertPR = `INSERT INTO prs (
 		id, number, repo, title, author, url, state, is_draft,
 		additions, deletions, review_pending, review_state, first_seen_at, last_seen_at,
-		last_notified_at, profile_id
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		updated_at, last_notified_at, profile_id
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 	// qUpdatePRMutable rewrites the fields that may legitimately change
 	// between polls. first_seen_at is intentionally absent — it stays frozen
@@ -47,11 +47,15 @@ const (
 	// dropped out (review_pending was 0), reset review_state to PENDING: GitHub
 	// only surfaces a PR under review-requested when a fresh review is
 	// expected, so whatever state lingered from the previous round is stale.
+	// updated_at espelha o updatedAt do gh search — caller compara o valor
+	// armazenado contra o novo pra decidir se o PR mudou (force-push, novo
+	// commit etc.) e merece re-enrich.
 	qUpdatePRMutable = `UPDATE prs
 		SET title = ?, author = ?, url = ?, repo = ?, is_draft = ?,
 			review_pending = 1,
 			review_state = CASE WHEN review_pending = 0 THEN 'PENDING' ELSE review_state END,
 			last_seen_at = ?,
+			updated_at = ?,
 			state = CASE WHEN state = '' THEN 'OPEN' ELSE state END
 		WHERE id = ?`
 

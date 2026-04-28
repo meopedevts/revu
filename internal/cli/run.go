@@ -273,7 +273,10 @@ func wireProfileChange(
 	if active, err := svc.profs.GetActive(ctx); err == nil {
 		svc.store.SetActiveProfileID(active.ID)
 	}
-	bridge.SetOnRefresh(p.Trigger)
+	bridge.SetOnRefresh(func() {
+		svc.log.Info("bridge: refresh requested")
+		p.Trigger()
+	})
 	tr.SetOnRefresh(func() {
 		svc.log.Info("tray: refresh requested")
 		p.Trigger()
