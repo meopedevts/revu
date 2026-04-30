@@ -192,26 +192,28 @@ func TestTick_SecondPollSamePRsDoesNotRenotify(t *testing.T) {
 }
 
 func TestTick_ReRequestRenotifies(t *testing.T) {
-	prs := []github.PRSummary{
-		{ID: "a/b#1", Number: 1, Repo: "a/b", Title: "t", Author: "x", URL: "u"},
-	}
+	pr1 := github.PRSummary{ID: "a/b#1", Number: 1, Repo: "a/b", Title: "t", Author: "x", URL: "u1"}
+	pr2 := github.PRSummary{ID: "a/b#2", Number: 2, Repo: "a/b", Title: "t2", Author: "x", URL: "u2"}
 	fc := &fakeClient{
 		listResponses: []listResponse{
-			{prs: prs}, // initial
-			{prs: nil}, // dropped (review given)
-			{prs: prs}, // re-request
+			{prs: []github.PRSummary{pr1, pr2}}, // initial
+			{prs: []github.PRSummary{pr2}},      // pr1 dropped (review submitted)
+			{prs: []github.PRSummary{pr1, pr2}}, // pr1 re-requested
 		},
 	}
 	fn := &fakeNotifier{}
 	s := freshStore(t)
+	// Re-request lands ~immediately so the cooldown would otherwise mute it;
+	// disable cooldown to assert the dedup path doesn't swallow legit
+	// re-requests when the operator opts out of the throttle.
 	p := New(fc, s, fn, WithLogger(quietLogger()))
 
 	p.tick(context.Background())
 	p.tick(context.Background())
 	p.tick(context.Background())
 
-	if len(fn.sent) != 2 {
-		t.Fatalf("want 2 notifies (initial + re-request), got %d", len(fn.sent))
+	if len(fn.sent) != 3 {
+		t.Fatalf("want 3 notifies (pr1 initial + pr2 initial + pr1 re-request), got %d", len(fn.sent))
 	}
 }
 
@@ -416,25 +418,28 @@ func TestTick_EmitsStatusChanged(t *testing.T) {
 }
 
 func TestTick_VanishedPRGetsEnriched(t *testing.T) {
-	pr := []github.PRSummary{
-		{ID: "a/b#1", Number: 1, Repo: "a/b", Title: "t", Author: "x", URL: "u"},
-	}
+	// REV-43: a transient `[]` from gh search no longer flags every PR as
+	// vanished. The vanished path now triggers when the next non-empty
+	// poll legitimately omits a PR (review submitted, merged, etc.). Use
+	// pr2 as the survivor so pr1's drop is unambiguous.
+	pr1 := github.PRSummary{ID: "a/b#1", Number: 1, Repo: "a/b", Title: "t", Author: "x", URL: "u1"}
+	pr2 := github.PRSummary{ID: "a/b#2", Number: 2, Repo: "a/b", Title: "t2", Author: "y", URL: "u2"}
 	fc := &fakeClient{
 		listResponses: []listResponse{
-			{prs: pr},  // tick 1: PR visible, not yet reviewed
-			{prs: nil}, // tick 2: PR vanished from search — poller re-enriches
+			{prs: []github.PRSummary{pr1, pr2}}, // tick 1: both visible
+			{prs: []github.PRSummary{pr2}},      // tick 2: pr1 dropped, gets re-enriched
 		},
 	}
 	fn := &fakeNotifier{}
 	s := freshStore(t)
 	p := New(fc, s, fn, WithLogger(quietLogger()))
 
-	// Tick 1 enrich → PR stays PENDING + OPEN.
+	// Tick 1 enrich → both stay PENDING + OPEN.
 	fc.detailsResponse = github.PRDetails{State: "OPEN", ReviewState: "PENDING"}
 	p.tick(context.Background())
 
-	// Tick 2 enrich → PR was merged after I approved it; under REV-16 it
-	// should flip into the history tab.
+	// Tick 2 enrich for the dropped pr1 → merged after approval; REV-16
+	// flips it into the history tab.
 	fc.detailsResponse = github.PRDetails{State: "MERGED", ReviewState: "APPROVED"}
 	p.tick(context.Background())
 
@@ -445,8 +450,8 @@ func TestTick_VanishedPRGetsEnriched(t *testing.T) {
 	if history[0].State != "MERGED" || history[0].ReviewState != "APPROVED" {
 		t.Fatalf("history row not fully enriched: %+v", history[0])
 	}
-	if len(fn.sent) != 1 {
-		t.Fatalf("vanished path must not notify; sent=%d", len(fn.sent))
+	if len(fn.sent) != 2 {
+		t.Fatalf("initial tick must notify both PRs; sent=%d", len(fn.sent))
 	}
 }
 
@@ -645,4 +650,208 @@ func TestRun_StopsOnCtxCancel(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("Run did not return after ctx cancel")
 	}
+}
+
+// REV-43 — when a re-request lands inside the cooldown window, the
+// desktop notify is skipped (LastNotifiedAt was populated by the previous
+// tick). The EventPRNew emit is unaffected so the UI list still refreshes.
+func TestTick_CooldownSuppressesNotify(t *testing.T) {
+	pr1 := github.PRSummary{ID: "a/b#1", Number: 1, Repo: "a/b", Title: "t", Author: "x", URL: "u1"}
+	pr2 := github.PRSummary{ID: "a/b#2", Number: 2, Repo: "a/b", Title: "t2", Author: "y", URL: "u2"}
+	fc := &fakeClient{
+		listResponses: []listResponse{
+			{prs: []github.PRSummary{pr1, pr2}}, // initial — both notify
+			{prs: []github.PRSummary{pr2}},      // pr1 dropped
+			{prs: []github.PRSummary{pr1, pr2}}, // pr1 re-request inside cooldown
+		},
+	}
+	fn := &fakeNotifier{}
+	s := freshStore(t)
+	clock := &mutableClock{now: time.Date(2026, 4, 23, 10, 0, 0, 0, time.UTC)}
+	p := New(fc, s, fn,
+		WithLogger(quietLogger()),
+		WithClock(clock.Now),
+		WithNotifyCooldown(6*time.Hour),
+	)
+
+	p.tick(context.Background()) // initial: notify pr1 + pr2
+	clock.advance(5 * time.Minute)
+	p.tick(context.Background()) // pr1 drops
+	clock.advance(5 * time.Minute)
+	p.tick(context.Background()) // pr1 re-request inside cooldown → skip notify
+
+	if len(fn.sent) != 2 {
+		t.Fatalf("want 2 notifies (initial pr1 + initial pr2 only), got %d: %+v",
+			len(fn.sent), notifyIDs(fn))
+	}
+}
+
+// REV-43 — outside the cooldown window the re-request does notify again
+// and MarkNotified is called so the next window starts from `now`.
+func TestTick_NotifyFiresAfterCooldown(t *testing.T) {
+	pr1 := github.PRSummary{ID: "a/b#1", Number: 1, Repo: "a/b", Title: "t", Author: "x", URL: "u1"}
+	pr2 := github.PRSummary{ID: "a/b#2", Number: 2, Repo: "a/b", Title: "t2", Author: "y", URL: "u2"}
+	fc := &fakeClient{
+		listResponses: []listResponse{
+			{prs: []github.PRSummary{pr1, pr2}},
+			{prs: []github.PRSummary{pr2}},
+			{prs: []github.PRSummary{pr1, pr2}},
+		},
+	}
+	fn := &fakeNotifier{}
+	s := freshStore(t)
+	clock := &mutableClock{now: time.Date(2026, 4, 23, 10, 0, 0, 0, time.UTC)}
+	p := New(fc, s, fn,
+		WithLogger(quietLogger()),
+		WithClock(clock.Now),
+		WithNotifyCooldown(6*time.Hour),
+	)
+
+	p.tick(context.Background())
+	clock.advance(7 * time.Hour)
+	p.tick(context.Background())
+	clock.advance(1 * time.Hour) // total 8h: outside cooldown
+	p.tick(context.Background())
+
+	if len(fn.sent) != 3 {
+		t.Fatalf("want 3 notifies (initial pr1, initial pr2, pr1 re-request), got %d: %+v",
+			len(fn.sent), notifyIDs(fn))
+	}
+}
+
+// REV-43 — cooldown=0 means throttle is off; every re-request notifies.
+func TestTick_CooldownZeroDisablesThrottle(t *testing.T) {
+	pr1 := github.PRSummary{ID: "a/b#1", Number: 1, Repo: "a/b", Title: "t", Author: "x", URL: "u1"}
+	pr2 := github.PRSummary{ID: "a/b#2", Number: 2, Repo: "a/b", Title: "t2", Author: "y", URL: "u2"}
+	fc := &fakeClient{
+		listResponses: []listResponse{
+			{prs: []github.PRSummary{pr1, pr2}},
+			{prs: []github.PRSummary{pr2}},
+			{prs: []github.PRSummary{pr1, pr2}},
+		},
+	}
+	fn := &fakeNotifier{}
+	s := freshStore(t)
+	p := New(fc, s, fn,
+		WithLogger(quietLogger()),
+		// cooldown not set → defaults to 0 → throttle disabled
+	)
+
+	p.tick(context.Background())
+	p.tick(context.Background())
+	p.tick(context.Background())
+
+	if len(fn.sent) != 3 {
+		t.Fatalf("want 3 notifies with throttle off, got %d", len(fn.sent))
+	}
+}
+
+// REV-43 — empty poll between two non-empty polls of the same PRs must not
+// trigger a burst of re-notifications. This guards the original bug:
+// transient `[]` from gh search was zeroing review_pending and the next
+// poll re-flagged everything as new.
+func TestTick_EmptyPollDoesNotBurstOnRecovery(t *testing.T) {
+	prs := []github.PRSummary{
+		{ID: "a/b#1", Number: 1, Repo: "a/b", Title: "t", Author: "x", URL: "u1"},
+		{ID: "a/b#2", Number: 2, Repo: "a/b", Title: "t2", Author: "y", URL: "u2"},
+		{ID: "a/b#3", Number: 3, Repo: "a/b", Title: "t3", Author: "z", URL: "u3"},
+	}
+	fc := &fakeClient{
+		listResponses: []listResponse{
+			{prs: prs},
+			{prs: nil}, // transient []
+			{prs: prs},
+		},
+	}
+	fn := &fakeNotifier{}
+	s := freshStore(t)
+	clock := &mutableClock{now: time.Date(2026, 4, 23, 10, 0, 0, 0, time.UTC)}
+	p := New(fc, s, fn,
+		WithLogger(quietLogger()),
+		WithClock(clock.Now),
+		WithNotifyCooldown(6*time.Hour),
+	)
+
+	p.tick(context.Background())
+	clock.advance(1 * time.Minute)
+	p.tick(context.Background())
+	clock.advance(1 * time.Minute)
+	p.tick(context.Background())
+
+	if len(fn.sent) != 3 {
+		t.Fatalf("transient empty poll caused re-notify burst: got %d notifies (want 3)",
+			len(fn.sent))
+	}
+}
+
+func TestShouldNotify(t *testing.T) {
+	t0 := time.Date(2026, 4, 23, 12, 0, 0, 0, time.UTC)
+	notifiedAgo := func(d time.Duration) *time.Time {
+		v := t0.Add(-d)
+		return &v
+	}
+	cases := []struct {
+		name     string
+		rec      store.PRRecord
+		cooldown time.Duration
+		want     bool
+	}{
+		{"never_notified_passes", store.PRRecord{}, time.Hour, true},
+		{"cooldown_disabled_always_passes", store.PRRecord{LastNotifiedAt: notifiedAgo(time.Minute)}, 0, true},
+		{"inside_cooldown_blocks", store.PRRecord{LastNotifiedAt: notifiedAgo(30 * time.Minute)}, time.Hour, false},
+		{"exactly_at_cooldown_passes", store.PRRecord{LastNotifiedAt: notifiedAgo(time.Hour)}, time.Hour, true},
+		{"outside_cooldown_passes", store.PRRecord{LastNotifiedAt: notifiedAgo(2 * time.Hour)}, time.Hour, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := shouldNotify(tc.rec, t0, tc.cooldown); got != tc.want {
+				t.Fatalf("shouldNotify(%+v, cooldown=%s) = %v, want %v",
+					tc.rec, tc.cooldown, got, tc.want)
+			}
+		})
+	}
+}
+
+// SetNotifyCooldown updates at runtime; negative values are coerced to
+// zero (throttle disabled).
+func TestPoller_SetNotifyCooldown(t *testing.T) {
+	p := New(&fakeClient{}, freshStore(t), &fakeNotifier{}, WithLogger(quietLogger()))
+	if p.NotifyCooldown() != 0 {
+		t.Fatalf("default cooldown should be 0, got %s", p.NotifyCooldown())
+	}
+	p.SetNotifyCooldown(2 * time.Hour)
+	if p.NotifyCooldown() != 2*time.Hour {
+		t.Fatalf("setter ignored update: %s", p.NotifyCooldown())
+	}
+	p.SetNotifyCooldown(-1 * time.Hour)
+	if p.NotifyCooldown() != 0 {
+		t.Fatalf("negative should clamp to 0, got %s", p.NotifyCooldown())
+	}
+}
+
+type mutableClock struct {
+	mu  sync.Mutex
+	now time.Time
+}
+
+func (c *mutableClock) Now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.now
+}
+
+func (c *mutableClock) advance(d time.Duration) {
+	c.mu.Lock()
+	c.now = c.now.Add(d)
+	c.mu.Unlock()
+}
+
+func notifyIDs(fn *fakeNotifier) []string {
+	fn.mu.Lock()
+	defer fn.mu.Unlock()
+	out := make([]string, len(fn.sent))
+	for i, r := range fn.sent {
+		out[i] = r.ID
+	}
+	return out
 }

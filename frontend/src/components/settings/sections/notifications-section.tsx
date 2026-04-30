@@ -58,6 +58,30 @@ export function NotificationsSection() {
           </FormItem>
         )}
       />
+
+      <FormField
+        control={form.control}
+        name="notification_cooldown_minutes"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Cooldown de re-notificação (min)</FormLabel>
+            <FormDescription>
+              Janela mínima entre notificações repetidas do mesmo PR. 0 desativa
+              o throttle (cada re-request notifica).
+            </FormDescription>
+            <FormControl>
+              <Input
+                type="number"
+                min={0}
+                max={10080}
+                {...field}
+                onChange={(e) => field.onChange(e.target.valueAsNumber || 0)}
+              />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
     </div>
   )
 }

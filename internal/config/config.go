@@ -22,14 +22,15 @@ import (
 // Config is the user-editable shape persisted to JSON. Field names mirror
 // SPEC §7 exactly — casing preserved for mapstructure binding.
 type Config struct {
-	PollingIntervalSeconds     int          `mapstructure:"polling_interval_seconds"     json:"polling_interval_seconds"`
-	NotificationsEnabled       bool         `mapstructure:"notifications_enabled"        json:"notifications_enabled"`
-	NotificationTimeoutSeconds int          `mapstructure:"notification_timeout_seconds" json:"notification_timeout_seconds"`
-	StatusRefreshEveryNTicks   int          `mapstructure:"status_refresh_every_n_ticks" json:"status_refresh_every_n_ticks"`
-	HistoryRetentionDays       int          `mapstructure:"history_retention_days"       json:"history_retention_days"`
-	StartHidden                bool         `mapstructure:"start_hidden"                 json:"start_hidden"`
-	Window                     WindowConfig `mapstructure:"window"                       json:"window"`
-	Theme                      string       `mapstructure:"theme"                        json:"theme"`
+	PollingIntervalSeconds      int          `mapstructure:"polling_interval_seconds"      json:"polling_interval_seconds"`
+	NotificationsEnabled        bool         `mapstructure:"notifications_enabled"         json:"notifications_enabled"`
+	NotificationTimeoutSeconds  int          `mapstructure:"notification_timeout_seconds"  json:"notification_timeout_seconds"`
+	NotificationCooldownMinutes int          `mapstructure:"notification_cooldown_minutes" json:"notification_cooldown_minutes"`
+	StatusRefreshEveryNTicks    int          `mapstructure:"status_refresh_every_n_ticks"  json:"status_refresh_every_n_ticks"`
+	HistoryRetentionDays        int          `mapstructure:"history_retention_days"        json:"history_retention_days"`
+	StartHidden                 bool         `mapstructure:"start_hidden"                  json:"start_hidden"`
+	Window                      WindowConfig `mapstructure:"window"                        json:"window"`
+	Theme                       string       `mapstructure:"theme"                         json:"theme"`
 }
 
 // WindowConfig carries the initial Wails window geometry.
@@ -42,14 +43,15 @@ type WindowConfig struct {
 // (fresh install) and as a fallback when an invalid change lands on disk.
 func Defaults() Config {
 	return Config{
-		PollingIntervalSeconds:     300,
-		NotificationsEnabled:       true,
-		NotificationTimeoutSeconds: 5,
-		StatusRefreshEveryNTicks:   12,
-		HistoryRetentionDays:       30,
-		StartHidden:                true,
-		Window:                     WindowConfig{Width: 480, Height: 640},
-		Theme:                      "light",
+		PollingIntervalSeconds:      300,
+		NotificationsEnabled:        true,
+		NotificationTimeoutSeconds:  5,
+		NotificationCooldownMinutes: 360,
+		StatusRefreshEveryNTicks:    12,
+		HistoryRetentionDays:        30,
+		StartHidden:                 true,
+		Window:                      WindowConfig{Width: 480, Height: 640},
+		Theme:                       "light",
 	}
 }
 
@@ -261,6 +263,7 @@ func (m *Manager) applyDefaults() {
 	m.v.SetDefault("polling_interval_seconds", d.PollingIntervalSeconds)
 	m.v.SetDefault("notifications_enabled", d.NotificationsEnabled)
 	m.v.SetDefault("notification_timeout_seconds", d.NotificationTimeoutSeconds)
+	m.v.SetDefault("notification_cooldown_minutes", d.NotificationCooldownMinutes)
 	m.v.SetDefault("status_refresh_every_n_ticks", d.StatusRefreshEveryNTicks)
 	m.v.SetDefault("history_retention_days", d.HistoryRetentionDays)
 	m.v.SetDefault("start_hidden", d.StartHidden)
@@ -286,6 +289,13 @@ func validateStrict(c *Config) error {
 		fe = append(fe, FieldError{
 			Field: "notification_timeout_seconds",
 			Msg:   fmt.Sprintf("deve estar entre %d e %d segundos", b.NotificationTimeoutSeconds.Min, b.NotificationTimeoutSeconds.Max),
+		})
+	}
+	if c.NotificationCooldownMinutes < b.NotificationCooldownMinutes.Min ||
+		c.NotificationCooldownMinutes > b.NotificationCooldownMinutes.Max {
+		fe = append(fe, FieldError{
+			Field: "notification_cooldown_minutes",
+			Msg:   fmt.Sprintf("deve estar entre %d e %d minutos", b.NotificationCooldownMinutes.Min, b.NotificationCooldownMinutes.Max),
 		})
 	}
 	if c.StatusRefreshEveryNTicks < b.StatusRefreshEveryNTicks.Min || c.StatusRefreshEveryNTicks > b.StatusRefreshEveryNTicks.Max {
@@ -331,6 +341,9 @@ func validate(c *Config) {
 	}
 	if c.NotificationTimeoutSeconds < 0 {
 		c.NotificationTimeoutSeconds = d.NotificationTimeoutSeconds
+	}
+	if c.NotificationCooldownMinutes < 0 {
+		c.NotificationCooldownMinutes = d.NotificationCooldownMinutes
 	}
 	if c.StatusRefreshEveryNTicks < 1 {
 		c.StatusRefreshEveryNTicks = d.StatusRefreshEveryNTicks

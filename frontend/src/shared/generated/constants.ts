@@ -11,6 +11,7 @@ export const DEFAULT_CONFIG = {
   polling_interval_seconds: 300,
   notifications_enabled: true,
   notification_timeout_seconds: 5,
+  notification_cooldown_minutes: 360,
   status_refresh_every_n_ticks: 12,
   history_retention_days: 30,
   start_hidden: true,
@@ -24,6 +25,7 @@ export const DEFAULT_CONFIG = {
 export const CONFIG_BOUNDS = {
   pollingIntervalSeconds: { min: 30, max: 3600 },
   notificationTimeoutSeconds: { min: 1, max: 30 },
+  notificationCooldownMinutes: { min: 0, max: 10080 },
   statusRefreshEveryNTicks: { min: 1, max: 1000 },
   historyRetentionDays: { min: 1, max: 365 },
   windowWidth: { min: 240, max: 3840 },
