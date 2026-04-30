@@ -5,7 +5,6 @@
 //   - internal/uilimits (DetailsDiffLimit, PollSafetyIntervalMS)
 //
 // Regenerate with: task gen
-/* eslint-disable */
 
 export const DEFAULT_CONFIG = {
   polling_interval_seconds: 300,

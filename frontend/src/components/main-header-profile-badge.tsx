@@ -1,6 +1,6 @@
 import { UserRound } from "lucide-react"
 
-import { useActiveProfile } from "./settings/use-active-profile"
+import { useActiveProfile } from "@/hooks/use-active-profile"
 
 interface MainHeaderProfileBadgeProps {
   onOpenAccounts: () => void

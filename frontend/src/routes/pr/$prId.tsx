@@ -1,6 +1,6 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router"
 
-import { PRDetailsView } from "@/components/pr-details-view"
+import { PRDetailsView } from "@/components/pr-details/pr-details-view"
 
 export const Route = createFileRoute("/pr/$prId")({
   component: PRDetails,
