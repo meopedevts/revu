@@ -33,6 +33,7 @@ export const DEFAULT_CONFIG = {
   polling_interval_seconds: {{.Defaults.PollingIntervalSeconds}},
   notifications_enabled: {{.Defaults.NotificationsEnabled}},
   notification_timeout_seconds: {{.Defaults.NotificationTimeoutSeconds}},
+  notification_cooldown_minutes: {{.Defaults.NotificationCooldownMinutes}},
   status_refresh_every_n_ticks: {{.Defaults.StatusRefreshEveryNTicks}},
   history_retention_days: {{.Defaults.HistoryRetentionDays}},
   start_hidden: {{.Defaults.StartHidden}},
@@ -46,6 +47,7 @@ export const DEFAULT_CONFIG = {
 export const CONFIG_BOUNDS = {
   pollingIntervalSeconds: { min: {{.Bounds.PollingIntervalSeconds.Min}}, max: {{.Bounds.PollingIntervalSeconds.Max}} },
   notificationTimeoutSeconds: { min: {{.Bounds.NotificationTimeoutSeconds.Min}}, max: {{.Bounds.NotificationTimeoutSeconds.Max}} },
+  notificationCooldownMinutes: { min: {{.Bounds.NotificationCooldownMinutes.Min}}, max: {{.Bounds.NotificationCooldownMinutes.Max}} },
   statusRefreshEveryNTicks: { min: {{.Bounds.StatusRefreshEveryNTicks.Min}}, max: {{.Bounds.StatusRefreshEveryNTicks.Max}} },
   historyRetentionDays: { min: {{.Bounds.HistoryRetentionDays.Min}}, max: {{.Bounds.HistoryRetentionDays.Max}} },
   windowWidth: { min: {{.Bounds.WindowWidth.Min}}, max: {{.Bounds.WindowWidth.Max}} },

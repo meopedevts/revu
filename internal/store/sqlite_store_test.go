@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"reflect"
 	"sort"
 	"testing"
@@ -53,43 +54,46 @@ func TestSQLite_UpdateFromPoll_ReRequestDetected(t *testing.T) {
 	clock, tp := newClock(time.Date(2026, 4, 23, 10, 0, 0, 0, time.UTC))
 	s := newMemoryStore(t, WithClock(clock))
 
-	pr := mkSummary("octocat/hello#1", "octocat/hello", 1, "feat: foo", "alice", false)
-	if novos, _ := s.UpdateFromPoll(context.Background(), []github.PRSummary{pr}); len(novos) != 1 {
-		t.Fatalf("initial insert: want 1 novo, got %d", len(novos))
+	// Re-request detection now hinges on the IN-clause path: a PR drops
+	// because a non-empty subsequent poll omits it (review submitted) and
+	// then comes back. Empty polls are no-ops since REV-43 to avoid
+	// transient gh-search inconsistency mass-clearing review_pending.
+	pr1 := mkSummary("octocat/hello#1", "octocat/hello", 1, "feat: foo", "alice", false)
+	pr2 := mkSummary("octocat/hello#2", "octocat/hello", 2, "feat: bar", "bob", false)
+	if novos, _ := s.UpdateFromPoll(context.Background(), []github.PRSummary{pr1, pr2}); len(novos) != 2 {
+		t.Fatalf("initial insert: want 2 novos, got %d", len(novos))
 	}
-	// Simulate a review being submitted so the re-request branch has to reset
-	// review_state back to PENDING to signal the fresh request.
-	if err := s.RefreshPRStatus(context.Background(), pr.ID, github.PRDetails{State: "OPEN", ReviewState: "APPROVED"}); err != nil {
+	if err := s.RefreshPRStatus(context.Background(), pr1.ID, github.PRDetails{State: "OPEN", ReviewState: "APPROVED"}); err != nil {
 		t.Fatalf("refresh approved: %v", err)
 	}
 
 	*tp = tp.Add(5 * time.Minute)
-	novos, vanished := s.UpdateFromPoll(context.Background(), nil)
+	novos, vanished := s.UpdateFromPoll(context.Background(), []github.PRSummary{pr2})
 	if len(novos) != 0 {
-		t.Fatalf("empty poll: want 0 novos, got %d", len(novos))
+		t.Fatalf("non-empty poll without pr1: want 0 novos, got %d", len(novos))
 	}
-	if len(vanished) != 1 || vanished[0].ID != pr.ID {
-		t.Fatalf("want pr in vanished, got %+v", vanished)
+	if len(vanished) != 1 || vanished[0].ID != pr1.ID {
+		t.Fatalf("want pr1 in vanished, got %+v", vanished)
 	}
-	all := s.GetAll(context.Background())
-	if len(all) != 1 || all[0].ReviewPending {
-		t.Fatalf("want 1 record with pending=false, got %+v", all)
+	got, ok := s.GetByID(context.Background(), pr1.ID)
+	if !ok || got.ReviewPending {
+		t.Fatalf("want pr1 with pending=false after drop, got ok=%v rec=%+v", ok, got)
 	}
 
 	*tp = tp.Add(5 * time.Minute)
-	novos, _ = s.UpdateFromPoll(context.Background(), []github.PRSummary{pr})
+	novos, _ = s.UpdateFromPoll(context.Background(), []github.PRSummary{pr1, pr2})
 	if len(novos) != 1 {
 		t.Fatalf("re-request: want 1 novo, got %d", len(novos))
 	}
-	if novos[0].ID != pr.ID {
+	if novos[0].ID != pr1.ID {
 		t.Fatalf("wrong id in novos: %s", novos[0].ID)
 	}
 	if novos[0].ReviewState != "PENDING" {
 		t.Fatalf("re-request should reset review_state to PENDING, got %q", novos[0].ReviewState)
 	}
 	pending := s.GetPending(context.Background())
-	if len(pending) != 1 || !pending[0].ReviewPending {
-		t.Fatal("expected ReviewPending=true after re-request")
+	if len(pending) != 2 {
+		t.Fatalf("expected 2 pending records after re-request, got %d", len(pending))
 	}
 }
 
@@ -449,4 +453,144 @@ func sortedIDs(rs []PRRecord) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// REV-43 — empty polls must not flip review_pending. Transient gh-search
+// `[]` results were causing burst notifications on the next non-empty poll.
+func TestSQLite_UpdateFromPoll_EmptyPollIsNoOp(t *testing.T) {
+	clock, tp := newClock(time.Date(2026, 4, 23, 10, 0, 0, 0, time.UTC))
+	s := newMemoryStore(t, WithClock(clock))
+
+	prs := []github.PRSummary{
+		mkSummary("a/b#1", "a/b", 1, "t1", "x", false),
+		mkSummary("a/b#2", "a/b", 2, "t2", "y", false),
+	}
+	if novos, _ := s.UpdateFromPoll(context.Background(), prs); len(novos) != 2 {
+		t.Fatalf("seed: want 2 novos, got %d", len(novos))
+	}
+
+	*tp = tp.Add(5 * time.Minute)
+	novos, vanished := s.UpdateFromPoll(context.Background(), nil)
+	if len(novos) != 0 {
+		t.Fatalf("empty poll: want 0 novos, got %d", len(novos))
+	}
+	if len(vanished) != 0 {
+		t.Fatalf("empty poll: want 0 vanished (no-op contract), got %d", len(vanished))
+	}
+	pending := s.GetPending(context.Background())
+	if len(pending) != 2 {
+		t.Fatalf("empty poll must not flip review_pending: pending=%d", len(pending))
+	}
+	for _, rec := range pending {
+		if !rec.ReviewPending {
+			t.Fatalf("review_pending flipped on empty poll: %+v", rec)
+		}
+	}
+}
+
+func TestSQLite_MarkNotified_PersistsTimestamp(t *testing.T) {
+	clock, _ := newClock(time.Date(2026, 4, 23, 10, 0, 0, 0, time.UTC))
+	s := newMemoryStore(t, WithClock(clock))
+
+	pr := mkSummary("a/b#1", "a/b", 1, "t", "x", false)
+	if novos, _ := s.UpdateFromPoll(context.Background(), []github.PRSummary{pr}); len(novos) != 1 {
+		t.Fatalf("seed: want 1 novo")
+	}
+
+	when := time.Date(2026, 4, 23, 11, 30, 0, 0, time.UTC)
+	if err := s.MarkNotified(context.Background(), pr.ID, when); err != nil {
+		t.Fatalf("MarkNotified: %v", err)
+	}
+
+	got, ok := s.GetByID(context.Background(), pr.ID)
+	if !ok {
+		t.Fatal("rec missing after MarkNotified")
+	}
+	if got.LastNotifiedAt == nil {
+		t.Fatal("LastNotifiedAt still nil after MarkNotified")
+	}
+	if !got.LastNotifiedAt.Equal(when) {
+		t.Fatalf("LastNotifiedAt mismatch: want %s got %s", when, got.LastNotifiedAt)
+	}
+}
+
+func TestSQLite_MarkNotified_UnknownIDReturnsErrNotFound(t *testing.T) {
+	clock, _ := newClock(time.Date(2026, 4, 23, 10, 0, 0, 0, time.UTC))
+	s := newMemoryStore(t, WithClock(clock))
+
+	err := s.MarkNotified(context.Background(), "missing/repo#999", time.Now())
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("want ErrNotFound, got %v", err)
+	}
+}
+
+// REV-43 — Load backfills last_notified_at = first_seen_at on the first
+// run after upgrade so legacy NULL rows don't burst-notify when the
+// throttle activates. The meta key gates idempotency.
+func TestSQLite_Load_BackfillNotifiedAt_OneShotIdempotent(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "revu.db")
+	now := time.Date(2026, 4, 23, 10, 0, 0, 0, time.UTC)
+
+	s := New(dbPath, WithClock(func() time.Time { return now }))
+	if err := s.Load(context.Background()); err != nil {
+		t.Fatalf("first Load: %v", err)
+	}
+
+	// Insert a legacy row with last_notified_at NULL via the underlying handle.
+	firstSeen := time.Date(2026, 4, 22, 9, 0, 0, 0, time.UTC)
+	if _, err := s.DB().ExecContext(context.Background(),
+		`INSERT INTO prs (id, number, repo, title, author, url, state, is_draft,
+			additions, deletions, review_pending, review_state, first_seen_at, last_seen_at,
+			last_notified_at, profile_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, '')`,
+		"a/b#1", 1, "a/b", "t", "x", "u", "OPEN", 0,
+		0, 0, 1, "PENDING", formatTime(firstSeen), formatTime(firstSeen),
+	); err != nil {
+		t.Fatalf("seed legacy row: %v", err)
+	}
+
+	// Manually nuke the meta key so the next Load re-runs the backfill.
+	if _, err := s.DB().ExecContext(context.Background(),
+		`DELETE FROM meta WHERE key = ?`, metaNotifyBackfillDone); err != nil {
+		t.Fatalf("clear meta: %v", err)
+	}
+	if err := s.Close(context.Background()); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+
+	s2 := New(dbPath, WithClock(func() time.Time { return now }))
+	if err := s2.Load(context.Background()); err != nil {
+		t.Fatalf("second Load: %v", err)
+	}
+	t.Cleanup(func() { _ = s2.Close(context.Background()) })
+
+	got, ok := s2.GetByID(context.Background(), "a/b#1")
+	if !ok {
+		t.Fatal("seeded row missing after second Load")
+	}
+	if got.LastNotifiedAt == nil {
+		t.Fatal("backfill did not populate LastNotifiedAt")
+	}
+	if !got.LastNotifiedAt.Equal(firstSeen) {
+		t.Fatalf("want LastNotifiedAt == FirstSeenAt (%s), got %s", firstSeen, got.LastNotifiedAt)
+	}
+
+	// Idempotency: rewrite to a sentinel and Load again — backfill must NOT
+	// run twice (meta key gates it).
+	sentinel := time.Date(2030, 1, 1, 0, 0, 0, 0, time.UTC)
+	if _, err := s2.DB().ExecContext(context.Background(),
+		`UPDATE prs SET last_notified_at = ? WHERE id = ?`, formatTime(sentinel), "a/b#1"); err != nil {
+		t.Fatalf("rewrite sentinel: %v", err)
+	}
+	if err := s2.Close(context.Background()); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+	s3 := New(dbPath, WithClock(func() time.Time { return now }))
+	if err := s3.Load(context.Background()); err != nil {
+		t.Fatalf("third Load: %v", err)
+	}
+	t.Cleanup(func() { _ = s3.Close(context.Background()) })
+	got3, _ := s3.GetByID(context.Background(), "a/b#1")
+	if got3.LastNotifiedAt == nil || !got3.LastNotifiedAt.Equal(sentinel) {
+		t.Fatalf("backfill ran twice: LastNotifiedAt=%v want sentinel %s", got3.LastNotifiedAt, sentinel)
+	}
 }

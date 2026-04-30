@@ -280,6 +280,69 @@ func TestUpdate_NotifiesSubscribers(t *testing.T) {
 	}
 }
 
+// REV-43 — NotificationCooldownMinutes is the throttle window the poller
+// reads on every tick. Defaults to 360 (6h); 0 disables; negative coerces
+// back to default; out-of-bounds rejected by Update.
+func TestNotificationCooldown_DefaultAndCoercion(t *testing.T) {
+	if Defaults().NotificationCooldownMinutes != 360 {
+		t.Fatalf("default cooldown drift: %d", Defaults().NotificationCooldownMinutes)
+	}
+
+	path := tempPath(t)
+	writeJSON(t, path, map[string]any{
+		"notification_cooldown_minutes": -5,
+	})
+	m, err := Load(path)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if got := m.Current().NotificationCooldownMinutes; got != Defaults().NotificationCooldownMinutes {
+		t.Fatalf("negative not coerced: %d", got)
+	}
+
+	// Zero is a valid (throttle-disabled) value and must be preserved.
+	zeroPath := tempPath(t)
+	writeJSON(t, zeroPath, map[string]any{
+		"notification_cooldown_minutes": 0,
+	})
+	m2, err := Load(zeroPath)
+	if err != nil {
+		t.Fatalf("load zero: %v", err)
+	}
+	if got := m2.Current().NotificationCooldownMinutes; got != 0 {
+		t.Fatalf("zero must round-trip (throttle disabled), got %d", got)
+	}
+}
+
+func TestUpdate_RejectsCooldownOutOfBounds(t *testing.T) {
+	path := tempPath(t)
+	m, err := Load(path)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	c := m.Current()
+	c.NotificationCooldownMinutes = 10081 // above max (10080 = 1 week)
+
+	err = m.Update(c)
+	if err == nil {
+		t.Fatal("expected validation error for cooldown above max")
+	}
+	var ve *ValidationError
+	if !errors.As(err, &ve) {
+		t.Fatalf("expected *ValidationError, got %T: %v", err, err)
+	}
+	var found bool
+	for _, fe := range ve.Errors {
+		if fe.Field == "notification_cooldown_minutes" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected notification_cooldown_minutes error, got: %+v", ve.Errors)
+	}
+}
+
 func writeJSON(t *testing.T, path string, body any) {
 	t.Helper()
 	b, err := json.MarshalIndent(body, "", "  ")
