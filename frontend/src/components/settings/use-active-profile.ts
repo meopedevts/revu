@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react"
 
-import { getActiveProfile } from "@/lib/bridge"
 import type { Profile } from "@/lib/types"
+import { getActiveProfile } from "@/shared/bridge"
 import { EventsOff, EventsOn } from "@/wailsjs/runtime/runtime"
 
 const EVENT = "profiles:active-changed"
@@ -16,7 +16,13 @@ export function useActiveProfile(): {
   const [profile, setProfile] = useState<Profile | null>(null)
 
   const refresh = useCallback(async () => {
-    setProfile(await getActiveProfile())
+    try {
+      setProfile(await getActiveProfile())
+    } catch {
+      // Bridge unavailable / no active profile (smoke build, fresh
+      // install). REV-33 query layer takes over error semantics.
+      setProfile(null)
+    }
   }, [])
 
   useEffect(() => {

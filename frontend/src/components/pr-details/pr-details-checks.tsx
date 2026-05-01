@@ -6,9 +6,9 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { openPRInBrowser } from "@/lib/bridge"
 import type { StatusCheck } from "@/lib/types"
 import { cn } from "@/lib/utils"
+import { openPRInBrowser } from "@/shared/bridge"
 
 interface PRDetailsChecksProps {
   checks: StatusCheck[]

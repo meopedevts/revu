@@ -2,7 +2,6 @@ import { useCallback, useMemo, useState } from "react"
 import { toast } from "sonner"
 
 import { Skeleton } from "@/components/ui/skeleton"
-import { mergePR, openPRInBrowser } from "@/lib/bridge"
 import { usePRDetails } from "@/lib/hooks/use-pr-details"
 import {
   type MergeMethod,
@@ -10,6 +9,7 @@ import {
   type PRState,
   type ReviewState,
 } from "@/lib/types"
+import { mergePR, openPRInBrowser } from "@/shared/bridge"
 import { DETAILS_DIFF_LIMIT } from "@/shared/generated/constants"
 
 import { PRDetailsBody } from "./pr-details/pr-details-body"

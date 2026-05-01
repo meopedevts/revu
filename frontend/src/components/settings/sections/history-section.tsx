@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
-import { clearHistory, refreshNow } from "@/lib/bridge"
+import { clearHistory, refreshNow } from "@/shared/bridge"
 
 export function HistorySection() {
   const form = useSettingsFormContext()
