@@ -5,12 +5,12 @@
 //   - internal/uilimits (DetailsDiffLimit, PollSafetyIntervalMS)
 //
 // Regenerate with: task gen
-/* eslint-disable */
 
 export const DEFAULT_CONFIG = {
   pollingIntervalSeconds: 300,
   notificationsEnabled: true,
   notificationTimeoutSeconds: 5,
+  notificationCooldownMinutes: 360,
   statusRefreshEveryNTicks: 12,
   historyRetentionDays: 30,
   startHidden: true,
@@ -24,6 +24,7 @@ export const DEFAULT_CONFIG = {
 export const CONFIG_BOUNDS = {
   pollingIntervalSeconds: { min: 30, max: 3600 },
   notificationTimeoutSeconds: { min: 1, max: 30 },
+  notificationCooldownMinutes: { min: 0, max: 10080 },
   statusRefreshEveryNTicks: { min: 1, max: 1000 },
   historyRetentionDays: { min: 1, max: 365 },
   windowWidth: { min: 240, max: 3840 },

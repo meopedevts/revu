@@ -1,6 +1,7 @@
 import { Outlet, createRootRoute, useRouter } from "@tanstack/react-router"
 import { lazy, Suspense, useEffect } from "react"
 
+import { RouteErrorFallback } from "@/components/route-error-fallback"
 import { isSettingsSection } from "@/components/settings/settings-sidebar"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
@@ -21,16 +22,7 @@ const TanStackRouterDevtools = import.meta.env.DEV
 
 export const Route = createRootRoute({
   component: RootComponent,
-  errorComponent: ({ error }) => (
-    <div className="flex h-screen flex-col items-center justify-center gap-2 bg-background p-4 text-center">
-      <h1 className="text-sm font-semibold text-destructive">
-        Algo deu errado
-      </h1>
-      <p className="text-xs text-muted-foreground">
-        {error instanceof Error ? error.message : "Erro inesperado"}
-      </p>
-    </div>
-  ),
+  errorComponent: RouteErrorFallback,
   notFoundComponent: () => (
     <div className="flex h-screen flex-col items-center justify-center gap-2 bg-background p-4 text-center">
       <h1 className="text-sm font-semibold">Rota não encontrada</h1>

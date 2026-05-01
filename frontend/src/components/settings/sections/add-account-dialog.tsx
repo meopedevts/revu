@@ -2,6 +2,7 @@ import { Eye, Loader2 } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
 
+import { createProfile, validateToken } from "@/bridge"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -14,7 +15,6 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { createProfile, validateToken } from "@/lib/bridge"
 import type { AuthMethod } from "@/lib/types"
 
 interface AddAccountDialogProps {

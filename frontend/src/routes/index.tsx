@@ -2,32 +2,19 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router"
 import { AlertCircle, RefreshCw, Settings } from "lucide-react"
 import { useCallback } from "react"
 
+import { refreshNow } from "@/bridge"
 import { EmptyState } from "@/components/empty-state"
 import { MainHeaderProfileBadge } from "@/components/main-header-profile-badge"
 import { PRCard } from "@/components/pr-card"
 import type { SettingsSection } from "@/components/settings/settings-sidebar"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { refreshNow } from "@/lib/bridge"
-import { usePRs } from "@/lib/hooks/use-prs"
+import { usePRs } from "@/hooks/use-prs"
+import { formatSince } from "@/lib/format/time"
 
 export const Route = createFileRoute("/")({
   component: MainView,
 })
-
-function formatSince(d: Date | null): string {
-  if (!d) return "ainda não atualizado"
-  const diff = Date.now() - d.getTime()
-  const s = Math.floor(diff / 1000)
-  if (s < 10) return "atualizado agora"
-  if (s < 60) return `atualizado há ${s}s`
-  const m = Math.floor(s / 60)
-  if (m < 60) return `atualizado há ${m}min`
-  const h = Math.floor(m / 60)
-  if (h < 24) return `atualizado há ${h}h`
-  const days = Math.floor(h / 24)
-  return `atualizado há ${days}d`
-}
 
 function MainView() {
   const navigate = useNavigate()

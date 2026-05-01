@@ -10,6 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { relTime } from "@/lib/format/time"
 import { type PRRecord, reviewStateOf, statusOf } from "@/lib/types"
 
 interface PRCardProps {
@@ -72,18 +73,4 @@ export function PRCard({ pr, onOpen }: PRCardProps) {
       </CardContent>
     </Card>
   )
-}
-
-function relTime(iso: string): string {
-  if (!iso) return ""
-  const then = new Date(iso).getTime()
-  if (Number.isNaN(then)) return ""
-  const diff = Date.now() - then
-  const m = Math.floor(diff / 60_000)
-  if (m < 1) return "agora"
-  if (m < 60) return `há ${m}min`
-  const h = Math.floor(m / 60)
-  if (h < 24) return `há ${h}h`
-  const d = Math.floor(h / 24)
-  return `há ${d}d`
 }

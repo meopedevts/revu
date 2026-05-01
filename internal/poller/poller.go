@@ -34,12 +34,14 @@ type Poller struct {
 	notifier notifier.Notifier
 	log      *slog.Logger
 	profiles ActiveProfileProvider
+	now      func() time.Time
 
-	mu           sync.RWMutex
-	interval     time.Duration
-	backoff      time.Duration // current backoff (0 when healthy)
-	triggerCh    chan struct{} // capacity 1; Trigger coalesces bursts
-	eventHandler EventHandler  // nil = no emission
+	mu             sync.RWMutex
+	interval       time.Duration
+	backoff        time.Duration // current backoff (0 when healthy)
+	notifyCooldown time.Duration // 0 disables the REV-43 throttle
+	triggerCh      chan struct{} // capacity 1; Trigger coalesces bursts
+	eventHandler   EventHandler  // nil = no emission
 }
 
 // Option customizes the poller.
@@ -73,6 +75,28 @@ func WithActiveProfile(pp ActiveProfileProvider) Option {
 	}
 }
 
+// WithNotifyCooldown configures the REV-43 throttle window. When the poll
+// surfaces a re-request whose last notification fell inside this window,
+// the desktop Notify is skipped (the EventPRNew emit still happens so the
+// UI list refreshes). Non-positive values disable the throttle.
+func WithNotifyCooldown(d time.Duration) Option {
+	return func(p *Poller) {
+		if d > 0 {
+			p.notifyCooldown = d
+		}
+	}
+}
+
+// WithClock injects a time source. Defaults to [time.Now]. Tests use this
+// to drive the cooldown comparison deterministically.
+func WithClock(now func() time.Time) Option {
+	return func(p *Poller) {
+		if now != nil {
+			p.now = now
+		}
+	}
+}
+
 // New builds a Poller with the given dependencies.
 func New(c github.Client, s store.Store, n notifier.Notifier, opts ...Option) *Poller {
 	p := &Poller{
@@ -80,6 +104,7 @@ func New(c github.Client, s store.Store, n notifier.Notifier, opts ...Option) *P
 		store:     s,
 		notifier:  n,
 		log:       slog.Default(),
+		now:       time.Now,
 		interval:  DefaultInterval,
 		triggerCh: make(chan struct{}, 1),
 	}
@@ -145,6 +170,26 @@ func (p *Poller) SetInterval(d time.Duration) {
 	p.mu.Unlock()
 }
 
+// SetNotifyCooldown updates the REV-43 throttle window at runtime. Negative
+// values are coerced to zero (throttle disabled). Hot-reload from
+// config.Manager.Subscribe lands here.
+func (p *Poller) SetNotifyCooldown(d time.Duration) {
+	if d < 0 {
+		d = 0
+	}
+	p.mu.Lock()
+	p.notifyCooldown = d
+	p.mu.Unlock()
+}
+
+// NotifyCooldown returns the configured throttle window. Used by tests and
+// by tick to decide if a record should skip the desktop notify.
+func (p *Poller) NotifyCooldown() time.Duration {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.notifyCooldown
+}
+
 // tick executes one poll cycle. Errors are logged and applied to backoff but
 // never propagated out of Run — we keep polling through transient failures.
 // Every call ends with a poll:completed emission so the frontend can refresh
@@ -166,11 +211,20 @@ func (p *Poller) tick(ctx context.Context) {
 	p.resetBackoff()
 
 	novos, vanished := p.store.UpdateFromPoll(ctx, summaries)
+	now := p.now()
+	cooldown := p.NotifyCooldown()
 	for i := range novos {
 		rec := novos[i]
 		enriched := p.enrich(ctx, rec)
-		if err := p.notifier.Notify(enriched); err != nil {
-			p.log.WarnContext(ctx, "notify failed", "pr", rec.ID, "err", err)
+		if shouldNotify(enriched, now, cooldown) {
+			if err := p.notifier.Notify(enriched); err != nil {
+				p.log.WarnContext(ctx, "notify failed", "pr", rec.ID, "err", err)
+			} else if err := p.store.MarkNotified(ctx, rec.ID, now); err != nil {
+				p.log.WarnContext(ctx, "mark notified", "pr", rec.ID, "err", err)
+			}
+		} else {
+			p.log.DebugContext(ctx, "notify throttled by cooldown",
+				"pr", rec.ID, "last_notified_at", enriched.LastNotifiedAt, "cooldown", cooldown)
 		}
 		prCopy := enriched
 		p.emit(Event{Kind: EventPRNew, PR: &prCopy})
@@ -189,6 +243,20 @@ func (p *Poller) tick(ctx context.Context) {
 		p.log.WarnContext(ctx, "save store", "err", err)
 	}
 	p.emit(Event{Kind: EventPollCompleted})
+}
+
+// shouldNotify gates the desktop Notify dispatch on the REV-43 cooldown.
+// Returns false only when the cooldown is positive AND the record carries a
+// last_notified_at AND now-LastNotifiedAt is still inside the window. First
+// notifications (LastNotifiedAt == nil) and disabled cooldown always pass.
+func shouldNotify(rec store.PRRecord, now time.Time, cooldown time.Duration) bool {
+	if cooldown <= 0 {
+		return true
+	}
+	if rec.LastNotifiedAt == nil {
+		return true
+	}
+	return now.Sub(*rec.LastNotifiedAt) >= cooldown
 }
 
 // enrich fetches additions/deletions for a new PR. On failure it returns

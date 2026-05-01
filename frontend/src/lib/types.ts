@@ -1,11 +1,11 @@
 // Public TypeScript types consumed by the app. All camelCase — the
 // snake_case JSON tags the Go backend uses are confined to the bridge
-// boundary (`./bridge/wire.ts` + `./bridge/mappers.ts`).
+// boundary (`src/bridge/wire.ts` + `src/bridge/mappers.ts`).
 
-import type { Theme } from "@/shared/generated/constants"
+import type { Theme } from "@/generated/constants"
 
-export type { Theme } from "@/shared/generated/constants"
-export { DEFAULT_CONFIG } from "@/shared/generated/constants"
+export type { Theme } from "@/generated/constants"
+export { DEFAULT_CONFIG } from "@/generated/constants"
 
 export interface PRRecord {
   id: string
@@ -63,6 +63,7 @@ export interface AppConfig {
   pollingIntervalSeconds: number
   notificationsEnabled: boolean
   notificationTimeoutSeconds: number
+  notificationCooldownMinutes: number
   statusRefreshEveryNTicks: number
   historyRetentionDays: number
   startHidden: boolean

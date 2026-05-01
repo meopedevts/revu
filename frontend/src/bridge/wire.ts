@@ -2,11 +2,11 @@
 //
 // These shapes match the JSON tags emitted by the Go backend verbatim
 // (snake_case for store/config/profiles, camelCase for gh-CLI-derived
-// data). Only the bridge layer itself — `src/lib/bridge.ts` and
-// `src/lib/bridge/`— may import from this module; the rest of the app
-// consumes the camelCase types in `src/lib/types`, produced by the
-// mappers in `./mappers`.
+// data). Only modules inside `src/bridge/` may import from here; the
+// rest of the app consumes the camelCase types in `src/lib/types`,
+// produced by the mappers in `./mappers`.
 
+import type { Theme } from "@/generated/constants"
 import type {
   AuthMethod,
   ChangedFile,
@@ -15,7 +15,6 @@ import type {
   StatusCheck,
   WindowConfig,
 } from "@/lib/types"
-import type { Theme } from "@/shared/generated/constants"
 
 export interface PRRecordWire {
   id: string
@@ -39,6 +38,7 @@ export interface AppConfigWire {
   polling_interval_seconds: number
   notifications_enabled: boolean
   notification_timeout_seconds: number
+  notification_cooldown_minutes: number
   status_refresh_every_n_ticks: number
   history_retention_days: number
   start_hidden: boolean

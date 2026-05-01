@@ -2,9 +2,8 @@ import { ChevronDown, ChevronRight } from "lucide-react"
 import { useMemo, useState } from "react"
 import ReactDiffViewer from "react-diff-viewer-continued"
 
+import { type FileDiff, parseDiff } from "@/lib/parse-diff"
 import { cn } from "@/lib/utils"
-
-import { type FileDiff, parseDiff } from "./parse-diff"
 
 interface PRDetailsDiffProps {
   diff: string

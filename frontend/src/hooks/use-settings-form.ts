@@ -3,8 +3,7 @@ import { useCallback, useEffect, useState } from "react"
 import { useForm, type FieldPath, type UseFormReturn } from "react-hook-form"
 import { toast } from "sonner"
 
-import { getConfig, updateConfig } from "@/lib/bridge"
-import { parseConfigValidationError } from "@/lib/bridge/mappers"
+import { getConfig, parseConfigValidationError, updateConfig } from "@/bridge"
 import { configSchema } from "@/lib/schemas/config-schema"
 import { DEFAULT_CONFIG, type AppConfig } from "@/lib/types"
 
@@ -28,9 +27,14 @@ export function useSettingsForm(): SettingsFormBag {
   })
 
   const loadConfig = useCallback(async (): Promise<void> => {
-    const cfg = await getConfig()
-    if (cfg) form.reset(cfg)
-    setLoading(false)
+    try {
+      form.reset(await getConfig())
+    } catch {
+      // Bridge unavailable (smoke build / preview). Form keeps
+      // DEFAULT_CONFIG; REV-33 query layer surfaces errors uniformly.
+    } finally {
+      setLoading(false)
+    }
   }, [form])
 
   useEffect(() => {
