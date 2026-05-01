@@ -10,7 +10,7 @@ export function useWailsEvent<T = unknown>(
 
   useEffect(() => {
     handlerRef.current = handler
-  })
+  }, [handler])
 
   useEffect(() => {
     EventsOn(event, (payload: T) => {

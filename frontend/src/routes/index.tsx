@@ -17,11 +17,19 @@ function MainView() {
     usePRs()
 
   const handleRefresh = useCallback(() => {
-    void refreshNow().then(() => {
+    // refreshNow() can throw synchronously (BridgeUnavailableError) before
+    // returning a Promise — wrap in async IIFE so sync throws turn into
+    // handled rejections instead of crashing the click handler.
+    void (async () => {
+      try {
+        await refreshNow()
+      } catch {
+        // Bridge unavailable; reload below still picks up any state.
+      }
       setTimeout(() => {
         void reload()
       }, 600)
-    })
+    })()
   }, [reload])
 
   const openSettings = useCallback(

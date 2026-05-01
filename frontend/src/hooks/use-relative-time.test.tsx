@@ -103,4 +103,27 @@ describe("useRelativeTime", () => {
     expect(clearSpy).toHaveBeenCalled()
     clearSpy.mockRestore()
   })
+
+  it("retorna segundos corretos quando Date.now está mid-minute", () => {
+    // Regression: anchored-minute snapshot quebrava precisão sub-minuto.
+    // Date.now às 12:00:30, iso 30s antes (12:00:00) deve render "há 30s",
+    // não "agora".
+    vi.setSystemTime(new Date(NOW.getTime() + 30_000))
+    const iso = NOW.toISOString()
+    const { result } = renderHook(() => useRelativeTime(iso))
+    expect(result.current).toBe("há 30s")
+  })
+
+  it("compartilha 1 setInterval entre múltiplas instâncias do hook", () => {
+    const setSpy = vi.spyOn(globalThis, "setInterval")
+    const before = setSpy.mock.calls.length
+    const a = renderHook(() => useRelativeTime(null))
+    const b = renderHook(() => useRelativeTime(null))
+    const c = renderHook(() => useRelativeTime(null))
+    expect(setSpy.mock.calls.length - before).toBe(1)
+    a.unmount()
+    b.unmount()
+    c.unmount()
+    setSpy.mockRestore()
+  })
 })

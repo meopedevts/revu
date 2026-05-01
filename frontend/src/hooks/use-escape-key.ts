@@ -5,7 +5,7 @@ export function useEscapeKey(handler: () => void, enabled = true) {
 
   useEffect(() => {
     handlerRef.current = handler
-  })
+  }, [handler])
 
   useEffect(() => {
     if (!enabled) return

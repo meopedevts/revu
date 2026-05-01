@@ -6,13 +6,35 @@ interface RelativeTimeOptions {
   prefix?: string
 }
 
+// Module-scoped store: 1 setInterval shared by all hook consumers.
+// Avoids N PRCards spawning N timers. nowMs cached so getSnapshot stays
+// referentially stable between renders within the same tick.
+const subscribers = new Set<() => void>()
+let intervalId: ReturnType<typeof setInterval> | null = null
+let nowMs = Date.now()
+
+function tick() {
+  nowMs = Date.now()
+  subscribers.forEach((cb) => cb())
+}
+
 function subscribe(cb: () => void) {
-  const id = setInterval(cb, 60_000)
-  return () => clearInterval(id)
+  if (subscribers.size === 0) {
+    nowMs = Date.now()
+  }
+  subscribers.add(cb)
+  intervalId ??= setInterval(tick, 60_000)
+  return () => {
+    subscribers.delete(cb)
+    if (subscribers.size === 0 && intervalId !== null) {
+      clearInterval(intervalId)
+      intervalId = null
+    }
+  }
 }
 
 function getSnapshot() {
-  return Math.floor(Date.now() / 60_000)
+  return nowMs
 }
 
 export function useRelativeTime(
@@ -20,15 +42,14 @@ export function useRelativeTime(
   opts: RelativeTimeOptions = {}
 ): string {
   const { idleLabel = "", nowLabel = "agora", prefix = "" } = opts
-  const minute = useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
+  const now = useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 
   if (iso === null) return idleLabel
 
   const then = iso instanceof Date ? iso.getTime() : new Date(iso).getTime()
   if (Number.isNaN(then)) return idleLabel
 
-  const nowMs = minute * 60_000
-  const diff = Math.max(0, nowMs - then)
+  const diff = Math.max(0, now - then)
   const s = Math.floor(diff / 1000)
   if (s < 10) return `${prefix}${nowLabel}`
   if (s < 60) return `${prefix}há ${s}s`
