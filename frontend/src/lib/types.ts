@@ -62,6 +62,7 @@ export interface AppConfig {
   polling_interval_seconds: number
   notifications_enabled: boolean
   notification_timeout_seconds: number
+  notification_cooldown_minutes: number
   status_refresh_every_n_ticks: number
   history_retention_days: number
   start_hidden: boolean

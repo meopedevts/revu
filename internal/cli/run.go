@@ -239,6 +239,7 @@ func buildPoller(svc *runtimeServices, bridge *app.App, tr *tray.Tray) *poller.P
 	return poller.New(svc.client, svc.store, svc.ntf,
 		poller.WithLogger(svc.log),
 		poller.WithInterval(time.Duration(svc.cfg.PollingIntervalSeconds)*time.Second),
+		poller.WithNotifyCooldown(time.Duration(svc.cfg.NotificationCooldownMinutes)*time.Minute),
 		poller.WithActiveProfile(svc.profs),
 		poller.WithEventHandler(func(e poller.Event) {
 			bridge.OnPollEvent(e)
@@ -287,9 +288,11 @@ func wireConfigChanges(svc *runtimeServices, p *poller.Poller) {
 		svc.log.Info("config reloaded",
 			"polling_s", c.PollingIntervalSeconds,
 			"notifications", c.NotificationsEnabled,
+			"cooldown_min", c.NotificationCooldownMinutes,
 			"retention_d", c.HistoryRetentionDays,
 		)
 		p.SetInterval(time.Duration(c.PollingIntervalSeconds) * time.Second)
+		p.SetNotifyCooldown(time.Duration(c.NotificationCooldownMinutes) * time.Minute)
 		svc.ntf.SetEnabled(c.NotificationsEnabled)
 		svc.ntf.SetExpireTimeout(time.Duration(c.NotificationTimeoutSeconds) * time.Second)
 		svc.store.SetRetentionDays(c.HistoryRetentionDays)

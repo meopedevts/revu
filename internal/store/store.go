@@ -27,6 +27,10 @@ type Store interface {
 	GetByID(ctx context.Context, id string) (PRRecord, bool)
 	UpdateFromPoll(ctx context.Context, prs []github.PRSummary) (novos, vanished []PRRecord)
 	RefreshPRStatus(ctx context.Context, id string, details github.PRDetails) error
+	// MarkNotified persiste o instante em que o desktop notify foi enviado
+	// pra o PR identificado por id. Usado pelo poller pra throttle de
+	// re-requests via janela de cooldown.
+	MarkNotified(ctx context.Context, id string, when time.Time) error
 	SetRetentionDays(days int)
 	SetActiveProfileID(id string)
 	ClearHistory(ctx context.Context) (int, error)

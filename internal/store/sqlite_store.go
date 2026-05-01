@@ -53,7 +53,50 @@ func (s *sqliteStore) Load(ctx context.Context) error {
 			return fmt.Errorf("import legacy state.json: %w", err)
 		}
 	}
+	if err := backfillNotifiedAt(ctx, db, s.now().UTC()); err != nil {
+		_ = db.Close()
+		return fmt.Errorf("backfill last_notified_at: %w", err)
+	}
 	s.db = db
+	return nil
+}
+
+// backfillNotifiedAt is the REV-43 one-shot upgrade step: legacy rows have
+// last_notified_at = NULL because the field was never written before the
+// throttle landed. Setting it to first_seen_at on first Load prevents a
+// burst of re-notifications when the cooldown logic activates. Gated by
+// metaNotifyBackfillDone so subsequent Loads are no-ops.
+func backfillNotifiedAt(ctx context.Context, db *sql.DB, now time.Time) error {
+	var v string
+	err := db.QueryRowContext(ctx, qGetMeta, metaNotifyBackfillDone).Scan(&v)
+	switch {
+	case err == nil && v != "":
+		return nil
+	case errors.Is(err, sql.ErrNoRows):
+		// fallthrough to backfill
+	case err != nil:
+		return fmt.Errorf("read meta %s: %w", metaNotifyBackfillDone, err)
+	}
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin backfill: %w", err)
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback()
+		}
+	}()
+	if _, err := tx.ExecContext(ctx, qBackfillNotifiedAt); err != nil {
+		return fmt.Errorf("exec backfill: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, qSetMeta, metaNotifyBackfillDone, formatTime(now)); err != nil {
+		return fmt.Errorf("set meta %s: %w", metaNotifyBackfillDone, err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit backfill: %w", err)
+	}
+	committed = true
 	return nil
 }
 
@@ -206,9 +249,16 @@ func (s *sqliteStore) UpdateFromPoll(ctx context.Context, prs []github.PRSummary
 
 	polledIDs := indexPolledIDs(prs)
 
-	vanishedIDs, err := selectVanishedIDs(ctx, tx, polledIDs)
-	if err != nil {
-		return nil, nil
+	// REV-43: empty polls are treated as no-ops for vanished detection too.
+	// `gh search` is eventually consistent and a transient `[]` was firing
+	// enrich on every tracked PR each tick, hammering the API and resetting
+	// review state via RefreshPRStatus.
+	var vanishedIDs []string
+	if len(polledIDs) > 0 {
+		vanishedIDs, err = selectVanishedIDs(ctx, tx, polledIDs)
+		if err != nil {
+			return nil, nil
+		}
 	}
 
 	novos, err := upsertPolled(ctx, tx, prs, now, profID)
@@ -352,14 +402,15 @@ func updateExistingPolled(
 }
 
 // markNotPolled garante que toda linha review_pending=1 que NÃO está no
-// poll corrente vire review_pending=0. Quando o poll vem vazio, usa a
-// query estática qMarkNotPendingAll; senão monta um IN(?, ?, ...) via
-// inClause (helper puro, seguro por construção).
+// poll corrente vire review_pending=0. REV-43: poll vazio é tratado como
+// no-op porque `gh search` é eventualmente consistente — um retorno `[]`
+// transitório não significa que todos os PRs foram revisados, e zerar
+// review_pending nesse caso causava burst de notificações no próximo poll
+// não-vazio. Convergência pra "todos revisados" agora vem do poll
+// não-vazio (IN clause abaixo) ou de RefreshPRStatus quando o user
+// submete review.
 func markNotPolled(ctx context.Context, tx *sql.Tx, polledIDs map[string]struct{}) error {
 	if len(polledIDs) == 0 {
-		if _, err := tx.ExecContext(ctx, qMarkNotPendingAll); err != nil {
-			return err
-		}
 		return nil
 	}
 	ids := make([]any, 0, len(polledIDs))
@@ -467,6 +518,30 @@ func (s *sqliteStore) RefreshPRStatus(ctx context.Context, id string, details gi
 		rec.Additions, rec.Deletions, boolToInt(rec.IsDraft), rec.State, rec.ReviewState, rec.ID,
 	); err != nil {
 		return fmt.Errorf("update status: %w", err)
+	}
+	return nil
+}
+
+// MarkNotified persists the timestamp of the most recent notification
+// dispatch for id. The poller calls this after Notify succeeds so the next
+// poll can throttle re-requests landing inside the cooldown window.
+// Unknown ids surface as ErrNotFound so callers can distinguish "PR
+// vanished" from a real DB error.
+func (s *sqliteStore) MarkNotified(ctx context.Context, id string, when time.Time) error {
+	db := s.handle()
+	if db == nil {
+		return ErrNotFound
+	}
+	res, err := db.ExecContext(ctx, qMarkNotified, formatTime(when.UTC()), id)
+	if err != nil {
+		return fmt.Errorf("mark notified: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("mark notified rows affected: %w", err)
+	}
+	if n == 0 {
+		return ErrNotFound
 	}
 	return nil
 }
