@@ -8,6 +8,7 @@ import {
 } from "@tanstack/react-router"
 import { ArrowLeft, Loader2, RotateCcw } from "lucide-react"
 
+import { RouteErrorFallback } from "@/components/route-error-fallback"
 import { SettingsFormContext } from "@/components/settings/settings-form-context"
 import {
   SettingsSidebar,
@@ -30,6 +31,7 @@ import { useSettingsForm } from "@/hooks/use-settings-form"
 
 export const Route = createFileRoute("/settings")({
   component: SettingsLayout,
+  errorComponent: RouteErrorFallback,
 })
 
 function SettingsLayout() {
