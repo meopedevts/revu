@@ -5,6 +5,7 @@ import { RouteErrorFallback } from "@/components/route-error-fallback"
 import { isSettingsSection } from "@/components/settings/settings-sidebar"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { useGlobalSubscriptions } from "@/hooks/use-global-subscriptions"
 import { EventsOff, EventsOn } from "@/wailsjs/runtime/runtime"
 
 interface NavigatePayload {
@@ -35,6 +36,7 @@ export const Route = createRootRoute({
 
 function RootComponent() {
   const router = useRouter()
+  useGlobalSubscriptions()
 
   useEffect(() => {
     EventsOn("ui:navigate", (payload: NavigatePayload | undefined) => {

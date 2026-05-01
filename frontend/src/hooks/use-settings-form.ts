@@ -1,9 +1,10 @@
 import { zodResolver } from "@hookform/resolvers/zod"
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef } from "react"
 import { useForm, type UseFormReturn } from "react-hook-form"
 import { toast } from "sonner"
 
-import { getConfig, updateConfig } from "@/bridge"
+import { useUpdateConfig } from "@/hooks/mutations/use-update-config"
+import { useConfig } from "@/hooks/use-config"
 import { configSchema } from "@/lib/schemas/config-schema"
 import {
   DEFAULT_CONFIG,
@@ -37,14 +38,18 @@ export interface SettingsFormBag {
   form: UseFormReturn<AppConfig>
   loading: boolean
   saving: boolean
+  loadError: Error | null
   submit: () => Promise<void>
   discard: () => Promise<void>
   restoreDefaults: () => void
 }
 
 export function useSettingsForm(): SettingsFormBag {
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
+  const configQ = useConfig()
+  const update = useUpdateConfig()
+  const loading = configQ.isLoading
+  const saving = update.isPending
+  const loadError = configQ.error ?? null
 
   const form = useForm<AppConfig>({
     resolver: zodResolver(configSchema),
@@ -52,25 +57,33 @@ export function useSettingsForm(): SettingsFormBag {
     mode: "onChange",
   })
 
-  const loadConfig = useCallback(async (): Promise<void> => {
-    try {
-      form.reset(await getConfig())
-    } catch {
-      // Bridge unavailable (smoke build / preview). Form keeps
-      // DEFAULT_CONFIG; REV-33 query layer surfaces errors uniformly.
-    } finally {
-      setLoading(false)
-    }
-  }, [form])
-
+  // Só faz reset com dado real do backend (não com placeholderData), pra evitar
+  // sobrescrever edição em curso quando o estado vai placeholder → success.
   useEffect(() => {
-    void loadConfig()
-  }, [loadConfig])
+    if (configQ.data && !configQ.isPlaceholderData) {
+      form.reset(configQ.data)
+    }
+  }, [configQ.data, configQ.isPlaceholderData, form])
+
+  // Toast 1x por sessão de erro do load — useEffect com ref evita spam em
+  // re-render. Reseta a sinalização quando o erro some.
+  const toastedLoadErr = useRef(false)
+  useEffect(() => {
+    if (loadError && !toastedLoadErr.current) {
+      toastedLoadErr.current = true
+      toast.error(
+        loadError instanceof Error
+          ? `Falha ao carregar configurações: ${loadError.message}`
+          : "Falha ao carregar configurações"
+      )
+    } else if (!loadError) {
+      toastedLoadErr.current = false
+    }
+  }, [loadError])
 
   const submit = form.handleSubmit(async (values) => {
-    setSaving(true)
     try {
-      await updateConfig(values)
+      await update.mutateAsync(values)
       form.reset(values)
       toast.success("Configurações salvas")
     } catch (err: unknown) {
@@ -88,12 +101,13 @@ export function useSettingsForm(): SettingsFormBag {
           err instanceof Error ? err.message : "Falha ao salvar configurações"
         )
       }
-    } finally {
-      setSaving(false)
     }
   })
 
-  const discard = loadConfig
+  const discard = useCallback(async () => {
+    const fresh = await configQ.refetch()
+    if (fresh.data) form.reset(fresh.data)
+  }, [configQ, form])
 
   const restoreDefaults = useCallback(() => {
     form.reset(DEFAULT_CONFIG, { keepDefaultValues: true })
@@ -104,5 +118,5 @@ export function useSettingsForm(): SettingsFormBag {
     )
   }, [form])
 
-  return { form, loading, saving, submit, discard, restoreDefaults }
+  return { form, loading, saving, loadError, submit, discard, restoreDefaults }
 }
