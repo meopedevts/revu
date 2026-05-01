@@ -1,42 +1,12 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useCallback, useEffect, useState } from "react"
-import { useForm, type UseFormReturn } from "react-hook-form"
+import { useForm, type FieldPath, type UseFormReturn } from "react-hook-form"
 import { toast } from "sonner"
 
 import { getConfig, updateConfig } from "@/lib/bridge"
-import { toConfigValidationError } from "@/lib/bridge/mappers"
-import type { ConfigValidationErrorWire } from "@/lib/bridge/wire"
+import { parseConfigValidationError } from "@/lib/bridge/mappers"
 import { configSchema } from "@/lib/schemas/config-schema"
-import {
-  DEFAULT_CONFIG,
-  type AppConfig,
-  type ConfigValidationError,
-} from "@/lib/types"
-
-function isValidationErrorWire(err: unknown): err is ConfigValidationErrorWire {
-  return (
-    typeof err === "object" &&
-    err !== null &&
-    "errors" in err &&
-    Array.isArray(err.errors)
-  )
-}
-
-// Backend ValidationError comes off the bridge with snake_case `field`
-// values (matching internal/config JSON tags). Translate to the
-// camelCase form paths used by react-hook-form before reporting back.
-function parseBackendError(err: unknown): ConfigValidationError | null {
-  if (isValidationErrorWire(err)) return toConfigValidationError(err)
-  if (err instanceof Error) {
-    try {
-      const parsed = JSON.parse(err.message) as unknown
-      if (isValidationErrorWire(parsed)) return toConfigValidationError(parsed)
-    } catch {
-      return null
-    }
-  }
-  return null
-}
+import { DEFAULT_CONFIG, type AppConfig } from "@/lib/types"
 
 export interface SettingsFormBag {
   form: UseFormReturn<AppConfig>
@@ -74,10 +44,10 @@ export function useSettingsForm(): SettingsFormBag {
       form.reset(values)
       toast.success("Configurações salvas")
     } catch (err: unknown) {
-      const ve = parseBackendError(err)
+      const ve = parseConfigValidationError(err)
       if (ve) {
         for (const fe of ve.errors) {
-          form.setError(fe.field as keyof AppConfig, {
+          form.setError(fe.field as FieldPath<AppConfig>, {
             type: "backend",
             message: fe.msg,
           })

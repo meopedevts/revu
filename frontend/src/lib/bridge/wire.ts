@@ -2,9 +2,10 @@
 //
 // These shapes match the JSON tags emitted by the Go backend verbatim
 // (snake_case for store/config/profiles, camelCase for gh-CLI-derived
-// data). Nothing outside `src/lib/bridge/` should import from here:
-// the rest of the app consumes the camelCase types in `src/lib/types`,
-// produced by the mappers in `./mappers`.
+// data). Only the bridge layer itself — `src/lib/bridge.ts` and
+// `src/lib/bridge/`— may import from this module; the rest of the app
+// consumes the camelCase types in `src/lib/types`, produced by the
+// mappers in `./mappers`.
 
 import type {
   AuthMethod,

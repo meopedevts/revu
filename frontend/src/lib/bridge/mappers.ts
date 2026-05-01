@@ -127,7 +127,7 @@ function mapConfigFieldPath(field: string): string {
   return CONFIG_FIELD_TO_PATH[field] ?? field
 }
 
-export function toConfigValidationError(
+function toConfigValidationError(
   w: ConfigValidationErrorWire
 ): ConfigValidationError {
   return {
@@ -138,4 +138,36 @@ export function toConfigValidationError(
       })
     ),
   }
+}
+
+function isConfigValidationErrorWire(
+  err: unknown
+): err is ConfigValidationErrorWire {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    "errors" in err &&
+    Array.isArray(err.errors)
+  )
+}
+
+// parseConfigValidationError accepts whatever the bridge throws (a
+// raw wire object, an Error whose message is JSON-encoded by Wails, or
+// anything else) and returns a public camelCase ConfigValidationError
+// when the shape matches. Keeping the JSON-decoding here means callers
+// only depend on the public type and never see the wire shape.
+export function parseConfigValidationError(
+  err: unknown
+): ConfigValidationError | null {
+  if (isConfigValidationErrorWire(err)) return toConfigValidationError(err)
+  if (err instanceof Error) {
+    try {
+      const parsed = JSON.parse(err.message) as unknown
+      if (isConfigValidationErrorWire(parsed))
+        return toConfigValidationError(parsed)
+    } catch {
+      return null
+    }
+  }
+  return null
 }
