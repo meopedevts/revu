@@ -1,8 +1,7 @@
 import { MoreHorizontal, Plus } from "lucide-react"
-import { useCallback, useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 
-import { deleteProfile, listProfiles, setActiveProfile } from "@/bridge"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,36 +21,44 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { useDeleteProfile } from "@/hooks/mutations/use-delete-profile"
+import { useSetActiveProfile } from "@/hooks/mutations/use-set-active-profile"
+import { useProfiles } from "@/hooks/use-profiles"
 import type { Profile } from "@/lib/types"
 
 import { AddAccountDialog } from "./add-account-dialog"
 import { EditAccountDialog } from "./edit-account-dialog"
 
 export function AccountsSection() {
-  const [profiles, setProfiles] = useState<Profile[]>([])
-  const [loading, setLoading] = useState(true)
+  const profilesQ = useProfiles()
+  const profiles = profilesQ.data ?? []
+  const loading = profilesQ.isLoading
+  const setActive = useSetActiveProfile()
+  const remove = useDeleteProfile()
+
   const [addOpen, setAddOpen] = useState(false)
   const [editing, setEditing] = useState<Profile | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<Profile | null>(null)
 
-  const refresh = useCallback(async () => {
-    try {
-      setProfiles(await listProfiles())
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Falha ao listar contas")
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
+  // Toast 1x por sessão de erro — ref evita spam em re-render enquanto o erro
+  // persiste; reseta quando o erro some pra próximo erro voltar a notificar.
+  const toastedErr = useRef(false)
   useEffect(() => {
-    void refresh()
-  }, [refresh])
+    if (profilesQ.error && !toastedErr.current) {
+      toastedErr.current = true
+      toast.error(
+        profilesQ.error instanceof Error
+          ? profilesQ.error.message
+          : "Falha ao listar contas"
+      )
+    } else if (!profilesQ.error) {
+      toastedErr.current = false
+    }
+  }, [profilesQ.error])
 
   async function onMakeActive(id: string) {
     try {
-      await setActiveProfile(id)
-      void refresh()
+      await setActive.mutateAsync(id)
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Falha ao trocar conta")
     }
@@ -60,10 +67,9 @@ export function AccountsSection() {
   async function onConfirmDelete() {
     if (!confirmDelete) return
     try {
-      await deleteProfile(confirmDelete.id)
+      await remove.mutateAsync(confirmDelete.id)
       toast.success("Conta removida")
       setConfirmDelete(null)
-      void refresh()
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Falha ao remover conta")
     }
@@ -113,6 +119,7 @@ export function AccountsSection() {
                     variant="outline"
                     size="sm"
                     onClick={() => void onMakeActive(p.id)}
+                    disabled={setActive.isPending}
                   >
                     Tornar ativa
                   </Button>
@@ -142,20 +149,11 @@ export function AccountsSection() {
         </div>
       )}
 
-      <AddAccountDialog
-        open={addOpen}
-        onOpenChange={setAddOpen}
-        onCreated={() => {
-          void refresh()
-        }}
-      />
+      <AddAccountDialog open={addOpen} onOpenChange={setAddOpen} />
       <EditAccountDialog
         open={editing !== null}
         onOpenChange={(v) => {
           if (!v) setEditing(null)
-        }}
-        onSaved={() => {
-          void refresh()
         }}
         profile={editing}
       />

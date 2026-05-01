@@ -2,7 +2,6 @@ import { Eye, Loader2 } from "lucide-react"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
 
-import { updateProfile } from "@/bridge"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -14,25 +13,25 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { useUpdateProfile } from "@/hooks/mutations/use-update-profile"
 import type { Profile } from "@/lib/types"
 
 interface EditAccountDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onSaved: () => void
   profile: Profile | null
 }
 
 export function EditAccountDialog({
   open,
   onOpenChange,
-  onSaved,
   profile,
 }: EditAccountDialogProps) {
   const [name, setName] = useState("")
   const [token, setToken] = useState("")
   const [revealing, setRevealing] = useState(false)
-  const [submitting, setSubmitting] = useState(false)
+  const update = useUpdateProfile()
+  const submitting = update.isPending
 
   useEffect(() => {
     if (profile) {
@@ -48,26 +47,22 @@ export function EditAccountDialog({
       toast.error("Informe um nome")
       return
     }
-    setSubmitting(true)
+    const patch: { name?: string; token?: string } = {}
+    if (name.trim() !== profile.name) patch.name = name.trim()
+    if (token) patch.token = token
+    if (Object.keys(patch).length === 0) {
+      toast.info("Nada mudou")
+      onOpenChange(false)
+      return
+    }
     try {
-      const patch: { name?: string; token?: string } = {}
-      if (name.trim() !== profile.name) patch.name = name.trim()
-      if (token) patch.token = token
-      if (Object.keys(patch).length === 0) {
-        toast.info("Nada mudou")
-        onOpenChange(false)
-        return
-      }
-      await updateProfile(profile.id, patch)
+      await update.mutateAsync({ id: profile.id, patch })
       toast.success("Conta atualizada")
-      onSaved()
       onOpenChange(false)
     } catch (err: unknown) {
       toast.error(
         err instanceof Error ? err.message : "Falha ao atualizar conta"
       )
-    } finally {
-      setSubmitting(false)
     }
   }
 

@@ -1,37 +1,31 @@
-import { useCallback, useEffect, useState } from "react"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 
 import { getActiveProfile } from "@/bridge"
+import { queryKeys } from "@/lib/query/keys"
 import type { Profile } from "@/lib/types"
-import { EventsOff, EventsOn } from "@/wailsjs/runtime/runtime"
 
-const EVENT = "profiles:active-changed"
-
-// useActiveProfile returns the currently-active profile and refreshes it
-// when the backend emits profiles:active-changed. refresh() is exposed for
-// callers that mutate the state (e.g. the Contas section after a Create).
-export function useActiveProfile(): {
+interface UseActiveProfileResult {
   profile: Profile | null
   refresh: () => Promise<void>
-} {
-  const [profile, setProfile] = useState<Profile | null>(null)
+}
 
-  const refresh = useCallback(async () => {
-    try {
-      setProfile(await getActiveProfile())
-    } catch {
-      // Bridge unavailable / no active profile (smoke build, fresh
-      // install). REV-33 query layer takes over error semantics.
-      setProfile(null)
-    }
-  }, [])
+export function useActiveProfile(): UseActiveProfileResult {
+  const qc = useQueryClient()
+  const query = useQuery<Profile | null>({
+    queryKey: queryKeys.profiles.active,
+    queryFn: async () => {
+      try {
+        return await getActiveProfile()
+      } catch {
+        return null
+      }
+    },
+  })
 
-  useEffect(() => {
-    void refresh()
-    EventsOn(EVENT, (p: Profile) => setProfile(p))
-    return () => {
-      EventsOff(EVENT)
-    }
-  }, [refresh])
-
-  return { profile, refresh }
+  return {
+    profile: query.data ?? null,
+    refresh: async () => {
+      await qc.invalidateQueries({ queryKey: queryKeys.profiles.active })
+    },
+  }
 }
