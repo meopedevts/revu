@@ -95,6 +95,18 @@ tasks:
     cmds:
       - pnpm typecheck
 
+  test:frontend:
+    desc: Vitest run no frontend (REV-37)
+    dir: frontend
+    cmds:
+      - pnpm test:run
+
+  test:frontend:cov:
+    desc: Vitest com cobertura — threshold lines ≥60% (REV-37)
+    dir: frontend
+    cmds:
+      - pnpm test:cov
+
   dev:
     desc: Hot-reload com wails dev (frontend + backend)
     cmds:

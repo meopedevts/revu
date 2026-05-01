@@ -5,11 +5,12 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { mergePR, openPRInBrowser } from "@/lib/bridge"
 import { usePRDetails } from "@/lib/hooks/use-pr-details"
 import {
-  type MergeMethod,
-  type PRFullDetails,
-  type PRState,
-  type ReviewState,
-} from "@/lib/types"
+  derivePRState,
+  deriveReviewState,
+  mergeableNow,
+  mergeBlockedReason,
+} from "@/lib/pr-state"
+import { type MergeMethod, type PRState, type ReviewState } from "@/lib/types"
 import { DETAILS_DIFF_LIMIT } from "@/shared/generated/constants"
 
 import { PRDetailsBody } from "./pr-details/pr-details-body"
@@ -218,54 +219,4 @@ function BigPRPlaceholder({
       </button>
     </div>
   )
-}
-
-function derivePRState(details: PRFullDetails | null): PRState {
-  if (!details) return "OPEN"
-  if (details.state === "MERGED") return "MERGED"
-  if (details.state === "CLOSED") return "CLOSED"
-  if (details.isDraft) return "DRAFT"
-  return "OPEN"
-}
-
-function deriveReviewState(details: PRFullDetails | null): ReviewState {
-  if (!details) return "PENDING"
-  // Don't try to figure out which review is "mine" here — the details view
-  // mirrors what the PR card on the list already shows, but we have no
-  // viewer-id on this payload. Pick the most actionable state across
-  // reviewers so the badge stays informative.
-  const order = ["CHANGES_REQUESTED", "APPROVED", "COMMENTED"] as const
-  for (const want of order) {
-    if (details.reviews.some((r) => r.state === want)) return want
-  }
-  return "PENDING"
-}
-
-function mergeableNow(details: PRFullDetails | null): boolean {
-  if (!details) return false
-  if (details.state !== "OPEN") return false
-  if (details.isDraft) return false
-  if (details.mergeable !== "MERGEABLE") return false
-  const failing = details.statusChecks.some((c) => {
-    const k = c.conclusion.toUpperCase()
-    return k === "FAILURE" || k === "TIMED_OUT" || k === "CANCELLED"
-  })
-  return !failing
-}
-
-function mergeBlockedReason(details: PRFullDetails | null): string | null {
-  if (!details) return null
-  if (details.state === "MERGED") return "PR já foi merged"
-  if (details.state === "CLOSED") return "PR fechado"
-  if (details.isDraft) return "PR está em draft"
-  if (details.mergeable === "CONFLICTING")
-    return "conflitos — resolva pelo GitHub"
-  if (details.mergeable === "UNKNOWN")
-    return "GitHub ainda está checando se pode merge"
-  const failing = details.statusChecks.some((c) => {
-    const k = c.conclusion.toUpperCase()
-    return k === "FAILURE" || k === "TIMED_OUT" || k === "CANCELLED"
-  })
-  if (failing) return "algum check falhou"
-  return null
 }
