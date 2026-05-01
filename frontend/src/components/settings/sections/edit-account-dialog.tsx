@@ -88,7 +88,7 @@ export function EditAccountDialog({
             />
           </div>
 
-          {profile?.auth_method === "keyring" ? (
+          {profile?.authMethod === "keyring" ? (
             <div className="flex flex-col gap-1">
               <Label htmlFor="edit-token">Novo token (opcional)</Label>
               <div className="flex items-center gap-2">

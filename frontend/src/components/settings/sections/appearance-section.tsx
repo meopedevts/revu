@@ -58,7 +58,7 @@ export function AppearanceSection() {
 
       <FormField
         control={form.control}
-        name="start_hidden"
+        name="startHidden"
         render={({ field }) => (
           <FormItem className="flex flex-row items-center justify-between gap-4">
             <div className="space-y-0.5">

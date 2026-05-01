@@ -1,38 +1,13 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useCallback, useEffect, useRef } from "react"
-import { useForm, type UseFormReturn } from "react-hook-form"
+import { useForm, type FieldPath, type UseFormReturn } from "react-hook-form"
 import { toast } from "sonner"
 
+import { parseConfigValidationError } from "@/bridge"
 import { useUpdateConfig } from "@/hooks/mutations/use-update-config"
 import { useConfig } from "@/hooks/use-config"
 import { configSchema } from "@/lib/schemas/config-schema"
-import {
-  DEFAULT_CONFIG,
-  type AppConfig,
-  type ConfigValidationError,
-} from "@/lib/types"
-
-function isValidationError(err: unknown): err is ConfigValidationError {
-  return (
-    typeof err === "object" &&
-    err !== null &&
-    "errors" in err &&
-    Array.isArray(err.errors)
-  )
-}
-
-function parseBackendError(err: unknown): ConfigValidationError | null {
-  if (isValidationError(err)) return err
-  if (err instanceof Error) {
-    try {
-      const parsed = JSON.parse(err.message) as unknown
-      if (isValidationError(parsed)) return parsed
-    } catch {
-      return null
-    }
-  }
-  return null
-}
+import { DEFAULT_CONFIG, type AppConfig } from "@/lib/types"
 
 export interface SettingsFormBag {
   form: UseFormReturn<AppConfig>
@@ -87,10 +62,10 @@ export function useSettingsForm(): SettingsFormBag {
       form.reset(values)
       toast.success("Configurações salvas")
     } catch (err: unknown) {
-      const ve = parseBackendError(err)
+      const ve = parseConfigValidationError(err)
       if (ve) {
         for (const fe of ve.errors) {
-          form.setError(fe.field as keyof AppConfig, {
+          form.setError(fe.field as FieldPath<AppConfig>, {
             type: "backend",
             message: fe.msg,
           })
@@ -112,8 +87,8 @@ export function useSettingsForm(): SettingsFormBag {
   const restoreDefaults = useCallback(() => {
     form.reset(DEFAULT_CONFIG, { keepDefaultValues: true })
     form.setValue(
-      "polling_interval_seconds",
-      DEFAULT_CONFIG.polling_interval_seconds,
+      "pollingIntervalSeconds",
+      DEFAULT_CONFIG.pollingIntervalSeconds,
       { shouldDirty: true, shouldValidate: true }
     )
   }, [form])

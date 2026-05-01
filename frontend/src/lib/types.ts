@@ -1,5 +1,12 @@
-// Mirrors internal/store.PRRecord — field names match the Go json tags
-// (snake_case is converted to camelCase by Wails' binding layer).
+// Public TypeScript types consumed by the app. All camelCase — the
+// snake_case JSON tags the Go backend uses are confined to the bridge
+// boundary (`src/bridge/wire.ts` + `src/bridge/mappers.ts`).
+
+import type { Theme } from "@/generated/constants"
+
+export type { Theme } from "@/generated/constants"
+export { DEFAULT_CONFIG } from "@/generated/constants"
+
 export interface PRRecord {
   id: string
   number: number
@@ -8,14 +15,14 @@ export interface PRRecord {
   author: string
   url: string
   state: string
-  is_draft: boolean
+  isDraft: boolean
   additions: number
   deletions: number
-  review_pending: boolean
-  review_state: string
-  first_seen_at: string
-  last_seen_at: string
-  last_notified_at?: string
+  reviewPending: boolean
+  reviewState: string
+  firstSeenAt: string
+  lastSeenAt: string
+  lastNotifiedAt?: string
 }
 
 export type PRState = "OPEN" | "DRAFT" | "MERGED" | "CLOSED"
@@ -29,91 +36,80 @@ export type ReviewState =
 export function statusOf(pr: PRRecord): PRState {
   if (pr.state === "MERGED") return "MERGED"
   if (pr.state === "CLOSED") return "CLOSED"
-  if (pr.is_draft) return "DRAFT"
+  if (pr.isDraft) return "DRAFT"
   return "OPEN"
 }
 
-// reviewStateOf normalizes the raw review_state string coming off the bridge
-// into the closed vocabulary the UI understands. Unknown values collapse to
-// PENDING so the badge never disappears.
+// reviewStateOf normalizes the raw reviewState string coming off the
+// bridge into the closed vocabulary the UI understands. Unknown values
+// collapse to PENDING so the badge never disappears.
 export function reviewStateOf(pr: PRRecord): ReviewState {
-  switch (pr.review_state) {
+  switch (pr.reviewState) {
     case "APPROVED":
     case "CHANGES_REQUESTED":
     case "COMMENTED":
-      return pr.review_state
+      return pr.reviewState
     default:
       return "PENDING"
   }
 }
 
-// Mirrors internal/config.Config 1:1 (snake_case JSON tags on the Go side).
 export interface WindowConfig {
   width: number
   height: number
 }
 
-// Theme literal union is generated from internal/config.Limits().ValidThemes.
-export type { Theme } from "@/generated/constants"
-
-import type { Theme } from "@/generated/constants"
-
 export interface AppConfig {
-  polling_interval_seconds: number
-  notifications_enabled: boolean
-  notification_timeout_seconds: number
-  notification_cooldown_minutes: number
-  status_refresh_every_n_ticks: number
-  history_retention_days: number
-  start_hidden: boolean
+  pollingIntervalSeconds: number
+  notificationsEnabled: boolean
+  notificationTimeoutSeconds: number
+  notificationCooldownMinutes: number
+  statusRefreshEveryNTicks: number
+  historyRetentionDays: number
+  startHidden: boolean
   window: WindowConfig
   theme: Theme
 }
 
-// Mirrors internal/config.FieldError.
+// Mirrors internal/config.FieldError. The `field` value is normalized to
+// the camelCase form path expected by react-hook-form by the bridge
+// mappers — backend snake_case never reaches the UI.
 export interface ConfigFieldError {
   field: string
   msg: string
 }
 
-// Mirrors internal/config.ValidationError.
+// Mirrors internal/config.ValidationError after mapping.
 export interface ConfigValidationError {
   errors: ConfigFieldError[]
 }
 
-// DEFAULT_CONFIG comes from cmd/gentsconst (internal/config.Defaults). Re-
-// exported here so existing imports from "@/lib/types" keep working.
-export { DEFAULT_CONFIG } from "@/generated/constants"
-
-// Mirrors internal/profiles.AuthMethod. The frontend never needs to look at
-// keyring_ref directly — tokens stay on the Go side.
+// Mirrors internal/profiles.AuthMethod. Tokens stay on the Go side; the
+// frontend never inspects keyringRef directly.
 export type AuthMethod = "gh-cli" | "keyring"
 
-// Mirrors internal/profiles.Profile — the JSON tags on Go flatten to
-// snake_case, so we mirror them verbatim.
 export interface Profile {
   id: string
   name: string
-  auth_method: AuthMethod
-  keyring_ref?: string
-  github_username?: string
-  is_active: boolean
-  created_at: string
-  last_validated_at?: string
+  authMethod: AuthMethod
+  keyringRef?: string
+  githubUsername?: string
+  isActive: boolean
+  createdAt: string
+  lastValidatedAt?: string
 }
 
 export interface ProfileUpdate {
   name?: string
-  auth_method?: AuthMethod
+  authMethod?: AuthMethod
   token?: string
 }
 
 // ===== PR details (REV-13) =====
 //
-// Mirror of github.PRFullDetails / supporting types. JSON tags on the Go
-// side use camelCase for gh-CLI-derived fields and snake_case for fields
-// we shape ourselves; the Wails binding passes payloads through verbatim,
-// so TS mirrors the JSON keys exactly.
+// PRFullDetails and its supporting types are camelCase on both sides
+// (Go tags match the gh-CLI payload shape), so the public TS types can
+// pass through the bridge without translation.
 
 export interface Label {
   name: string

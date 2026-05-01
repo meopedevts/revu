@@ -1,22 +1,26 @@
 import type { MergeMethod, PRFullDetails, PRRecord } from "@/lib/types"
 
 import { requireBridge } from "./client"
+import { toPRRecord } from "./mappers"
+import type { PRFullDetailsWire, PRRecordWire } from "./wire"
 
 export interface PRsBridge {
-  ListPendingPRs(): Promise<PRRecord[]>
-  ListHistoryPRs(): Promise<PRRecord[]>
-  GetPRDetails(prID: string): Promise<PRFullDetails>
+  ListPendingPRs(): Promise<PRRecordWire[]>
+  ListHistoryPRs(): Promise<PRRecordWire[]>
+  GetPRDetails(prID: string): Promise<PRFullDetailsWire>
   GetPRDiff(prID: string): Promise<string>
   MergePR(prID: string, method: MergeMethod): Promise<void>
   RefreshNow(): Promise<void>
   OpenPRInBrowser(url: string): Promise<void>
 }
 
-export const listPendingPRs = (): Promise<PRRecord[]> =>
-  requireBridge("ListPendingPRs")()
+export async function listPendingPRs(): Promise<PRRecord[]> {
+  return (await requireBridge("ListPendingPRs")()).map(toPRRecord)
+}
 
-export const listHistoryPRs = (): Promise<PRRecord[]> =>
-  requireBridge("ListHistoryPRs")()
+export async function listHistoryPRs(): Promise<PRRecord[]> {
+  return (await requireBridge("ListHistoryPRs")()).map(toPRRecord)
+}
 
 export const getPRDetails = (prID: string): Promise<PRFullDetails> =>
   requireBridge("GetPRDetails")(prID)

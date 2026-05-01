@@ -91,7 +91,7 @@ describe("useGlobalSubscriptions", () => {
     expect(meta?.err).toBeNull()
   })
 
-  it("'profiles:active-changed' grava perfil em ['profiles','active']", async () => {
+  it("'profiles:active-changed' grava perfil em ['profiles','active'] já em camelCase", async () => {
     const { wrapper, client } = createQueryWrapper()
     renderHook(() => useGlobalSubscriptions(), { wrapper })
 
@@ -99,18 +99,29 @@ describe("useGlobalSubscriptions", () => {
       expect(handlers.has("profiles:active-changed")).toBe(true)
     )
 
-    const profile = {
+    // O Go publica o evento com chaves snake_case (ProfileWire).
+    const wirePayload = {
       id: "x",
       name: "trabalho",
       auth_method: "keyring",
       is_active: true,
-    } as Profile
+      created_at: "2026-04-30T00:00:00Z",
+    }
 
     act(() => {
-      handlers.get("profiles:active-changed")?.(profile)
+      handlers.get("profiles:active-changed")?.(wirePayload)
     })
 
-    expect(client.getQueryData(["profiles", "active"])).toEqual(profile)
+    expect(client.getQueryData<Profile>(["profiles", "active"])).toEqual({
+      id: "x",
+      name: "trabalho",
+      authMethod: "keyring",
+      keyringRef: undefined,
+      githubUsername: undefined,
+      isActive: true,
+      createdAt: "2026-04-30T00:00:00Z",
+      lastValidatedAt: undefined,
+    })
   })
 
   it("unmount limpa handlers", async () => {

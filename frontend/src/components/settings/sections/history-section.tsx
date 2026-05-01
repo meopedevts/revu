@@ -58,7 +58,7 @@ export function HistorySection() {
 
       <FormField
         control={form.control}
-        name="history_retention_days"
+        name="historyRetentionDays"
         render={({ field }) => (
           <FormItem>
             <FormLabel>Retenção (dias)</FormLabel>

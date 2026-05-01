@@ -97,8 +97,7 @@ export function PRDetailsView({ prID, onBack }: PRDetailsViewProps) {
   const totalLines = details.additions + details.deletions
   const diffTooBig = totalLines > DETAILS_DIFF_LIMIT
   const diffFailed = !diffTooBig && diffError !== null
-  const diffEmpty =
-    !diffTooBig && !diffFailed && (diff === null || diff === "")
+  const diffEmpty = !diffTooBig && !diffFailed && (diff === null || diff === "")
 
   return (
     <div className="flex h-screen flex-col gap-3 overflow-y-auto bg-background p-3 text-foreground">

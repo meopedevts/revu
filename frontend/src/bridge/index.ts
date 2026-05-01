@@ -1,6 +1,7 @@
 export { requireBridge } from "./client"
 export type { WailsBridge } from "./client"
 export { BridgeMethodMissingError, BridgeUnavailableError } from "./errors"
+export { parseConfigValidationError } from "./mappers"
 export * from "./config"
 export * from "./prs"
 export * from "./profiles"

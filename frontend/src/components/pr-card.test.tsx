@@ -15,13 +15,13 @@ function makePR(overrides: Partial<PRRecord> = {}): PRRecord {
     author: "alice",
     url: "https://github.com/owner/repo/pull/42",
     state: "OPEN",
-    is_draft: false,
+    isDraft: false,
     additions: 12,
     deletions: 3,
-    review_pending: true,
-    review_state: "PENDING",
-    first_seen_at: "2026-04-30T11:55:00Z",
-    last_seen_at: "2026-04-30T11:55:00Z",
+    reviewPending: true,
+    reviewState: "PENDING",
+    firstSeenAt: "2026-04-30T11:55:00Z",
+    lastSeenAt: "2026-04-30T11:55:00Z",
     ...overrides,
   }
 }
@@ -47,7 +47,7 @@ describe("PRCard", () => {
     expect(screen.getByText("−3")).toBeInTheDocument()
   })
 
-  it("renderiza relTime baseado em last_seen_at", () => {
+  it("renderiza relTime baseado em lastSeenAt", () => {
     render(<PRCard pr={makePR()} onOpen={vi.fn()} />)
     expect(screen.getByText(/visto há 5min/)).toBeInTheDocument()
   })
@@ -110,15 +110,13 @@ describe("PRCard", () => {
     expect(onOpen).not.toHaveBeenCalled()
   })
 
-  it("renderiza badge DRAFT quando is_draft=true", () => {
-    render(<PRCard pr={makePR({ is_draft: true })} onOpen={vi.fn()} />)
+  it("renderiza badge DRAFT quando isDraft=true", () => {
+    render(<PRCard pr={makePR({ isDraft: true })} onOpen={vi.fn()} />)
     expect(screen.getByText("DRAFT")).toBeInTheDocument()
   })
 
-  it("renderiza badge APPROVED quando review_state=APPROVED", () => {
-    render(
-      <PRCard pr={makePR({ review_state: "APPROVED" })} onOpen={vi.fn()} />
-    )
+  it("renderiza badge APPROVED quando reviewState=APPROVED", () => {
+    render(<PRCard pr={makePR({ reviewState: "APPROVED" })} onOpen={vi.fn()} />)
     expect(screen.getByText("aprovado")).toBeInTheDocument()
   })
 })

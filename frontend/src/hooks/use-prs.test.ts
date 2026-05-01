@@ -23,13 +23,13 @@ function pr(id: string): PRRecord {
     author: "alice",
     url: `https://github.com/owner/repo/pull/${id}`,
     state: "OPEN",
-    is_draft: false,
+    isDraft: false,
     additions: 0,
     deletions: 0,
-    review_pending: true,
-    review_state: "PENDING",
-    first_seen_at: "2026-01-01T00:00:00Z",
-    last_seen_at: "2026-01-01T00:00:00Z",
+    reviewPending: true,
+    reviewState: "PENDING",
+    firstSeenAt: "2026-01-01T00:00:00Z",
+    lastSeenAt: "2026-01-01T00:00:00Z",
   }
 }
 

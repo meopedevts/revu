@@ -59,7 +59,7 @@ tasks:
       - pnpm install
 
   gen:
-    desc: Gera frontend/src/shared/generated/constants.ts a partir das constantes Go (config.Defaults/Limits + uilimits)
+    desc: Gera frontend/src/generated/constants.ts a partir das constantes Go (config.Defaults/Limits + uilimits)
     cmds:
       - go generate ./internal/config/...
     sources:
@@ -69,7 +69,7 @@ tasks:
       - internal/uilimits/uilimits.go
       - cmd/gentsconst/main.go
     generates:
-      - frontend/src/shared/generated/constants.ts
+      - frontend/src/generated/constants.ts
 
   lint:frontend:
     desc: ESLint flat no frontend (zero warnings esperado)

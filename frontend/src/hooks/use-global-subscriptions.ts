@@ -1,6 +1,8 @@
 import { useQueryClient } from "@tanstack/react-query"
 import { useCallback } from "react"
 
+import { toProfile } from "@/bridge/mappers"
+import type { ProfileWire } from "@/bridge/wire"
 import { useWailsEvent } from "@/hooks/use-wails-event"
 import { queryKeys } from "@/lib/query/keys"
 import type { Profile } from "@/lib/types"
@@ -51,11 +53,14 @@ export function useGlobalSubscriptions(): void {
     )
   )
 
-  useWailsEvent<Profile | undefined>(
+  // O evento vem do Go com chaves snake_case (ProfileWire) — convertemos
+  // pra camelCase antes de gravar no cache pra alinhar com o que
+  // listProfiles/getActiveProfile retornam via bridge.
+  useWailsEvent<ProfileWire | undefined>(
     "profiles:active-changed",
     useCallback(
       (p) => {
-        if (p) qc.setQueryData<Profile>(queryKeys.profiles.active, p)
+        if (p) qc.setQueryData<Profile>(queryKeys.profiles.active, toProfile(p))
         else void qc.invalidateQueries({ queryKey: queryKeys.profiles.active })
       },
       [qc]

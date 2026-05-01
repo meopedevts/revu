@@ -7,13 +7,13 @@
 // Regenerate with: task gen
 
 export const DEFAULT_CONFIG = {
-  polling_interval_seconds: 300,
-  notifications_enabled: true,
-  notification_timeout_seconds: 5,
-  notification_cooldown_minutes: 360,
-  status_refresh_every_n_ticks: 12,
-  history_retention_days: 30,
-  start_hidden: true,
+  pollingIntervalSeconds: 300,
+  notificationsEnabled: true,
+  notificationTimeoutSeconds: 5,
+  notificationCooldownMinutes: 360,
+  statusRefreshEveryNTicks: 12,
+  historyRetentionDays: 30,
+  startHidden: true,
   window: {
     width: 480,
     height: 640,
