@@ -1,25 +1,26 @@
 import { useCallback, useMemo, useState } from "react"
 import { toast } from "sonner"
 
-import { mergePR, openPRInBrowser } from "@/bridge"
-import { Skeleton } from "@/components/ui/skeleton"
-import { DETAILS_DIFF_LIMIT } from "@/generated/constants"
+import { mergePR } from "@/bridge"
 import { usePRDetails } from "@/hooks/use-pr-details"
+import { type MergeMethod, type PRState, type ReviewState } from "@/lib/types"
+
+import { PRDetailsErrorState } from "./error-state"
 import {
   derivePRState,
   deriveReviewState,
   mergeableNow,
   mergeBlockedReason,
-} from "@/lib/pr-state"
-import { type MergeMethod, type PRState, type ReviewState } from "@/lib/types"
-
+} from "./lib/derive-state"
+import { PRDetailsLoadingSkeleton } from "./loading-skeleton"
 import { PRDetailsBody } from "./pr-details-body"
 import { PRDetailsChecks } from "./pr-details-checks"
-import { PRDetailsDiff } from "./pr-details-diff"
+import { PRDetailsDiffSection } from "./pr-details-diff-section"
 import { PRDetailsFiles } from "./pr-details-files"
 import { PRDetailsHeader } from "./pr-details-header"
 import { PRDetailsMeta } from "./pr-details-meta"
 import { PRDetailsReviewers } from "./pr-details-reviewers"
+import { PRDetailsStats } from "./pr-details-stats"
 import { PRMergeDialog } from "./pr-merge-dialog"
 
 interface PRDetailsViewProps {
@@ -35,7 +36,6 @@ export function PRDetailsView({ prID, onBack }: PRDetailsViewProps) {
 
   const canMerge = useMemo(() => mergeableNow(details), [details])
   const blockReason = useMemo(() => mergeBlockedReason(details), [details])
-
   const prState = useMemo<PRState>(() => derivePRState(details), [details])
   const reviewState = useMemo<ReviewState>(
     () => deriveReviewState(details),
@@ -65,38 +65,18 @@ export function PRDetailsView({ prID, onBack }: PRDetailsViewProps) {
   }, [mergeMethod, details, prID, onBack, reload])
 
   if (loading && !details) {
-    return <LoadingSkeleton onBack={onBack} />
+    return <PRDetailsLoadingSkeleton onBack={onBack} />
   }
 
   if (error || !details) {
     return (
-      <div className="flex h-screen flex-col gap-3 bg-background p-3 text-foreground">
-        <button
-          type="button"
-          onClick={onBack}
-          className="self-start text-sm text-muted-foreground underline"
-        >
-          ← Voltar
-        </button>
-        <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center">
-          <div className="text-sm text-destructive">
-            {error ?? "não foi possível carregar o PR"}
-          </div>
-          <button
-            type="button"
-            onClick={() => void reload()}
-            className="text-xs underline"
-          >
-            tentar de novo
-          </button>
-        </div>
-      </div>
+      <PRDetailsErrorState
+        message={error ?? "não foi possível carregar o PR"}
+        onBack={onBack}
+        onRetry={() => void reload()}
+      />
     )
   }
-
-  const totalLines = details.additions + details.deletions
-  const diffTooBig = totalLines > DETAILS_DIFF_LIMIT
-  const diffEmpty = !diffTooBig && (diff === null || diff === "")
 
   return (
     <div className="flex h-screen flex-col gap-3 overflow-y-auto bg-background p-3 text-foreground">
@@ -113,20 +93,12 @@ export function PRDetailsView({ prID, onBack }: PRDetailsViewProps) {
 
       <PRDetailsMeta details={details} />
 
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-        <span>
-          <span className="font-mono text-emerald-600 dark:text-emerald-400">
-            +{details.additions}
-          </span>{" "}
-          <span className="font-mono text-rose-600 dark:text-rose-400">
-            −{details.deletions}
-          </span>
-        </span>
-        <span aria-hidden="true">·</span>
-        <span>{details.changedFiles} arquivos</span>
-        <span aria-hidden="true">·</span>
-        <span>{details.reviews.length} reviews</span>
-      </div>
+      <PRDetailsStats
+        additions={details.additions}
+        deletions={details.deletions}
+        changedFiles={details.changedFiles}
+        reviewCount={details.reviews.length}
+      />
 
       <PRDetailsChecks checks={details.statusChecks} />
 
@@ -151,18 +123,12 @@ export function PRDetailsView({ prID, onBack }: PRDetailsViewProps) {
         <PRDetailsFiles files={details.files} />
       </section>
 
-      <section className="space-y-1">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Diff
-        </h2>
-        {diffTooBig ? (
-          <BigPRPlaceholder url={details.url} totalLines={totalLines} />
-        ) : diffEmpty ? (
-          <div className="text-xs text-muted-foreground italic">diff vazio</div>
-        ) : (
-          <PRDetailsDiff diff={diff ?? ""} />
-        )}
-      </section>
+      <PRDetailsDiffSection
+        url={details.url}
+        additions={details.additions}
+        deletions={details.deletions}
+        diff={diff}
+      />
 
       <PRMergeDialog
         open={mergeMethod !== null}
@@ -175,48 +141,6 @@ export function PRDetailsView({ prID, onBack }: PRDetailsViewProps) {
         onConfirm={() => void handleConfirmMerge()}
         busy={merging}
       />
-    </div>
-  )
-}
-
-function LoadingSkeleton({ onBack }: { onBack: () => void }) {
-  return (
-    <div className="flex h-screen flex-col gap-3 bg-background p-3 text-foreground">
-      <button
-        type="button"
-        onClick={onBack}
-        className="self-start text-sm text-muted-foreground underline"
-      >
-        ← Voltar
-      </button>
-      <Skeleton className="h-6 w-3/4" />
-      <Skeleton className="h-3 w-1/2" />
-      <Skeleton className="h-24 w-full" />
-      <Skeleton className="h-40 w-full" />
-    </div>
-  )
-}
-
-function BigPRPlaceholder({
-  url,
-  totalLines,
-}: {
-  url: string
-  totalLines: number
-}) {
-  return (
-    <div className="flex flex-col items-start gap-2 rounded-lg border border-dashed border-border bg-muted/40 p-3 text-xs">
-      <div className="text-muted-foreground">
-        PR grande — {totalLines} linhas alteradas, acima do limite de{" "}
-        {DETAILS_DIFF_LIMIT}. Abra no GitHub para revisar o diff completo.
-      </div>
-      <button
-        type="button"
-        onClick={() => void openPRInBrowser(url)}
-        className="text-primary underline"
-      >
-        Abrir no GitHub →
-      </button>
     </div>
   )
 }

@@ -2,8 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react"
 
 import { listHistoryPRs, listPendingPRs } from "@/bridge"
 import { POLL_SAFETY_INTERVAL_MS } from "@/generated/constants"
+import { useWailsEvent } from "@/hooks/use-wails-event"
 import type { PRRecord } from "@/lib/types"
-import { EventsOff, EventsOn } from "@/wailsjs/runtime/runtime"
 
 interface PollCompletedEvent {
   kind: string
@@ -63,23 +63,23 @@ export function usePRs(): UsePRsResult {
     return job
   }, [])
 
+  useWailsEvent("pr:new", () => {
+    void reload()
+  })
+  useWailsEvent("pr:status-changed", () => {
+    void reload()
+  })
+  useWailsEvent<PollCompletedEvent | undefined>("poll:completed", (raw) => {
+    if (raw?.at) {
+      setLastPollAt(new Date(raw.at))
+    } else {
+      setLastPollAt(new Date())
+    }
+    setLastPollErr(raw?.err ?? null)
+  })
+
   useEffect(() => {
     void reload()
-
-    EventsOn("pr:new", () => {
-      void reload()
-    })
-    EventsOn("pr:status-changed", () => {
-      void reload()
-    })
-    EventsOn("poll:completed", (raw: PollCompletedEvent | undefined) => {
-      if (raw?.at) {
-        setLastPollAt(new Date(raw.at))
-      } else {
-        setLastPollAt(new Date())
-      }
-      setLastPollErr(raw?.err ?? null)
-    })
 
     // Safety net: if events are lost (dev reloads, Wails reconnect), re-read
     // the store every couple minutes regardless.
@@ -88,9 +88,6 @@ export function usePRs(): UsePRsResult {
     }, POLL_SAFETY_INTERVAL_MS)
 
     return () => {
-      EventsOff("pr:new")
-      EventsOff("pr:status-changed")
-      EventsOff("poll:completed")
       clearInterval(safety)
     }
   }, [reload])

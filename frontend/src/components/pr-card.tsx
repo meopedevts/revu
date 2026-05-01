@@ -10,7 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { relTime } from "@/lib/format/time"
+import { useRelativeTime } from "@/hooks/use-relative-time"
 import { type PRRecord, reviewStateOf, statusOf } from "@/lib/types"
 
 interface PRCardProps {
@@ -21,6 +21,7 @@ interface PRCardProps {
 export function PRCard({ pr, onOpen }: PRCardProps) {
   const status = statusOf(pr)
   const review = reviewStateOf(pr)
+  const seen = useRelativeTime(pr.last_seen_at, { prefix: "visto " })
 
   function handleClick() {
     onOpen(pr.id)
@@ -67,7 +68,7 @@ export function PRCard({ pr, onOpen }: PRCardProps) {
           </span>
         </div>
         <div className="flex items-center gap-1">
-          <span>visto {relTime(pr.last_seen_at)}</span>
+          <span>{seen}</span>
           <ChevronRight className="size-3" aria-hidden="true" />
         </div>
       </CardContent>

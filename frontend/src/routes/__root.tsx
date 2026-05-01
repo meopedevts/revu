@@ -1,11 +1,12 @@
 import { Outlet, createRootRoute, useRouter } from "@tanstack/react-router"
-import { lazy, Suspense, useEffect } from "react"
+import { lazy, Suspense } from "react"
 
 import { RouteErrorFallback } from "@/components/route-error-fallback"
 import { isSettingsSection } from "@/components/settings/settings-sidebar"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import { EventsOff, EventsOn } from "@/wailsjs/runtime/runtime"
+import { useEscapeKey } from "@/hooks/use-escape-key"
+import { useWailsEvent } from "@/hooks/use-wails-event"
 
 interface NavigatePayload {
   target: string
@@ -36,34 +37,24 @@ export const Route = createRootRoute({
 function RootComponent() {
   const router = useRouter()
 
-  useEffect(() => {
-    EventsOn("ui:navigate", (payload: NavigatePayload | undefined) => {
-      if (!payload) return
-      if (payload.target === "settings") {
-        const raw = payload.section?.trim() ?? ""
-        const section = isSettingsSection(raw) ? raw : "sync"
-        void router.navigate({
-          to: "/settings/$section",
-          params: { section },
-        })
-      } else if (payload.target === "main") {
-        void router.navigate({ to: "/" })
-      }
-    })
-    return () => {
-      EventsOff("ui:navigate")
+  useWailsEvent<NavigatePayload | undefined>("ui:navigate", (payload) => {
+    if (!payload) return
+    if (payload.target === "settings") {
+      const raw = payload.section?.trim() ?? ""
+      const section = isSettingsSection(raw) ? raw : "sync"
+      void router.navigate({
+        to: "/settings/$section",
+        params: { section },
+      })
+    } else if (payload.target === "main") {
+      void router.navigate({ to: "/" })
     }
-  }, [router])
+  })
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return
-      if (router.state.location.pathname === "/") return
-      router.history.back()
-    }
-    window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
-  }, [router])
+  useEscapeKey(
+    () => router.history.back(),
+    router.state.location.pathname !== "/"
+  )
 
   return (
     <TooltipProvider delayDuration={300}>

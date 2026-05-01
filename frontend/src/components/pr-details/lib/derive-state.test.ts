@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest"
 
+import type { PRFullDetails, Review, StatusCheck } from "@/lib/types"
+
 import {
   derivePRState,
   deriveReviewState,
   mergeableNow,
   mergeBlockedReason,
-} from "./pr-state"
-import type { PRFullDetails, Review, StatusCheck } from "./types"
+} from "./derive-state"
 
 function makeDetails(overrides: Partial<PRFullDetails> = {}): PRFullDetails {
   return {
