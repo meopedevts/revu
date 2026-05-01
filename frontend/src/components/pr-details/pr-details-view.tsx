@@ -1,25 +1,25 @@
 import { useCallback, useMemo, useState } from "react"
 import { toast } from "sonner"
 
+import { mergePR, openPRInBrowser } from "@/bridge"
 import { Skeleton } from "@/components/ui/skeleton"
-import { usePRDetails } from "@/lib/hooks/use-pr-details"
+import { DETAILS_DIFF_LIMIT } from "@/generated/constants"
+import { usePRDetails } from "@/hooks/use-pr-details"
 import {
   type MergeMethod,
   type PRFullDetails,
   type PRState,
   type ReviewState,
 } from "@/lib/types"
-import { mergePR, openPRInBrowser } from "@/shared/bridge"
-import { DETAILS_DIFF_LIMIT } from "@/shared/generated/constants"
 
-import { PRDetailsBody } from "./pr-details/pr-details-body"
-import { PRDetailsChecks } from "./pr-details/pr-details-checks"
-import { PRDetailsDiff } from "./pr-details/pr-details-diff"
-import { PRDetailsFiles } from "./pr-details/pr-details-files"
-import { PRDetailsHeader } from "./pr-details/pr-details-header"
-import { PRDetailsMeta } from "./pr-details/pr-details-meta"
-import { PRDetailsReviewers } from "./pr-details/pr-details-reviewers"
-import { PRMergeDialog } from "./pr-details/pr-merge-dialog"
+import { PRDetailsBody } from "./pr-details-body"
+import { PRDetailsChecks } from "./pr-details-checks"
+import { PRDetailsDiff } from "./pr-details-diff"
+import { PRDetailsFiles } from "./pr-details-files"
+import { PRDetailsHeader } from "./pr-details-header"
+import { PRDetailsMeta } from "./pr-details-meta"
+import { PRDetailsReviewers } from "./pr-details-reviewers"
+import { PRMergeDialog } from "./pr-merge-dialog"
 
 interface PRDetailsViewProps {
   prID: string

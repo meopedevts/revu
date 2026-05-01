@@ -1,5 +1,6 @@
 import { ArrowLeft, ExternalLink, GitMerge, Loader2 } from "lucide-react"
 
+import { openPRInBrowser } from "@/bridge"
 import { ReviewBadge } from "@/components/review-badge"
 import { StatusBadge } from "@/components/status-badge"
 import { Badge } from "@/components/ui/badge"
@@ -11,7 +12,6 @@ import {
 } from "@/components/ui/tooltip"
 import { type PRFullDetails, type ReviewState, type PRState } from "@/lib/types"
 import { cn } from "@/lib/utils"
-import { openPRInBrowser } from "@/shared/bridge"
 
 interface PRDetailsHeaderProps {
   details: PRFullDetails

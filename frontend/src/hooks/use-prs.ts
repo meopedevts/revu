@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 
+import { listHistoryPRs, listPendingPRs } from "@/bridge"
+import { POLL_SAFETY_INTERVAL_MS } from "@/generated/constants"
 import type { PRRecord } from "@/lib/types"
-import { listHistoryPRs, listPendingPRs } from "@/shared/bridge"
-import { POLL_SAFETY_INTERVAL_MS } from "@/shared/generated/constants"
 import { EventsOff, EventsOn } from "@/wailsjs/runtime/runtime"
 
 interface PollCompletedEvent {

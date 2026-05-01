@@ -9,8 +9,8 @@ import {
 } from "react"
 import { toast } from "sonner"
 
+import { getTheme, setTheme as setThemeRemote } from "@/bridge"
 import type { Theme } from "@/lib/types"
-import { getTheme, setTheme as setThemeRemote } from "@/shared/bridge"
 
 const STORAGE_KEY = "revu:theme"
 

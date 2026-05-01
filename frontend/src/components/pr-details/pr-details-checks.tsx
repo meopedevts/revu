@@ -1,5 +1,6 @@
 import { Check, ExternalLink, Loader2, X } from "lucide-react"
 
+import { openPRInBrowser } from "@/bridge"
 import { Badge } from "@/components/ui/badge"
 import {
   Tooltip,
@@ -8,7 +9,6 @@ import {
 } from "@/components/ui/tooltip"
 import type { StatusCheck } from "@/lib/types"
 import { cn } from "@/lib/utils"
-import { openPRInBrowser } from "@/shared/bridge"
 
 interface PRDetailsChecksProps {
   checks: StatusCheck[]

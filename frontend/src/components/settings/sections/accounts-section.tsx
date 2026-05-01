@@ -2,6 +2,7 @@ import { MoreHorizontal, Plus } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
 import { toast } from "sonner"
 
+import { deleteProfile, listProfiles, setActiveProfile } from "@/bridge"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,7 +23,6 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import type { Profile } from "@/lib/types"
-import { deleteProfile, listProfiles, setActiveProfile } from "@/shared/bridge"
 
 import { AddAccountDialog } from "./add-account-dialog"
 import { EditAccountDialog } from "./edit-account-dialog"
