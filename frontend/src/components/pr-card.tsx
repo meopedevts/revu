@@ -66,7 +66,7 @@ export function PRCard({ pr, onOpen }: PRCardProps) {
           </span>
         </div>
         <div className="flex items-center gap-1">
-          <span>visto {relTime(pr.last_seen_at)}</span>
+          <span>visto {relTime(pr.lastSeenAt)}</span>
           <ChevronRight className="size-3" aria-hidden="true" />
         </div>
       </CardContent>

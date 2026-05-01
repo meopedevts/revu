@@ -4,6 +4,8 @@ import { useForm, type UseFormReturn } from "react-hook-form"
 import { toast } from "sonner"
 
 import { getConfig, updateConfig } from "@/lib/bridge"
+import { toConfigValidationError } from "@/lib/bridge/mappers"
+import type { ConfigValidationErrorWire } from "@/lib/bridge/wire"
 import { configSchema } from "@/lib/schemas/config-schema"
 import {
   DEFAULT_CONFIG,
@@ -11,7 +13,7 @@ import {
   type ConfigValidationError,
 } from "@/lib/types"
 
-function isValidationError(err: unknown): err is ConfigValidationError {
+function isValidationErrorWire(err: unknown): err is ConfigValidationErrorWire {
   return (
     typeof err === "object" &&
     err !== null &&
@@ -20,12 +22,15 @@ function isValidationError(err: unknown): err is ConfigValidationError {
   )
 }
 
+// Backend ValidationError comes off the bridge with snake_case `field`
+// values (matching internal/config JSON tags). Translate to the
+// camelCase form paths used by react-hook-form before reporting back.
 function parseBackendError(err: unknown): ConfigValidationError | null {
-  if (isValidationError(err)) return err
+  if (isValidationErrorWire(err)) return toConfigValidationError(err)
   if (err instanceof Error) {
     try {
       const parsed = JSON.parse(err.message) as unknown
-      if (isValidationError(parsed)) return parsed
+      if (isValidationErrorWire(parsed)) return toConfigValidationError(parsed)
     } catch {
       return null
     }
@@ -93,8 +98,8 @@ export function useSettingsForm(): SettingsFormBag {
   const restoreDefaults = useCallback(() => {
     form.reset(DEFAULT_CONFIG, { keepDefaultValues: true })
     form.setValue(
-      "polling_interval_seconds",
-      DEFAULT_CONFIG.polling_interval_seconds,
+      "pollingIntervalSeconds",
+      DEFAULT_CONFIG.pollingIntervalSeconds,
       { shouldDirty: true, shouldValidate: true }
     )
   }, [form])

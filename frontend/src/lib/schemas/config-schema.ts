@@ -7,7 +7,7 @@ import { CONFIG_BOUNDS, VALID_THEMES } from "@/shared/generated/constants"
 // Client-side validation is for UX; the backend still enforces the same
 // rules on UpdateConfig.
 export const configSchema = z.object({
-  polling_interval_seconds: z
+  pollingIntervalSeconds: z
     .number()
     .int("deve ser inteiro")
     .min(
@@ -18,8 +18,8 @@ export const configSchema = z.object({
       CONFIG_BOUNDS.pollingIntervalSeconds.max,
       `máximo ${CONFIG_BOUNDS.pollingIntervalSeconds.max} segundos`
     ),
-  notifications_enabled: z.boolean(),
-  notification_timeout_seconds: z
+  notificationsEnabled: z.boolean(),
+  notificationTimeoutSeconds: z
     .number()
     .int("deve ser inteiro")
     .min(
@@ -30,7 +30,7 @@ export const configSchema = z.object({
       CONFIG_BOUNDS.notificationTimeoutSeconds.max,
       `máximo ${CONFIG_BOUNDS.notificationTimeoutSeconds.max} segundos`
     ),
-  status_refresh_every_n_ticks: z
+  statusRefreshEveryNTicks: z
     .number()
     .int("deve ser inteiro")
     .min(
@@ -41,7 +41,7 @@ export const configSchema = z.object({
       CONFIG_BOUNDS.statusRefreshEveryNTicks.max,
       `máximo ${CONFIG_BOUNDS.statusRefreshEveryNTicks.max} ticks`
     ),
-  history_retention_days: z
+  historyRetentionDays: z
     .number()
     .int("deve ser inteiro")
     .min(
@@ -52,7 +52,7 @@ export const configSchema = z.object({
       CONFIG_BOUNDS.historyRetentionDays.max,
       `máximo ${CONFIG_BOUNDS.historyRetentionDays.max} dias`
     ),
-  start_hidden: z.boolean(),
+  startHidden: z.boolean(),
   window: z.object({
     width: z
       .number()

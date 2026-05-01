@@ -96,20 +96,18 @@ export function AccountsSection() {
                 <div className="flex flex-1 flex-col gap-0.5">
                   <CardTitle className="flex items-center gap-2">
                     {p.name}
-                    {p.is_active ? (
-                      <Badge variant="default">Ativo</Badge>
-                    ) : null}
+                    {p.isActive ? <Badge variant="default">Ativo</Badge> : null}
                   </CardTitle>
                   <CardDescription>
-                    {p.auth_method === "keyring"
+                    {p.authMethod === "keyring"
                       ? "Token (keyring)"
                       : "gh auth login"}
-                    {p.github_username ? ` · @${p.github_username}` : ""}
+                    {p.githubUsername ? ` · @${p.githubUsername}` : ""}
                   </CardDescription>
                 </div>
               </CardHeader>
               <CardContent className="flex items-center justify-end gap-2">
-                {!p.is_active ? (
+                {!p.isActive ? (
                   <Button
                     type="button"
                     variant="outline"
@@ -134,7 +132,7 @@ export function AccountsSection() {
                   size="sm"
                   onClick={() => setConfirmDelete(p)}
                   aria-label={`Remover ${p.name}`}
-                  disabled={p.is_active}
+                  disabled={p.isActive}
                 >
                   <MoreHorizontal />
                 </Button>

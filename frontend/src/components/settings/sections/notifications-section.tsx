@@ -23,7 +23,7 @@ export function NotificationsSection() {
 
       <FormField
         control={form.control}
-        name="notifications_enabled"
+        name="notificationsEnabled"
         render={({ field }) => (
           <FormItem className="flex flex-row items-center justify-between gap-4">
             <div className="space-y-0.5">
@@ -41,7 +41,7 @@ export function NotificationsSection() {
 
       <FormField
         control={form.control}
-        name="notification_timeout_seconds"
+        name="notificationTimeoutSeconds"
         render={({ field }) => (
           <FormItem>
             <FormLabel>Timeout da notificação (s)</FormLabel>

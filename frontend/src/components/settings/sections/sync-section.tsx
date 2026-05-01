@@ -20,7 +20,7 @@ function formatInterval(seconds: number): string {
 
 export function SyncSection() {
   const form = useSettingsFormContext()
-  const pollingValue = form.watch("polling_interval_seconds")
+  const pollingValue = form.watch("pollingIntervalSeconds")
 
   return (
     <div className="flex flex-col gap-4">
@@ -33,7 +33,7 @@ export function SyncSection() {
 
       <FormField
         control={form.control}
-        name="polling_interval_seconds"
+        name="pollingIntervalSeconds"
         render={({ field }) => (
           <FormItem>
             <div className="flex items-center justify-between">
@@ -58,7 +58,7 @@ export function SyncSection() {
 
       <FormField
         control={form.control}
-        name="status_refresh_every_n_ticks"
+        name="statusRefreshEveryNTicks"
         render={({ field }) => (
           <FormItem>
             <FormLabel>Revalidar status a cada N polls</FormLabel>

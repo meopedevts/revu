@@ -1,6 +1,22 @@
+import {
+  fromAppConfig,
+  fromCreateProfile,
+  fromProfileUpdate,
+  toAppConfig,
+  toPRRecord,
+  toProfile,
+  type CreateProfileInput,
+} from "./bridge/mappers"
+import type {
+  AppConfigWire,
+  CreateProfileWireRequest,
+  PRFullDetailsWire,
+  PRRecordWire,
+  ProfileWire,
+  UpdateProfileWireRequest,
+} from "./bridge/wire"
 import type {
   AppConfig,
-  AuthMethod,
   MergeMethod,
   PRFullDetails,
   PRRecord,
@@ -9,43 +25,31 @@ import type {
   Theme,
 } from "./types"
 
-interface CreateProfileRequest {
-  name: string
-  auth_method: AuthMethod
-  token: string
-  make_active: boolean
-}
-
-interface UpdateProfileRequest {
-  id: string
-  name?: string
-  auth_method?: AuthMethod
-  token?: string
-}
-
 // Wails v2 injects Go bindings under window.go.<package>.<Struct>. This
 // module isolates that runtime contract so the rest of the app does not
 // depend on the generated wailsjs files (which require main.go at the
-// module root — our entrypoint lives at cmd/revu/main.go instead).
+// module root — our entrypoint lives at cmd/revu/main.go instead). The
+// bridge speaks wire types (snake_case where Go does); mappers translate
+// to/from the camelCase types in `./types` before anything is exposed.
 interface WailsBridge {
-  ListPendingPRs(): Promise<PRRecord[]>
-  ListHistoryPRs(): Promise<PRRecord[]>
+  ListPendingPRs(): Promise<PRRecordWire[]>
+  ListHistoryPRs(): Promise<PRRecordWire[]>
   OpenPRInBrowser(url: string): Promise<void>
   RefreshNow(): Promise<void>
   ShowWindow(): Promise<void>
   HideWindow(): Promise<void>
-  GetConfig(): Promise<AppConfig>
-  UpdateConfig(c: AppConfig): Promise<void>
+  GetConfig(): Promise<AppConfigWire>
+  UpdateConfig(c: AppConfigWire): Promise<void>
   GetTheme?(): Promise<string>
   SetTheme?(theme: string): Promise<void>
   ClearHistory(): Promise<number>
-  GetPRDetails?(prID: string): Promise<PRFullDetails>
+  GetPRDetails?(prID: string): Promise<PRFullDetailsWire>
   GetPRDiff?(prID: string): Promise<string>
   MergePR?(prID: string, method: MergeMethod): Promise<void>
-  ListProfiles?(): Promise<Profile[]>
-  GetActiveProfile?(): Promise<Profile>
-  CreateProfile?(req: CreateProfileRequest): Promise<Profile>
-  UpdateProfile?(req: UpdateProfileRequest): Promise<Profile>
+  ListProfiles?(): Promise<ProfileWire[]>
+  GetActiveProfile?(): Promise<ProfileWire>
+  CreateProfile?(req: CreateProfileWireRequest): Promise<ProfileWire>
+  UpdateProfile?(req: UpdateProfileWireRequest): Promise<ProfileWire>
   DeleteProfile?(id: string): Promise<void>
   SetActiveProfile?(id: string): Promise<void>
   ValidateToken?(token: string): Promise<string>
@@ -68,13 +72,15 @@ function bridge(): WailsBridge | undefined {
 export async function listPendingPRs(): Promise<PRRecord[]> {
   const b = bridge()
   if (!b) return []
-  return b.ListPendingPRs()
+  const wire = await b.ListPendingPRs()
+  return wire.map(toPRRecord)
 }
 
 export async function listHistoryPRs(): Promise<PRRecord[]> {
   const b = bridge()
   if (!b) return []
-  return b.ListHistoryPRs()
+  const wire = await b.ListHistoryPRs()
+  return wire.map(toPRRecord)
 }
 
 export async function openPRInBrowser(url: string): Promise<void> {
@@ -92,13 +98,13 @@ export async function hideWindow(): Promise<void> {
 export async function getConfig(): Promise<AppConfig | null> {
   const b = bridge()
   if (!b) return null
-  return b.GetConfig()
+  return toAppConfig(await b.GetConfig())
 }
 
 export async function updateConfig(c: AppConfig): Promise<void> {
   const b = bridge()
   if (!b) throw new Error("bridge unavailable")
-  await b.UpdateConfig(c)
+  await b.UpdateConfig(fromAppConfig(c))
 }
 
 export async function getTheme(): Promise<Theme> {
@@ -153,28 +159,26 @@ export async function mergePR(
 export async function listProfiles(): Promise<Profile[]> {
   const b = bridge()
   if (!b?.ListProfiles) return []
-  return b.ListProfiles()
+  const wire = await b.ListProfiles()
+  return wire.map(toProfile)
 }
 
 export async function getActiveProfile(): Promise<Profile | null> {
   const b = bridge()
   if (!b?.GetActiveProfile) return null
   try {
-    return await b.GetActiveProfile()
+    return toProfile(await b.GetActiveProfile())
   } catch {
     return null
   }
 }
 
-export async function createProfile(input: {
-  name: string
-  auth_method: AuthMethod
-  token: string
-  make_active: boolean
-}): Promise<Profile> {
+export async function createProfile(
+  input: CreateProfileInput
+): Promise<Profile> {
   const b = bridge()
   if (!b?.CreateProfile) throw new Error("bridge unavailable")
-  return b.CreateProfile(input)
+  return toProfile(await b.CreateProfile(fromCreateProfile(input)))
 }
 
 export async function updateProfile(
@@ -183,7 +187,7 @@ export async function updateProfile(
 ): Promise<Profile> {
   const b = bridge()
   if (!b?.UpdateProfile) throw new Error("bridge unavailable")
-  return b.UpdateProfile({ id, ...patch })
+  return toProfile(await b.UpdateProfile(fromProfileUpdate(id, patch)))
 }
 
 export async function deleteProfile(id: string): Promise<void> {

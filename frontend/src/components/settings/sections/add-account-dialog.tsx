@@ -79,9 +79,9 @@ export function AddAccountDialog({
     try {
       await createProfile({
         name: name.trim(),
-        auth_method: method,
+        authMethod: method,
         token,
-        make_active: makeActive,
+        makeActive,
       })
       toast.success("Conta adicionada")
       reset()
