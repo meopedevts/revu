@@ -1,44 +1,54 @@
-import type { AuthMethod, Profile, ProfileUpdate } from "@/lib/types"
+import type { Profile, ProfileUpdate } from "@/lib/types"
 
 import { requireBridge } from "./client"
+import {
+  fromCreateProfile,
+  fromProfileUpdate,
+  toProfile,
+  type CreateProfileInput,
+} from "./mappers"
+import type {
+  CreateProfileWireRequest,
+  ProfileWire,
+  UpdateProfileWireRequest,
+} from "./wire"
 
-export interface CreateProfileRequest {
-  name: string
-  auth_method: AuthMethod
-  token: string
-  make_active: boolean
-}
-
-export interface UpdateProfileRequest {
-  id: string
-  name?: string
-  auth_method?: AuthMethod
-  token?: string
-}
+export type { CreateProfileInput } from "./mappers"
 
 export interface ProfilesBridge {
-  ListProfiles(): Promise<Profile[]>
-  GetActiveProfile(): Promise<Profile>
-  CreateProfile(req: CreateProfileRequest): Promise<Profile>
-  UpdateProfile(req: UpdateProfileRequest): Promise<Profile>
+  ListProfiles(): Promise<ProfileWire[]>
+  GetActiveProfile(): Promise<ProfileWire>
+  CreateProfile(req: CreateProfileWireRequest): Promise<ProfileWire>
+  UpdateProfile(req: UpdateProfileWireRequest): Promise<ProfileWire>
   DeleteProfile(id: string): Promise<void>
   SetActiveProfile(id: string): Promise<void>
   ValidateToken(token: string): Promise<string>
 }
 
-export const listProfiles = (): Promise<Profile[]> =>
-  requireBridge("ListProfiles")()
+export async function listProfiles(): Promise<Profile[]> {
+  return (await requireBridge("ListProfiles")()).map(toProfile)
+}
 
-export const getActiveProfile = (): Promise<Profile> =>
-  requireBridge("GetActiveProfile")()
+export async function getActiveProfile(): Promise<Profile> {
+  return toProfile(await requireBridge("GetActiveProfile")())
+}
 
-export const createProfile = (input: CreateProfileRequest): Promise<Profile> =>
-  requireBridge("CreateProfile")(input)
+export async function createProfile(
+  input: CreateProfileInput
+): Promise<Profile> {
+  return toProfile(
+    await requireBridge("CreateProfile")(fromCreateProfile(input))
+  )
+}
 
-export const updateProfile = (
+export async function updateProfile(
   id: string,
   patch: ProfileUpdate
-): Promise<Profile> => requireBridge("UpdateProfile")({ id, ...patch })
+): Promise<Profile> {
+  return toProfile(
+    await requireBridge("UpdateProfile")(fromProfileUpdate(id, patch))
+  )
+}
 
 export const deleteProfile = (id: string): Promise<void> =>
   requireBridge("DeleteProfile")(id)

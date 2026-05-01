@@ -21,7 +21,7 @@ interface PRCardProps {
 export function PRCard({ pr, onOpen }: PRCardProps) {
   const status = statusOf(pr)
   const review = reviewStateOf(pr)
-  const seen = useRelativeTime(pr.last_seen_at, { prefix: "visto " })
+  const seen = useRelativeTime(pr.lastSeenAt, { prefix: "visto " })
 
   function handleClick() {
     onOpen(pr.id)

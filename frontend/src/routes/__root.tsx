@@ -1,11 +1,12 @@
 import { Outlet, createRootRoute, useRouter } from "@tanstack/react-router"
-import { lazy, Suspense } from "react"
+import { lazy, Suspense, useCallback } from "react"
 
 import { RouteErrorFallback } from "@/components/route-error-fallback"
 import { isSettingsSection } from "@/components/settings/settings-sidebar"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { useEscapeKey } from "@/hooks/use-escape-key"
+import { useGlobalSubscriptions } from "@/hooks/use-global-subscriptions"
 import { useWailsEvent } from "@/hooks/use-wails-event"
 
 interface NavigatePayload {
@@ -36,20 +37,27 @@ export const Route = createRootRoute({
 
 function RootComponent() {
   const router = useRouter()
+  useGlobalSubscriptions()
 
-  useWailsEvent<NavigatePayload | undefined>("ui:navigate", (payload) => {
-    if (!payload) return
-    if (payload.target === "settings") {
-      const raw = payload.section?.trim() ?? ""
-      const section = isSettingsSection(raw) ? raw : "sync"
-      void router.navigate({
-        to: "/settings/$section",
-        params: { section },
-      })
-    } else if (payload.target === "main") {
-      void router.navigate({ to: "/" })
-    }
-  })
+  useWailsEvent<NavigatePayload | undefined>(
+    "ui:navigate",
+    useCallback(
+      (payload) => {
+        if (!payload) return
+        if (payload.target === "settings") {
+          const raw = payload.section?.trim() ?? ""
+          const section = isSettingsSection(raw) ? raw : "sync"
+          void router.navigate({
+            to: "/settings/$section",
+            params: { section },
+          })
+        } else if (payload.target === "main") {
+          void router.navigate({ to: "/" })
+        }
+      },
+      [router]
+    )
+  )
 
   useEscapeKey(
     () => router.history.back(),

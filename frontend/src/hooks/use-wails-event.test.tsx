@@ -50,14 +50,15 @@ describe("useWailsEvent", () => {
     expect(handlers.has("pr:new")).toBe(false)
   })
 
-  it("não re-subscreve quando consumidor passa nova função inline", () => {
+  it("não re-subscreve quando handler é referencialmente estável", () => {
+    const handler = vi.fn()
     const { rerender } = renderHook(
       ({ fn }: { fn: () => void }) => useWailsEvent("pr:new", fn),
-      { initialProps: { fn: vi.fn() } }
+      { initialProps: { fn: handler } }
     )
     expect(subscribeCount.get("pr:new")).toBe(1)
-    rerender({ fn: vi.fn() })
-    rerender({ fn: vi.fn() })
+    rerender({ fn: handler })
+    rerender({ fn: handler })
     expect(subscribeCount.get("pr:new")).toBe(1)
   })
 

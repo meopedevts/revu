@@ -8,6 +8,7 @@ interface PRDetailsDiffSectionProps {
   additions: number
   deletions: number
   diff: string | null
+  diffError: Error | null
 }
 
 export function PRDetailsDiffSection({
@@ -15,10 +16,12 @@ export function PRDetailsDiffSection({
   additions,
   deletions,
   diff,
+  diffError,
 }: PRDetailsDiffSectionProps) {
   const totalLines = additions + deletions
   const diffTooBig = totalLines > DETAILS_DIFF_LIMIT
-  const diffEmpty = !diffTooBig && (diff === null || diff === "")
+  const diffFailed = !diffTooBig && diffError !== null
+  const diffEmpty = !diffTooBig && !diffFailed && (diff === null || diff === "")
 
   return (
     <section className="space-y-1">
@@ -27,6 +30,10 @@ export function PRDetailsDiffSection({
       </h2>
       {diffTooBig ? (
         <PRDetailsBigPRPlaceholder url={url} totalLines={totalLines} />
+      ) : diffFailed ? (
+        <div className="text-xs text-destructive">
+          falha ao carregar diff: {diffError?.message ?? "erro desconhecido"}
+        </div>
       ) : diffEmpty ? (
         <div className="text-xs text-muted-foreground italic">diff vazio</div>
       ) : (

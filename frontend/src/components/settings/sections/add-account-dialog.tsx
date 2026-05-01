@@ -2,7 +2,7 @@ import { Eye, Loader2 } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
 
-import { createProfile, validateToken } from "@/bridge"
+import { validateToken } from "@/bridge"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -15,28 +15,28 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { useCreateProfile } from "@/hooks/mutations/use-create-profile"
 import type { AuthMethod } from "@/lib/types"
 
 interface AddAccountDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onCreated: () => void
 }
 
 export function AddAccountDialog({
   open,
   onOpenChange,
-  onCreated,
 }: AddAccountDialogProps) {
   const [name, setName] = useState("")
   const [method, setMethod] = useState<AuthMethod>("keyring")
   const [token, setToken] = useState("")
   const [makeActive, setMakeActive] = useState(true)
   const [revealing, setRevealing] = useState(false)
-  const [submitting, setSubmitting] = useState(false)
   const [previewedUsername, setPreviewedUsername] = useState<string | null>(
     null
   )
+  const create = useCreateProfile()
+  const submitting = create.isPending
 
   function reset() {
     setName("")
@@ -75,24 +75,20 @@ export function AddAccountDialog({
       toast.error("Informe o token")
       return
     }
-    setSubmitting(true)
     try {
-      await createProfile({
+      await create.mutateAsync({
         name: name.trim(),
-        auth_method: method,
+        authMethod: method,
         token,
-        make_active: makeActive,
+        makeActive,
       })
       toast.success("Conta adicionada")
       reset()
       onOpenChange(false)
-      onCreated()
     } catch (err: unknown) {
       toast.error(
         err instanceof Error ? err.message : "Falha ao adicionar conta"
       )
-    } finally {
-      setSubmitting(false)
     }
   }
 
