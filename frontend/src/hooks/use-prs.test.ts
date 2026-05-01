@@ -117,8 +117,14 @@ describe("usePRs", () => {
       expect(listPendingPRs).toHaveBeenCalledTimes(1)
     })
 
-    act(() => {
+    // Duas reloads concorrentes enquanto o primeiro fetch ainda está pending —
+    // react-query mantém a query inflight e não dispara fetch extra. Disparo
+    // fire-and-forget pra não awaitar invalidateQueries (a queryFn travada
+    // nunca resolveria).
+    await act(async () => {
       void result.current.reload()
+      void result.current.reload()
+      await new Promise((r) => setTimeout(r, 50))
     })
 
     expect(listPendingPRs).toHaveBeenCalledTimes(1)

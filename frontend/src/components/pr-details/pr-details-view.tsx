@@ -29,7 +29,8 @@ interface PRDetailsViewProps {
 }
 
 export function PRDetailsView({ prID, onBack }: PRDetailsViewProps) {
-  const { details, diff, loading, error, reload } = usePRDetails(prID)
+  const { details, diff, diffError, loading, error, reload } =
+    usePRDetails(prID)
   const mergeMutation = useMergePR()
   const merging = mergeMutation.isPending
 
@@ -95,7 +96,9 @@ export function PRDetailsView({ prID, onBack }: PRDetailsViewProps) {
 
   const totalLines = details.additions + details.deletions
   const diffTooBig = totalLines > DETAILS_DIFF_LIMIT
-  const diffEmpty = !diffTooBig && (diff === null || diff === "")
+  const diffFailed = !diffTooBig && diffError !== null
+  const diffEmpty =
+    !diffTooBig && !diffFailed && (diff === null || diff === "")
 
   return (
     <div className="flex h-screen flex-col gap-3 overflow-y-auto bg-background p-3 text-foreground">
@@ -156,6 +159,10 @@ export function PRDetailsView({ prID, onBack }: PRDetailsViewProps) {
         </h2>
         {diffTooBig ? (
           <BigPRPlaceholder url={details.url} totalLines={totalLines} />
+        ) : diffFailed ? (
+          <div className="text-xs text-destructive">
+            falha ao carregar diff: {diffError?.message ?? "erro desconhecido"}
+          </div>
         ) : diffEmpty ? (
           <div className="text-xs text-muted-foreground italic">diff vazio</div>
         ) : (

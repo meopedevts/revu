@@ -7,6 +7,7 @@ import type { PRFullDetails } from "@/lib/types"
 interface UsePRDetailsResult {
   details: PRFullDetails | null
   diff: string | null
+  diffError: Error | null
   loading: boolean
   error: string | null
   reload: () => Promise<void>
@@ -19,8 +20,13 @@ function errorMessage(err: unknown): string {
 
 /**
  * usePRDetails busca metadata e diff em paralelo via react-query. A queryKey
- * inclui prID, então trocar de PR cancela requests antigos automaticamente —
- * substitui o fetchId ref que ficava na implementação manual.
+ * inclui prID, então trocar de PR isola estado e resultados antigos por chave
+ * de cache (sem cancelamento real da request em andamento — o Wails bridge
+ * não expõe AbortSignal).
+ *
+ * O diff é tratado como best-effort: se falhar, `diff` fica null e o consumer
+ * pode mostrar o fallback "abrir no GitHub" sem bloquear a tela inteira.
+ * Apenas erro do `details` é fatal.
  */
 export function usePRDetails(prID: string | null): UsePRDetailsResult {
   const enabled = !!prID
@@ -35,12 +41,12 @@ export function usePRDetails(prID: string | null): UsePRDetailsResult {
     enabled,
   })
 
-  const error = detailsQ.error ?? diffQ.error
   return {
     details: detailsQ.data ?? null,
     diff: diffQ.data ?? null,
+    diffError: diffQ.error ?? null,
     loading: detailsQ.isLoading || diffQ.isLoading,
-    error: error ? errorMessage(error) : null,
+    error: detailsQ.error ? errorMessage(detailsQ.error) : null,
     reload: async () => {
       await Promise.all([detailsQ.refetch(), diffQ.refetch()])
     },

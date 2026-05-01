@@ -1,5 +1,5 @@
 import { MoreHorizontal, Plus } from "lucide-react"
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 
 import {
@@ -40,13 +40,21 @@ export function AccountsSection() {
   const [editing, setEditing] = useState<Profile | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<Profile | null>(null)
 
-  if (profilesQ.error) {
-    toast.error(
-      profilesQ.error instanceof Error
-        ? profilesQ.error.message
-        : "Falha ao listar contas"
-    )
-  }
+  // Toast 1x por sessão de erro — ref evita spam em re-render enquanto o erro
+  // persiste; reseta quando o erro some pra próximo erro voltar a notificar.
+  const toastedErr = useRef(false)
+  useEffect(() => {
+    if (profilesQ.error && !toastedErr.current) {
+      toastedErr.current = true
+      toast.error(
+        profilesQ.error instanceof Error
+          ? profilesQ.error.message
+          : "Falha ao listar contas"
+      )
+    } else if (!profilesQ.error) {
+      toastedErr.current = false
+    }
+  }, [profilesQ.error])
 
   async function onMakeActive(id: string) {
     try {
