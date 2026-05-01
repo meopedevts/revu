@@ -1,6 +1,6 @@
 import { GitBranch } from "lucide-react"
 
-import { relTime } from "@/lib/format/time"
+import { useRelativeTime } from "@/hooks/use-relative-time"
 import type { PRFullDetails } from "@/lib/types"
 
 interface PRDetailsMetaProps {
@@ -11,6 +11,7 @@ export function PRDetailsMeta({ details }: PRDetailsMetaProps) {
   const mergeable = details.mergeable
   const mergeableLabel = mergeableText(mergeable)
   const mergeableTone = mergeableToneClass(mergeable)
+  const updated = useRelativeTime(details.updatedAt, { prefix: "atualizado " })
 
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
@@ -23,7 +24,7 @@ export function PRDetailsMeta({ details }: PRDetailsMetaProps) {
         <span className="font-mono">{details.headRefName}</span>
       </span>
       <span aria-hidden="true">·</span>
-      <span>atualizado {relTime(details.updatedAt)}</span>
+      <span>{updated}</span>
       {mergeableLabel && (
         <>
           <span aria-hidden="true">·</span>
