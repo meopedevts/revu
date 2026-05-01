@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useQuery } from "@tanstack/react-query"
 
 import { getPRDetails, getPRDiff } from "@/bridge"
+import { queryKeys } from "@/lib/query/keys"
 import type { PRFullDetails } from "@/lib/types"
 
 interface UsePRDetailsResult {
@@ -11,63 +12,37 @@ interface UsePRDetailsResult {
   reload: () => Promise<void>
 }
 
+function errorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message
+  return "erro ao carregar PR"
+}
+
 /**
- * usePRDetails fetches the full metadata and the unified diff in parallel so
- * the details view renders as soon as either resolves. The backend returns
- * "" for the diff when the PR exceeds detailsDiffLimit lines — the caller
- * treats that as the "PR too big, show open-in-GitHub fallback" signal.
+ * usePRDetails busca metadata e diff em paralelo via react-query. A queryKey
+ * inclui prID, então trocar de PR cancela requests antigos automaticamente —
+ * substitui o fetchId ref que ficava na implementação manual.
  */
 export function usePRDetails(prID: string | null): UsePRDetailsResult {
-  const [details, setDetails] = useState<PRFullDetails | null>(null)
-  const [diff, setDiff] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const enabled = !!prID
+  const detailsQ = useQuery<PRFullDetails>({
+    queryKey: queryKeys.prs.detail(prID ?? "__none__"),
+    queryFn: () => getPRDetails(prID!),
+    enabled,
+  })
+  const diffQ = useQuery<string>({
+    queryKey: queryKeys.prs.diff(prID ?? "__none__"),
+    queryFn: () => getPRDiff(prID!),
+    enabled,
+  })
 
-  // Guard against race conditions when the user navigates from one PR to
-  // another faster than the first fetch resolves. We bump the ref on every
-  // load and drop results that arrive under a stale id.
-  const fetchId = useRef(0)
-
-  const reload = useCallback(async (): Promise<void> => {
-    if (!prID) {
-      setDetails(null)
-      setDiff(null)
-      setError(null)
-      return
-    }
-    const myFetch = ++fetchId.current
-    setLoading(true)
-    setError(null)
-    try {
-      const [d, raw] = await Promise.all([
-        getPRDetails(prID),
-        getPRDiff(prID).catch((err: unknown) => {
-          // Diff failures should not block the details view — log via error
-          // state and fall through with an empty diff.
-          if (err instanceof Error) {
-            throw err
-          }
-          throw new Error("diff fetch failed")
-        }),
-      ])
-      if (fetchId.current !== myFetch) return
-      setDetails(d)
-      setDiff(raw)
-    } catch (err: unknown) {
-      if (fetchId.current !== myFetch) return
-      setError(err instanceof Error ? err.message : "erro ao carregar PR")
-      setDetails(null)
-      setDiff(null)
-    } finally {
-      if (fetchId.current === myFetch) {
-        setLoading(false)
-      }
-    }
-  }, [prID])
-
-  useEffect(() => {
-    void reload()
-  }, [reload])
-
-  return { details, diff, loading, error, reload }
+  const error = detailsQ.error ?? diffQ.error
+  return {
+    details: detailsQ.data ?? null,
+    diff: diffQ.data ?? null,
+    loading: detailsQ.isLoading || diffQ.isLoading,
+    error: error ? errorMessage(error) : null,
+    reload: async () => {
+      await Promise.all([detailsQ.refetch(), diffQ.refetch()])
+    },
+  }
 }

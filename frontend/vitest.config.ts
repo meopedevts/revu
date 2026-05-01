@@ -29,6 +29,7 @@ export default defineConfig({
       include: [
         "src/components/pr-card.tsx",
         "src/hooks/use-prs.ts",
+        "src/hooks/use-global-subscriptions.ts",
         "src/lib/format/**/*.ts",
         "src/lib/parse-diff.ts",
         "src/lib/pr-state.ts",

@@ -1,8 +1,8 @@
 import { act, renderHook, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { POLL_SAFETY_INTERVAL_MS } from "@/generated/constants"
 import type { PRRecord } from "@/lib/types"
+import { createQueryWrapper } from "@/test/query-wrapper"
 
 import { usePRs } from "./use-prs"
 
@@ -12,18 +12,6 @@ const listHistoryPRs = vi.fn<() => Promise<PRRecord[]>>()
 vi.mock("@/bridge", () => ({
   listPendingPRs: () => listPendingPRs(),
   listHistoryPRs: () => listHistoryPRs(),
-}))
-
-type EventHandler = (raw: unknown) => void
-const handlers = new Map<string, EventHandler>()
-
-vi.mock("@/wailsjs/runtime/runtime", () => ({
-  EventsOn: (name: string, fn: EventHandler) => {
-    handlers.set(name, fn)
-  },
-  EventsOff: (name: string) => {
-    handlers.delete(name)
-  },
 }))
 
 function pr(id: string): PRRecord {
@@ -46,7 +34,6 @@ function pr(id: string): PRRecord {
 }
 
 beforeEach(() => {
-  handlers.clear()
   listPendingPRs.mockReset()
   listHistoryPRs.mockReset()
   listPendingPRs.mockResolvedValue([pr("p1")])
@@ -59,7 +46,8 @@ afterEach(() => {
 
 describe("usePRs", () => {
   it("popula pending/history no load inicial", async () => {
-    const { result } = renderHook(() => usePRs())
+    const { wrapper } = createQueryWrapper()
+    const { result } = renderHook(() => usePRs(), { wrapper })
 
     await waitFor(() => {
       expect(result.current.pending).toHaveLength(1)
@@ -67,71 +55,52 @@ describe("usePRs", () => {
     expect(result.current.pending[0].id).toBe("p1")
     expect(result.current.history[0].id).toBe("h1")
     expect(listPendingPRs).toHaveBeenCalledTimes(1)
+    expect(listHistoryPRs).toHaveBeenCalledTimes(1)
   })
 
-  it("registra handlers pra pr:new, pr:status-changed e poll:completed", async () => {
-    renderHook(() => usePRs())
-    await waitFor(() => {
-      expect(handlers.has("pr:new")).toBe(true)
-      expect(handlers.has("pr:status-changed")).toBe(true)
-      expect(handlers.has("poll:completed")).toBe(true)
-    })
-  })
+  it("reload invalida queries e re-fetcha pending+history", async () => {
+    const { wrapper } = createQueryWrapper()
+    const { result } = renderHook(() => usePRs(), { wrapper })
 
-  it("dispara reload quando 'pr:new' chega", async () => {
-    renderHook(() => usePRs())
     await waitFor(() => {
       expect(listPendingPRs).toHaveBeenCalledTimes(1)
     })
 
-    act(() => {
-      handlers.get("pr:new")?.(undefined)
+    await act(async () => {
+      await result.current.reload()
     })
 
     await waitFor(() => {
       expect(listPendingPRs).toHaveBeenCalledTimes(2)
+      expect(listHistoryPRs).toHaveBeenCalledTimes(2)
     })
   })
 
-  it("seta lastPollAt e lastPollErr a partir de 'poll:completed'", async () => {
-    const { result } = renderHook(() => usePRs())
-    await waitFor(() => {
-      expect(handlers.has("poll:completed")).toBe(true)
-    })
+  it("lê lastPollAt/lastPollErr do cache poll.meta", async () => {
+    const { wrapper, client } = createQueryWrapper()
+    const at = new Date("2026-04-30T12:00:00.000Z")
+    client.setQueryData(["poll", "meta"], { at, err: "rate limit" })
 
-    act(() => {
-      handlers.get("poll:completed")?.({
-        kind: "scheduled",
-        at: "2026-04-30T12:00:00.000Z",
-        err: "rate limit",
-      })
-    })
+    const { result } = renderHook(() => usePRs(), { wrapper })
 
     await waitFor(() => {
-      expect(result.current.lastPollAt?.toISOString()).toBe(
-        "2026-04-30T12:00:00.000Z"
-      )
+      expect(result.current.lastPollAt?.toISOString()).toBe(at.toISOString())
     })
     expect(result.current.lastPollErr).toBe("rate limit")
   })
 
-  it("'poll:completed' sem 'at' usa Date.now() como fallback", async () => {
-    const { result } = renderHook(() => usePRs())
-    await waitFor(() => {
-      expect(handlers.has("poll:completed")).toBe(true)
-    })
-
-    act(() => {
-      handlers.get("poll:completed")?.({ kind: "scheduled", at: "" })
-    })
+  it("default poll meta é null quando cache vazio", async () => {
+    const { wrapper } = createQueryWrapper()
+    const { result } = renderHook(() => usePRs(), { wrapper })
 
     await waitFor(() => {
-      expect(result.current.lastPollAt).toBeInstanceOf(Date)
+      expect(result.current.pending).toHaveLength(1)
     })
+    expect(result.current.lastPollAt).toBeNull()
     expect(result.current.lastPollErr).toBeNull()
   })
 
-  it("dedupe: reloads concorrentes compartilham promessa inflight", async () => {
+  it("dedupe: chamadas concorrentes ao bridge resolvem com 1 fetch", async () => {
     let resolvePending: ((v: PRRecord[]) => void) | null = null
     listPendingPRs.mockImplementation(
       () =>
@@ -141,13 +110,14 @@ describe("usePRs", () => {
     )
     listHistoryPRs.mockResolvedValue([])
 
-    const { result } = renderHook(() => usePRs())
+    const { wrapper } = createQueryWrapper()
+    const { result } = renderHook(() => usePRs(), { wrapper })
+
     await waitFor(() => {
       expect(listPendingPRs).toHaveBeenCalledTimes(1)
     })
 
     act(() => {
-      void result.current.reload()
       void result.current.reload()
     })
 
@@ -155,36 +125,5 @@ describe("usePRs", () => {
     act(() => {
       resolvePending?.([pr("p1")])
     })
-  })
-
-  it("safety interval dispara reload após POLL_SAFETY_INTERVAL_MS", async () => {
-    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] })
-    renderHook(() => usePRs())
-
-    await waitFor(() => {
-      expect(listPendingPRs).toHaveBeenCalledTimes(1)
-    })
-
-    const before = listPendingPRs.mock.calls.length
-
-    act(() => {
-      vi.advanceTimersByTime(POLL_SAFETY_INTERVAL_MS)
-    })
-
-    await waitFor(() => {
-      expect(listPendingPRs.mock.calls.length).toBeGreaterThan(before)
-    })
-  })
-
-  it("unmount limpa handlers de eventos", async () => {
-    const { unmount } = renderHook(() => usePRs())
-    await waitFor(() => {
-      expect(handlers.has("pr:new")).toBe(true)
-    })
-
-    unmount()
-    expect(handlers.has("pr:new")).toBe(false)
-    expect(handlers.has("pr:status-changed")).toBe(false)
-    expect(handlers.has("poll:completed")).toBe(false)
   })
 })

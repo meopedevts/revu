@@ -1,9 +1,10 @@
 import { useCallback, useMemo, useState } from "react"
 import { toast } from "sonner"
 
-import { mergePR, openPRInBrowser } from "@/bridge"
+import { openPRInBrowser } from "@/bridge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { DETAILS_DIFF_LIMIT } from "@/generated/constants"
+import { useMergePR } from "@/hooks/mutations/use-merge-pr"
 import { usePRDetails } from "@/hooks/use-pr-details"
 import {
   derivePRState,
@@ -29,9 +30,10 @@ interface PRDetailsViewProps {
 
 export function PRDetailsView({ prID, onBack }: PRDetailsViewProps) {
   const { details, diff, loading, error, reload } = usePRDetails(prID)
+  const mergeMutation = useMergePR()
+  const merging = mergeMutation.isPending
 
   const [mergeMethod, setMergeMethod] = useState<MergeMethod | null>(null)
-  const [merging, setMerging] = useState(false)
 
   const canMerge = useMemo(() => mergeableNow(details), [details])
   const blockReason = useMemo(() => mergeBlockedReason(details), [details])
@@ -48,9 +50,8 @@ export function PRDetailsView({ prID, onBack }: PRDetailsViewProps) {
 
   const handleConfirmMerge = useCallback(async () => {
     if (!mergeMethod || !details) return
-    setMerging(true)
     try {
-      await mergePR(prID, mergeMethod)
+      await mergeMutation.mutateAsync({ prID, method: mergeMethod })
       toast.success(
         `PR ${mergeMethod === "squash" ? "squash-merged" : "merged"} com sucesso`
       )
@@ -58,11 +59,9 @@ export function PRDetailsView({ prID, onBack }: PRDetailsViewProps) {
       onBack()
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "erro ao fazer merge")
-    } finally {
-      setMerging(false)
       void reload()
     }
-  }, [mergeMethod, details, prID, onBack, reload])
+  }, [mergeMethod, details, prID, mergeMutation, onBack, reload])
 
   if (loading && !details) {
     return <LoadingSkeleton onBack={onBack} />
