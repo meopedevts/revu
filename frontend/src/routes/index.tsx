@@ -8,8 +8,8 @@ import { PRCard } from "@/components/pr-card"
 import type { SettingsSection } from "@/components/settings/settings-sidebar"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { usePRs } from "@/hooks/use-prs"
 import { refreshNow } from "@/lib/bridge"
-import { usePRs } from "@/lib/hooks/use-prs"
 
 export const Route = createFileRoute("/")({
   component: MainView,

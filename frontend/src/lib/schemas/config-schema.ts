@@ -1,6 +1,6 @@
 import { z } from "zod"
 
-import { CONFIG_BOUNDS, VALID_THEMES } from "@/shared/generated/constants"
+import { CONFIG_BOUNDS, VALID_THEMES } from "@/generated/constants"
 
 // Bounds come from internal/config.Limits via cmd/gentsconst — single source
 // of truth for both server-side validation and the Zod schema below.

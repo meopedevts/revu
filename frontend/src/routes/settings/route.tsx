@@ -13,8 +13,6 @@ import {
   SettingsSidebar,
   type SettingsSection,
 } from "@/components/settings/settings-sidebar"
-import { useActiveProfile } from "@/components/settings/use-active-profile"
-import { useSettingsForm } from "@/components/settings/use-settings-form"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,6 +25,8 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Form } from "@/components/ui/form"
+import { useActiveProfile } from "@/hooks/use-active-profile"
+import { useSettingsForm } from "@/hooks/use-settings-form"
 
 export const Route = createFileRoute("/settings")({
   component: SettingsLayout,
