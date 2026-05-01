@@ -1,12 +1,12 @@
 import { Check, ExternalLink, Loader2, X } from "lucide-react"
 
+import { openPRInBrowser } from "@/bridge"
 import { Badge } from "@/components/ui/badge"
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { openPRInBrowser } from "@/lib/bridge"
 import type { StatusCheck } from "@/lib/types"
 import { cn } from "@/lib/utils"
 

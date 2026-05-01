@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router"
 import { AlertCircle, RefreshCw, Settings } from "lucide-react"
 import { useCallback } from "react"
 
+import { refreshNow } from "@/bridge"
 import { EmptyState } from "@/components/empty-state"
 import { MainHeaderProfileBadge } from "@/components/main-header-profile-badge"
 import { PRCard } from "@/components/pr-card"
@@ -9,7 +10,6 @@ import type { SettingsSection } from "@/components/settings/settings-sidebar"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { usePRs } from "@/hooks/use-prs"
-import { refreshNow } from "@/lib/bridge"
 
 export const Route = createFileRoute("/")({
   component: MainView,
