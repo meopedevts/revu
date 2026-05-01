@@ -1,6 +1,6 @@
 import { z } from "zod"
 
-import { CONFIG_BOUNDS, VALID_THEMES } from "@/shared/generated/constants"
+import { CONFIG_BOUNDS, VALID_THEMES } from "@/generated/constants"
 
 // Bounds come from internal/config.Limits via cmd/gentsconst — single source
 // of truth for both server-side validation and the Zod schema below.
@@ -29,6 +29,17 @@ export const configSchema = z.object({
     .max(
       CONFIG_BOUNDS.notificationTimeoutSeconds.max,
       `máximo ${CONFIG_BOUNDS.notificationTimeoutSeconds.max} segundos`
+    ),
+  notification_cooldown_minutes: z
+    .number()
+    .int("deve ser inteiro")
+    .min(
+      CONFIG_BOUNDS.notificationCooldownMinutes.min,
+      `mínimo ${CONFIG_BOUNDS.notificationCooldownMinutes.min} minutos`
+    )
+    .max(
+      CONFIG_BOUNDS.notificationCooldownMinutes.max,
+      `máximo ${CONFIG_BOUNDS.notificationCooldownMinutes.max} minutos`
     ),
   status_refresh_every_n_ticks: z
     .number()

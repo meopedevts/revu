@@ -28,15 +28,15 @@ export default defineConfig({
       // chegam — espelha a estratégia incremental do REV-29 no Go.
       include: [
         "src/components/pr-card.tsx",
-        "src/components/pr-details/parse-diff.ts",
+        "src/hooks/use-prs.ts",
         "src/lib/format/**/*.ts",
-        "src/lib/hooks/use-prs.ts",
+        "src/lib/parse-diff.ts",
         "src/lib/pr-state.ts",
         "src/lib/types.ts",
       ],
       exclude: [
         "src/wailsjs/**",
-        "src/shared/generated/**",
+        "src/generated/**",
         "src/routeTree.gen.ts",
         "src/test/**",
         "src/**/*.test.{ts,tsx}",

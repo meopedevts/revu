@@ -55,9 +55,16 @@ const (
 			state = CASE WHEN state = '' THEN 'OPEN' ELSE state END
 		WHERE id = ?`
 
-	// qMarkNotPendingAll clears review_pending for every PR still flagged
-	// pending. Used when the poll result is empty.
-	qMarkNotPendingAll = `UPDATE prs SET review_pending = 0 WHERE review_pending = 1`
+	// qMarkNotified persiste o instante da última notificação enviada,
+	// usado pelo poller pra throttle de re-requests dentro da janela de
+	// cooldown.
+	qMarkNotified = `UPDATE prs SET last_notified_at = ? WHERE id = ?`
+
+	// qBackfillNotifiedAt populates last_notified_at for legacy rows where
+	// it was never written. Runs once on Load (gated by metaNotifyBackfillDone)
+	// so existing PRs don't burst-notify on the upgrade after REV-43.
+	qBackfillNotifiedAt = `UPDATE prs SET last_notified_at = first_seen_at
+		WHERE last_notified_at IS NULL OR last_notified_at = ''`
 
 	qUpdatePRStatus = `UPDATE prs
 		SET additions = ?, deletions = ?, is_draft = ?, state = ?, review_state = ?
@@ -82,6 +89,7 @@ const (
 
 // Meta keys persisted by the store.
 const (
-	metaLastPollAt     = "last_poll_at"
-	metaJSONMigratedAt = "json_migrated_at"
+	metaLastPollAt         = "last_poll_at"
+	metaJSONMigratedAt     = "json_migrated_at"
+	metaNotifyBackfillDone = "notify_backfill_done"
 )

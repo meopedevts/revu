@@ -1,15 +1,15 @@
 import { act, renderHook, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { POLL_SAFETY_INTERVAL_MS } from "@/generated/constants"
 import type { PRRecord } from "@/lib/types"
-import { POLL_SAFETY_INTERVAL_MS } from "@/shared/generated/constants"
 
 import { usePRs } from "./use-prs"
 
 const listPendingPRs = vi.fn<() => Promise<PRRecord[]>>()
 const listHistoryPRs = vi.fn<() => Promise<PRRecord[]>>()
 
-vi.mock("@/lib/bridge", () => ({
+vi.mock("@/bridge", () => ({
   listPendingPRs: () => listPendingPRs(),
   listHistoryPRs: () => listHistoryPRs(),
 }))

@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 
-import { listHistoryPRs, listPendingPRs } from "@/lib/bridge"
+import { listHistoryPRs, listPendingPRs } from "@/bridge"
+import { POLL_SAFETY_INTERVAL_MS } from "@/generated/constants"
 import type { PRRecord } from "@/lib/types"
-import { POLL_SAFETY_INTERVAL_MS } from "@/shared/generated/constants"
 import { EventsOff, EventsOn } from "@/wailsjs/runtime/runtime"
 
 interface PollCompletedEvent {
@@ -49,6 +49,11 @@ export function usePRs(): UsePRsResult {
         const [p, h] = await Promise.all([listPendingPRs(), listHistoryPRs()])
         setPending(p ?? [])
         setHistory(h ?? [])
+      } catch {
+        // Bridge unavailable (smoke build / Wails reconnect) — keep
+        // current lists, REV-33 query layer handles user-facing error.
+        setPending([])
+        setHistory([])
       } finally {
         setLoading(false)
         inflight.current = null
