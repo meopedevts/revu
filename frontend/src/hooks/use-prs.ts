@@ -74,6 +74,10 @@ interface UsePRsResult {
   lastPollAt: Date | null
   lastPollErr: string | null
   loading: boolean
+  // initialLoading distingue 1º fetch sem cache (true durante isLoading) de
+  // refetches subsequentes (sempre false). Permite renderizar PRCardSkeleton
+  // só no boot, mantendo empty state em fetches normais.
+  initialLoading: boolean
   reload: () => Promise<void>
 }
 
@@ -94,6 +98,7 @@ export function usePRs(): UsePRsResult {
     lastPollAt: meta.at,
     lastPollErr: meta.err,
     loading: pendingQ.isFetching || historyQ.isFetching,
+    initialLoading: pendingQ.isLoading || historyQ.isLoading,
     reload: async () => {
       await qc.invalidateQueries({ queryKey: queryKeys.prs.all })
     },

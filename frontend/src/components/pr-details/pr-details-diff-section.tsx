@@ -1,6 +1,7 @@
 import { DETAILS_DIFF_LIMIT } from "@/generated/constants"
 
 import { PRDetailsBigPRPlaceholder } from "./big-pr-placeholder"
+import { DiffLoadingSkeleton } from "./diff-loading-skeleton"
 import { PRDetailsDiff } from "./pr-details-diff"
 
 interface PRDetailsDiffSectionProps {
@@ -9,6 +10,7 @@ interface PRDetailsDiffSectionProps {
   deletions: number
   diff: string | null
   diffError: Error | null
+  diffLoading: boolean
 }
 
 export function PRDetailsDiffSection({
@@ -17,11 +19,16 @@ export function PRDetailsDiffSection({
   deletions,
   diff,
   diffError,
+  diffLoading,
 }: PRDetailsDiffSectionProps) {
   const totalLines = additions + deletions
   const diffTooBig = totalLines > DETAILS_DIFF_LIMIT
   const diffFailed = !diffTooBig && diffError !== null
-  const diffEmpty = !diffTooBig && !diffFailed && (diff === null || diff === "")
+  // Loading tem prioridade sobre "vazio" pra evitar o flash enganoso entre
+  // details chegar e diff terminar de carregar.
+  const showLoading = !diffTooBig && !diffFailed && diffLoading
+  const diffEmpty =
+    !diffTooBig && !diffFailed && !showLoading && (diff === null || diff === "")
 
   return (
     <section className="space-y-1">
@@ -34,6 +41,8 @@ export function PRDetailsDiffSection({
         <div className="text-xs text-destructive">
           falha ao carregar diff: {diffError?.message ?? "erro desconhecido"}
         </div>
+      ) : showLoading ? (
+        <DiffLoadingSkeleton />
       ) : diffEmpty ? (
         <div className="text-xs text-muted-foreground italic">diff vazio</div>
       ) : (

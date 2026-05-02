@@ -9,6 +9,10 @@ interface UsePRDetailsResult {
   diff: string | null
   diffError: Error | null
   loading: boolean
+  // diffLoading isola o estado da request de diff pra que o consumer mostre
+  // skeleton dedicado em vez de "diff vazio" enganoso enquanto details já
+  // chegou mas diff ainda não.
+  diffLoading: boolean
   error: string | null
   reload: () => Promise<void>
 }
@@ -46,6 +50,7 @@ export function usePRDetails(prID: string | null): UsePRDetailsResult {
     diff: diffQ.data ?? null,
     diffError: diffQ.error ?? null,
     loading: detailsQ.isLoading || diffQ.isLoading,
+    diffLoading: diffQ.isLoading,
     error: detailsQ.error ? errorMessage(detailsQ.error) : null,
     reload: async () => {
       await Promise.all([detailsQ.refetch(), diffQ.refetch()])

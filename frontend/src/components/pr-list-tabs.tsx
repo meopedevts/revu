@@ -1,8 +1,11 @@
 import { EmptyState } from "@/components/empty-state"
 import { PRCard } from "@/components/pr-card"
+import { PRCardSkeleton } from "@/components/pr-card-skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useTrayAcknowledgedAt } from "@/hooks/use-prs"
 import type { PRRecord } from "@/lib/types"
+
+const INITIAL_LOAD_SKELETON_COUNT = 4
 
 interface PRListTabsProps {
   pending: PRRecord[]
@@ -10,6 +13,7 @@ interface PRListTabsProps {
   onOpenPR: (prID: string) => void
   lastPollErr: string | null
   onRetry: () => void
+  initialLoading: boolean
 }
 
 // isNewSince devolve true quando firstSeenAt é posterior ao último ack do
@@ -26,6 +30,7 @@ export function PRListTabs({
   onOpenPR,
   lastPollErr,
   onRetry,
+  initialLoading,
 }: PRListTabsProps) {
   const acked = useTrayAcknowledgedAt()
   return (
@@ -46,7 +51,9 @@ export function PRListTabs({
       </TabsList>
 
       <TabsContent value="pending" className="flex-1 overflow-y-auto">
-        {pending.length === 0 ? (
+        {initialLoading && pending.length === 0 ? (
+          <SkeletonList />
+        ) : pending.length === 0 ? (
           lastPollErr ? (
             <EmptyState
               variant="error-sync"
@@ -71,7 +78,9 @@ export function PRListTabs({
       </TabsContent>
 
       <TabsContent value="history" className="flex-1 overflow-y-auto">
-        {history.length === 0 ? (
+        {initialLoading && history.length === 0 ? (
+          <SkeletonList />
+        ) : history.length === 0 ? (
           <EmptyState variant="history" />
         ) : (
           <div className="flex flex-col gap-2">
@@ -87,5 +96,15 @@ export function PRListTabs({
         )}
       </TabsContent>
     </Tabs>
+  )
+}
+
+function SkeletonList() {
+  return (
+    <div className="flex flex-col gap-2">
+      {Array.from({ length: INITIAL_LOAD_SKELETON_COUNT }).map((_, i) => (
+        <PRCardSkeleton key={i} />
+      ))}
+    </div>
   )
 }
