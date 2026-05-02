@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router"
-import { useCallback, useEffect } from "react"
+import { useCallback, useEffect, useState } from "react"
 
 import { refreshNow } from "@/bridge"
 import { MainHeader } from "@/components/main-header"
@@ -23,6 +23,11 @@ function MainView() {
     reload,
   } = usePRs()
   const ackTray = useAcknowledgeTray()
+  // refreshing cobre toda a janela do refresh manual (refreshNow + delay +
+  // reload). usePRs.loading só vira true durante o refetch do react-query
+  // (~ms via bridge local), curto demais pra olho ver — estado local garante
+  // feedback visual contínuo no spin do botão.
+  const [refreshing, setRefreshing] = useState(false)
 
   // REV-54: ack on mount limpa o estado "novo desde última visualização"
   // sempre que o user abre a janela. Mutate é fire-and-forget — falha de
@@ -35,6 +40,7 @@ function MainView() {
   }, [])
 
   const handleRefresh = useCallback(() => {
+    setRefreshing(true)
     // refreshNow() can throw synchronously (BridgeUnavailableError) before
     // returning a Promise — wrap in async IIFE so sync throws turn into
     // handled rejections instead of crashing the click handler.
@@ -45,7 +51,7 @@ function MainView() {
         // Bridge unavailable; reload below still picks up any state.
       }
       setTimeout(() => {
-        void reload()
+        void reload().finally(() => setRefreshing(false))
       }, 600)
     })()
   }, [reload])
@@ -71,7 +77,7 @@ function MainView() {
         historyCount={history.length}
         lastPollAt={lastPollAt}
         lastPollErr={lastPollErr}
-        loading={loading}
+        loading={loading || refreshing}
         onRefresh={handleRefresh}
         onOpenSettings={openSettings}
       />
