@@ -5,6 +5,7 @@ import type { PRFullDetails, Review, StatusCheck } from "@/lib/types"
 import {
   derivePRState,
   deriveReviewState,
+  hasFailingOrPendingChecks,
   mergeableNow,
   mergeBlockedReason,
 } from "./derive-state"
@@ -39,8 +40,8 @@ function review(state: string): Review {
   return { author: "bob", state, submittedAt: "" }
 }
 
-function check(conclusion: string): StatusCheck {
-  return { name: "ci", status: "COMPLETED", conclusion, url: "" }
+function check(conclusion: string, status = "COMPLETED"): StatusCheck {
+  return { name: "ci", status, conclusion, url: "" }
 }
 
 describe("derivePRState", () => {
@@ -128,7 +129,7 @@ describe("mergeableNow", () => {
     expect(mergeableNow(makeDetails({ mergeable: m }))).toBe(false)
   })
 
-  it.each(["FAILURE", "TIMED_OUT", "CANCELLED", "failure"])(
+  it.each(["FAILURE", "TIMED_OUT", "CANCELLED", "failure", "ERROR", "error"])(
     "false quando algum check tem conclusion=%s",
     (c) => {
       expect(mergeableNow(makeDetails({ statusChecks: [check(c)] }))).toBe(
@@ -137,11 +138,31 @@ describe("mergeableNow", () => {
     }
   )
 
-  it("true quando checks são SUCCESS", () => {
-    expect(
-      mergeableNow(makeDetails({ statusChecks: [check("SUCCESS")] }))
-    ).toBe(true)
+  it.each(["IN_PROGRESS", "QUEUED", "in_progress"])(
+    "false quando algum check tem status=%s (CheckRun rodando)",
+    (s) => {
+      expect(mergeableNow(makeDetails({ statusChecks: [check("", s)] }))).toBe(
+        false
+      )
+    }
+  )
+
+  it("false quando conclusion vazio mesmo com status COMPLETED (defensivo)", () => {
+    expect(mergeableNow(makeDetails({ statusChecks: [check("")] }))).toBe(false)
   })
+
+  it("false quando conclusion=PENDING (StatusContext pendente)", () => {
+    expect(
+      mergeableNow(makeDetails({ statusChecks: [check("PENDING")] }))
+    ).toBe(false)
+  })
+
+  it.each(["SUCCESS", "NEUTRAL", "SKIPPED", "success", "neutral"])(
+    "true quando todos os checks têm conclusion=%s",
+    (c) => {
+      expect(mergeableNow(makeDetails({ statusChecks: [check(c)] }))).toBe(true)
+    }
+  )
 })
 
 describe("mergeBlockedReason", () => {
@@ -163,9 +184,45 @@ describe("mergeBlockedReason", () => {
     expect(mergeBlockedReason(makeDetails(over))).toBe(expected)
   })
 
-  it("retorna 'algum check falhou' quando há check failing", () => {
+  it.each([
+    "FAILURE",
+    "TIMED_OUT",
+    "CANCELLED",
+    "ERROR",
+    "failure",
+    "error",
+    "Timed_Out",
+  ])("retorna 'algum check falhou' quando há check com conclusion=%s", (c) => {
+    expect(mergeBlockedReason(makeDetails({ statusChecks: [check(c)] }))).toBe(
+      "algum check falhou"
+    )
+  })
+
+  it.each(["IN_PROGRESS", "QUEUED", "in_progress", "Queued"])(
+    "retorna 'checks ainda rodando — aguarde' quando há check status=%s",
+    (s) => {
+      expect(
+        mergeBlockedReason(makeDetails({ statusChecks: [check("", s)] }))
+      ).toBe("checks ainda rodando — aguarde")
+    }
+  )
+
+  it.each(["PENDING", "pending", ""])(
+    "retorna 'checks ainda rodando — aguarde' quando há check conclusion=%s",
+    (c) => {
+      expect(
+        mergeBlockedReason(makeDetails({ statusChecks: [check(c)] }))
+      ).toBe("checks ainda rodando — aguarde")
+    }
+  )
+
+  it("failed tem precedência sobre running quando ambos coexistem", () => {
     expect(
-      mergeBlockedReason(makeDetails({ statusChecks: [check("FAILURE")] }))
+      mergeBlockedReason(
+        makeDetails({
+          statusChecks: [check("FAILURE"), check("", "IN_PROGRESS")],
+        })
+      )
     ).toBe("algum check falhou")
   })
 
@@ -175,5 +232,41 @@ describe("mergeBlockedReason", () => {
         makeDetails({ state: "MERGED", statusChecks: [check("FAILURE")] })
       )
     ).toBe("PR já foi merged")
+  })
+})
+
+describe("hasFailingOrPendingChecks", () => {
+  it("false quando array vazio", () => {
+    expect(hasFailingOrPendingChecks([])).toBe(false)
+  })
+
+  it("false quando todos checks SUCCESS/NEUTRAL/SKIPPED", () => {
+    expect(
+      hasFailingOrPendingChecks([
+        check("SUCCESS"),
+        check("NEUTRAL"),
+        check("SKIPPED"),
+      ])
+    ).toBe(false)
+  })
+
+  it("true quando um check no meio está rodando", () => {
+    expect(
+      hasFailingOrPendingChecks([
+        check("SUCCESS"),
+        check("", "IN_PROGRESS"),
+        check("SUCCESS"),
+      ])
+    ).toBe(true)
+  })
+
+  it("true quando um check no meio falhou", () => {
+    expect(
+      hasFailingOrPendingChecks([
+        check("SUCCESS"),
+        check("ERROR"),
+        check("SUCCESS"),
+      ])
+    ).toBe(true)
   })
 })
