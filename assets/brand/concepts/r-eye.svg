@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="revu eye concept — r with iris counter-form">
+  <title>revu — r-eye concept</title>
+  <!-- background plate (transparent on tray, filled on press kit) -->
+  <rect x="0" y="0" width="64" height="64" rx="14" ry="14" fill="oklch(0.58 0.18 288)"/>
+
+  <!-- stem of r -->
+  <rect x="16" y="18" width="7" height="32" rx="2" ry="2" fill="oklch(0.98 0.01 288)"/>
+
+  <!-- shoulder of r curving into iris -->
+  <path d="M23 26
+           Q23 18 36 18
+           L46 18
+           L46 25
+           L36 25
+           Q30 25 30 32
+           L23 32 Z"
+        fill="oklch(0.98 0.01 288)"/>
+
+  <!-- iris pupil hint inside the counter, pulled from accent for warmth -->
+  <circle cx="40" cy="32" r="4" fill="oklch(0.72 0.14 30)"/>
+</svg>

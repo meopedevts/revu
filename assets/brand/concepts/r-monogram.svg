@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="revu monogram concept — r in Iris square">
+  <title>revu — r monogram concept</title>
+  <rect x="0" y="0" width="64" height="64" rx="14" ry="14" fill="oklch(0.58 0.18 288)"/>
+  <text x="32" y="46"
+        text-anchor="middle"
+        font-family="Inter, 'Inter Variable', system-ui, sans-serif"
+        font-weight="600"
+        font-size="40"
+        fill="oklch(0.98 0.01 288)"
+        letter-spacing="-2">r</text>
+</svg>
