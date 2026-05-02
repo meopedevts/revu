@@ -13,8 +13,15 @@ export const Route = createFileRoute("/")({
 
 function MainView() {
   const navigate = useNavigate()
-  const { pending, history, lastPollAt, lastPollErr, loading, reload } =
-    usePRs()
+  const {
+    pending,
+    history,
+    lastPollAt,
+    lastPollErr,
+    loading,
+    initialLoading,
+    reload,
+  } = usePRs()
   const ackTray = useAcknowledgeTray()
 
   // REV-54: ack on mount limpa o estado "novo desde última visualização"
@@ -74,6 +81,7 @@ function MainView() {
         onOpenPR={openPR}
         lastPollErr={lastPollErr}
         onRetry={handleRefresh}
+        initialLoading={initialLoading}
       />
     </div>
   )

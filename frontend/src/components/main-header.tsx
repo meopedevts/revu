@@ -5,6 +5,7 @@ import { MainHeaderProfileBadge } from "@/components/main-header-profile-badge"
 import type { SettingsSection } from "@/components/settings/settings-sidebar"
 import { Button } from "@/components/ui/button"
 import { useRelativeTime } from "@/hooks/use-relative-time"
+import { cn } from "@/lib/utils"
 
 interface MainHeaderProps {
   pendingCount: number
@@ -68,7 +69,10 @@ export function MainHeader({
           onClick={onRefresh}
           disabled={loading}
         >
-          <RefreshCw data-icon="inline-start" />
+          <RefreshCw
+            data-icon="inline-start"
+            className={cn(loading && "animate-spin")}
+          />
           Atualizar
         </Button>
       </div>

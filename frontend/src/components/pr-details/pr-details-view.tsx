@@ -29,7 +29,7 @@ interface PRDetailsViewProps {
 }
 
 export function PRDetailsView({ prID, onBack }: PRDetailsViewProps) {
-  const { details, diff, diffError, loading, error, reload } =
+  const { details, diff, diffError, diffLoading, loading, error, reload } =
     usePRDetails(prID)
   const mergeMutation = useMergePR()
   const merging = mergeMutation.isPending
@@ -128,6 +128,7 @@ export function PRDetailsView({ prID, onBack }: PRDetailsViewProps) {
         deletions={details.deletions}
         diff={diff}
         diffError={diffError}
+        diffLoading={diffLoading}
       />
 
       <PRMergeDialog
