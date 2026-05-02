@@ -8,6 +8,8 @@ interface PRListTabsProps {
   pending: PRRecord[]
   history: PRRecord[]
   onOpenPR: (prID: string) => void
+  lastPollErr: string | null
+  onRetry: () => void
 }
 
 // isNewSince devolve true quando firstSeenAt é posterior ao último ack do
@@ -18,7 +20,13 @@ function isNewSince(firstSeenAt: string, acked: Date | null): boolean {
   return new Date(firstSeenAt).getTime() > acked.getTime()
 }
 
-export function PRListTabs({ pending, history, onOpenPR }: PRListTabsProps) {
+export function PRListTabs({
+  pending,
+  history,
+  onOpenPR,
+  lastPollErr,
+  onRetry,
+}: PRListTabsProps) {
   const acked = useTrayAcknowledgedAt()
   return (
     <Tabs
@@ -39,7 +47,15 @@ export function PRListTabs({ pending, history, onOpenPR }: PRListTabsProps) {
 
       <TabsContent value="pending" className="flex-1 overflow-y-auto">
         {pending.length === 0 ? (
-          <EmptyState variant="pending" />
+          lastPollErr ? (
+            <EmptyState
+              variant="error-sync"
+              message={lastPollErr}
+              onRetry={onRetry}
+            />
+          ) : (
+            <EmptyState variant="pending" />
+          )
         ) : (
           <div className="flex flex-col gap-2">
             {pending.map((pr) => (
