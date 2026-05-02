@@ -18,10 +18,10 @@ export function PRDetailsFiles({ files }: PRDetailsFilesProps) {
       {sorted.map((f) => (
         <li
           key={f.path}
-          className="flex items-center justify-between gap-2 px-3 py-1.5 text-xs"
+          className="flex items-center justify-between gap-2 px-3 py-1.5 text-xs leading-snug"
         >
           <span className="truncate font-mono">{f.path}</span>
-          <span className="flex shrink-0 items-center gap-2 font-mono">
+          <span className="flex shrink-0 items-center gap-2 font-mono font-medium">
             <span className="text-emerald-600 dark:text-emerald-400">
               +{f.additions}
             </span>

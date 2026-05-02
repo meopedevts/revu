@@ -24,10 +24,14 @@
     ],
     "**/*.{json,css,html}": [
       "prettier --write"
+    ],
+    "../assets/brand/**/*.svg": [
+      "pnpm exec svgo --config ../svgo.config.mjs"
     ]
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.2.8",
+    "@fontsource-variable/jetbrains-mono": "^5.2.8",
     "@hookform/resolvers": "^5.2.2",
     "@tailwindcss/vite": "^4.2.4",
     "@tanstack/react-query": "^5.100.6",
@@ -76,6 +80,7 @@
     "jsdom": "^29.1.1",
     "lint-staged": "^16.4.0",
     "prettier": "^3.8.3",
+    "svgo": "^4.0.1",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.59.0",
     "vite": "^6.4.2",
