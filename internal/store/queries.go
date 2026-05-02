@@ -92,4 +92,8 @@ const (
 	metaLastPollAt         = "last_poll_at"
 	metaJSONMigratedAt     = "json_migrated_at"
 	metaNotifyBackfillDone = "notify_backfill_done"
+	// metaTrayAcknowledgedAt registra o instante em que o user reconheceu
+	// (abriu a janela) o estado de attention do tray. PRs com last_seen_at
+	// posterior a esse instante voltam a sinalizar attention.
+	metaTrayAcknowledgedAt = "tray_acknowledged_at"
 )

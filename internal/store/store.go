@@ -31,6 +31,14 @@ type Store interface {
 	// pra o PR identificado por id. Usado pelo poller pra throttle de
 	// re-requests via janela de cooldown.
 	MarkNotified(ctx context.Context, id string, when time.Time) error
+	// Acknowledge persiste o instante em que o user reconheceu o estado
+	// attention do tray (tipicamente: abertura da janela). Limpa o badge
+	// até o próximo PR novo / re-request com last_seen_at > when.
+	Acknowledge(ctx context.Context, when time.Time) error
+	// AcknowledgedAt devolve o último ack persistido. ok=false antes do
+	// primeiro ack — caller trata como "qualquer pending pós-boot é
+	// attention".
+	AcknowledgedAt(ctx context.Context) (time.Time, bool, error)
 	SetRetentionDays(days int)
 	SetActiveProfileID(id string)
 	ClearHistory(ctx context.Context) (int, error)

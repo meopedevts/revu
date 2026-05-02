@@ -229,7 +229,7 @@ func buildTray(ctx context.Context, svc *runtimeServices, bridge *app.App, stop 
 	)
 	// Seed initial state from the already-loaded store; saves one icon
 	// flicker on startup when there are pending PRs waiting.
-	tr.SetState(stateFromStore(ctx, svc.store))
+	seedTrayState(ctx, tr, svc.store)
 	return tr
 }
 
@@ -275,6 +275,16 @@ func wireProfileChange(
 		svc.store.SetActiveProfileID(active.ID)
 	}
 	bridge.SetOnRefresh(p.Trigger)
+	bridge.SetOnWindowShown(func() {
+		// REV-51: janela apresentada → ack persiste o instante e o tray
+		// limpa attention. Erro do store é só logado: a falha não pode
+		// bloquear UX.
+		now := time.Now().UTC()
+		if err := svc.store.Acknowledge(ctx, now); err != nil {
+			svc.log.Warn("acknowledge tray", "err", err)
+		}
+		tr.SetAttention(false)
+	})
 	tr.SetOnRefresh(func() {
 		svc.log.Info("tray: refresh requested")
 		p.Trigger()
@@ -404,23 +414,49 @@ func legacyStateJSONPath() (string, error) {
 	return filepath.Join(dir, "revu", "state.json"), nil
 }
 
-// stateFromStore derives the initial tray state from the loaded store.
-func stateFromStore(ctx context.Context, s store.Store) tray.State {
-	if len(s.GetPending(ctx)) > 0 {
-		return tray.StatePending
-	}
-	return tray.StateIdle
+// seedTrayState aplica o estado inicial do tray a partir do store já
+// carregado. Lê pending + ack do tray (REV-51) pra que a primeira renderização
+// já reflita corretamente attention quando há PR novo desde o último ack.
+// hasError não é seedado — fica false até o primeiro EventPollCompleted que
+// reportar Err.
+func seedTrayState(ctx context.Context, tr *tray.Tray, s store.Store) {
+	pending := s.GetPending(ctx)
+	tr.SetPending(len(pending) > 0)
+	// Falha do driver no boot é tratada como "nunca acked": qualquer
+	// pending vira attention, que é o comportamento desejado.
+	ackedAt, _, _ := s.AcknowledgedAt(ctx)
+	tr.SetAttention(hasUnacked(pending, ackedAt))
 }
 
-// syncTrayState reacts to poller events. Any completed poll re-reads the
-// store and picks idle vs pending. Usa Background() porque o callback é
-// disparado fora do escopo do ctx do bootstrap; a query é curta e
-// fire-and-forget — WithTimeout aqui seria over-engineering.
+// syncTrayState reage a eventos do poller. Só EventPollCompleted é
+// observado: nesse ponto o store já tem o snapshot final do tick e dá pra
+// recomputar pending + attention + error num passo só. Usa Background()
+// porque o callback é disparado fora do escopo do ctx do bootstrap; queries
+// são curtas e fire-and-forget — WithTimeout aqui seria over-engineering.
 func syncTrayState(tr *tray.Tray, s store.Store, e poller.Event) {
 	if e.Kind != poller.EventPollCompleted {
 		return
 	}
-	tr.SetState(stateFromStore(context.Background(), s))
+	ctx := context.Background()
+	tr.SetError(e.Err != "")
+	pending := s.GetPending(ctx)
+	tr.SetPending(len(pending) > 0)
+	// Erro do driver não pode mascarar pending — trata como "nunca acked".
+	ackedAt, _, _ := s.AcknowledgedAt(ctx)
+	tr.SetAttention(hasUnacked(pending, ackedAt))
+}
+
+// hasUnacked devolve true quando existe ao menos um PR pending cujo
+// last_seen_at é posterior ao último ack do user. Ack não persistido (zero)
+// faz qualquer pending contar como attention — comportamento desejado no
+// primeiro boot ou após ClearHistory.
+func hasUnacked(pending []store.PRRecord, ackedAt time.Time) bool {
+	for _, p := range pending {
+		if p.LastSeenAt.After(ackedAt) {
+			return true
+		}
+	}
+	return false
 }
 
 // preflightAuth verifies the active profile can talk to GitHub before the

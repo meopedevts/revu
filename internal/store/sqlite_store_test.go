@@ -594,3 +594,84 @@ func TestSQLite_Load_BackfillNotifiedAt_OneShotIdempotent(t *testing.T) {
 		t.Fatalf("backfill ran twice: LastNotifiedAt=%v want sentinel %s", got3.LastNotifiedAt, sentinel)
 	}
 }
+
+// TestSQLite_Acknowledge_RoundTrip cobre o ciclo set → get do ack de tray
+// (REV-51). Antes do primeiro Acknowledge, AcknowledgedAt deve devolver
+// ok=false; depois, devolver o instante exato (preservando UTC + nanos).
+func TestSQLite_Acknowledge_RoundTrip(t *testing.T) {
+	s := newMemoryStore(t)
+	ctx := context.Background()
+
+	if _, ok, err := s.AcknowledgedAt(ctx); err != nil || ok {
+		t.Fatalf("pre-ack: want (zero, false, nil), got ok=%v err=%v", ok, err)
+	}
+
+	when := time.Date(2026, 5, 2, 14, 56, 17, 123_000_000, time.UTC)
+	if err := s.Acknowledge(ctx, when); err != nil {
+		t.Fatalf("Acknowledge: %v", err)
+	}
+
+	got, ok, err := s.AcknowledgedAt(ctx)
+	if err != nil {
+		t.Fatalf("AcknowledgedAt: %v", err)
+	}
+	if !ok {
+		t.Fatal("post-ack: ok=false, want true")
+	}
+	if !got.Equal(when) {
+		t.Fatalf("ack timestamp mismatch: got %s, want %s", got, when)
+	}
+}
+
+// TestSQLite_Acknowledge_Overwrites verifica que chamadas sucessivas
+// substituem o ack anterior (semântica "última visualização vence").
+func TestSQLite_Acknowledge_Overwrites(t *testing.T) {
+	s := newMemoryStore(t)
+	ctx := context.Background()
+
+	first := time.Date(2026, 5, 2, 10, 0, 0, 0, time.UTC)
+	second := first.Add(2 * time.Hour)
+
+	if err := s.Acknowledge(ctx, first); err != nil {
+		t.Fatalf("first ack: %v", err)
+	}
+	if err := s.Acknowledge(ctx, second); err != nil {
+		t.Fatalf("second ack: %v", err)
+	}
+
+	got, ok, err := s.AcknowledgedAt(ctx)
+	if err != nil || !ok {
+		t.Fatalf("AcknowledgedAt: ok=%v err=%v", ok, err)
+	}
+	if !got.Equal(second) {
+		t.Fatalf("want last ack (%s), got %s", second, got)
+	}
+}
+
+// TestSQLite_Acknowledge_NormalizesToUTC garante que um ack passado em
+// fuso local volta normalizado em UTC — store grava sempre RFC3339Nano UTC,
+// e o caller (tray) compara com LastSeenAt que também é UTC.
+func TestSQLite_Acknowledge_NormalizesToUTC(t *testing.T) {
+	s := newMemoryStore(t)
+	ctx := context.Background()
+
+	loc, err := time.LoadLocation("America/Sao_Paulo")
+	if err != nil {
+		t.Skipf("tz not available: %v", err)
+	}
+	local := time.Date(2026, 5, 2, 11, 0, 0, 0, loc)
+
+	if err := s.Acknowledge(ctx, local); err != nil {
+		t.Fatalf("Acknowledge: %v", err)
+	}
+	got, ok, err := s.AcknowledgedAt(ctx)
+	if err != nil || !ok {
+		t.Fatalf("AcknowledgedAt: ok=%v err=%v", ok, err)
+	}
+	if got.Location() != time.UTC {
+		t.Fatalf("want UTC, got %s", got.Location())
+	}
+	if !got.Equal(local) {
+		t.Fatalf("instant changed: got %s want %s", got, local)
+	}
+}
