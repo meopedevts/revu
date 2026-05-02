@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="revu check concept — r tail forming a check">
+  <title>revu — r-check concept</title>
+  <rect x="0" y="0" width="64" height="64" rx="14" ry="14" fill="oklch(0.58 0.18 288)"/>
+
+  <!-- stem of r -->
+  <rect x="16" y="18" width="7" height="28" rx="2" ry="2" fill="oklch(0.98 0.01 288)"/>
+
+  <!-- shoulder/arch of r -->
+  <path d="M23 25
+           Q23 18 34 18
+           L40 18
+           L40 25
+           L34 25
+           Q30 25 30 30
+           L23 30 Z"
+        fill="oklch(0.98 0.01 288)"/>
+
+  <!-- check mark coming out of the r baseline -->
+  <path d="M16 46 L26 54 L48 30"
+        stroke="oklch(0.72 0.14 30)"
+        stroke-width="6"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        fill="none"/>
+</svg>
