@@ -7,6 +7,10 @@ import (
 
 // PRSummary is the flattened shape returned by ListReviewRequested. The ID
 // follows the store convention "owner/repo#number" (see SPEC §5.3).
+//
+// Branch e AvatarURL não fazem parte do search (limitação do gh) — vivem em
+// PRDetails e chegam ao store via RefreshPRStatus. Permanecer fora deste
+// struct deixa explícito que o caminho hot path não os carrega.
 type PRSummary struct {
 	ID        string    `json:"id"`
 	Number    int       `json:"number"`
@@ -14,8 +18,6 @@ type PRSummary struct {
 	Title     string    `json:"title"`
 	URL       string    `json:"url"`
 	Author    string    `json:"author"`
-	AvatarURL string    `json:"avatarUrl"`
-	Branch    string    `json:"branch"`
 	IsDraft   bool      `json:"isDraft"`
 	UpdatedAt time.Time `json:"updatedAt"`
 }
@@ -31,6 +33,11 @@ type PRDetails struct {
 	MergedAt    *time.Time `json:"mergedAt"`
 	IsDraft     bool       `json:"isDraft"`
 	ReviewState string     `json:"reviewState"`
+	// Branch e AvatarURL chegam aqui (não no search) porque `gh search prs`
+	// não suporta `headRefName` e o `author` nele retornado não inclui
+	// `avatarUrl`. Populados via `gh pr view` no enrich do poller.
+	Branch    string `json:"branch"`
+	AvatarURL string `json:"avatarUrl"`
 }
 
 // PRFullDetails is the payload for the in-app PR details view — metadata,
@@ -113,12 +120,16 @@ type rawLatestReview struct {
 }
 
 // rawPRView is the shape of the JSON payload returned by GetPRDetails.
+// REV-54 adiciona headRefName + author.avatarUrl pra alimentar o card
+// — campos que `gh search prs` não expõe.
 type rawPRView struct {
 	Additions     int               `json:"additions"`
 	Deletions     int               `json:"deletions"`
 	State         string            `json:"state"`
 	MergedAt      *time.Time        `json:"mergedAt"`
 	IsDraft       bool              `json:"isDraft"`
+	HeadRefName   string            `json:"headRefName"`
+	Author        rawLogin          `json:"author"`
 	LatestReviews []rawLatestReview `json:"latestReviews"`
 }
 
@@ -191,8 +202,9 @@ var (
 )
 
 // rawSearchPR mirrors the nested JSON from `gh search prs` so we can decode
-// the wire shape before flattening into PRSummary. REV-54 adiciona avatarUrl
-// e headRefName pra alimentar o card redesenhado.
+// the wire shape before flattening into PRSummary. `gh search prs --json`
+// não expõe `headRefName` nem `avatarUrl` (ver `gh search prs --json invalid`
+// pra lista canônica). Esses campos chegam via `gh pr view` no enrich.
 type rawSearchPR struct {
 	Number     int    `json:"number"`
 	Title      string `json:"title"`
@@ -201,10 +213,8 @@ type rawSearchPR struct {
 		NameWithOwner string `json:"nameWithOwner"`
 	} `json:"repository"`
 	Author struct {
-		Login     string `json:"login"`
-		AvatarURL string `json:"avatarUrl"`
+		Login string `json:"login"`
 	} `json:"author"`
-	IsDraft     bool      `json:"isDraft"`
-	HeadRefName string    `json:"headRefName"`
-	UpdatedAt   time.Time `json:"updatedAt"`
+	IsDraft   bool      `json:"isDraft"`
+	UpdatedAt time.Time `json:"updatedAt"`
 }

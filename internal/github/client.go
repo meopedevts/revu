@@ -112,12 +112,33 @@ func (c *ghClient) AuthStatus(ctx context.Context) error {
 	return nil
 }
 
+// searchPRsJSONFields lista os campos passados pra `gh search prs --json`.
+// MUST ser subset de [searchPRsAllowedFields]; o teste TestSearchPRsJSONFields_Subset
+// trava regressões silenciosas (campo inexistente derruba o poll inteiro
+// porque gh aborta com "Unknown JSON field").
+var searchPRsJSONFields = "number,title,url,repository,author,isDraft,updatedAt"
+
+// searchPRsAllowedFields é a lista canônica de campos que `gh search prs --json`
+// aceita (extraída via `gh search prs --json invalid`). Hardcoded aqui pra que
+// CI flagre quando alguém adiciona um campo novo a [searchPRsJSONFields] sem
+// confirmar suporte. Versão do gh referenciada: 2.x (REV-54).
+//
+// Notavelmente AUSENTES (e que poderiam ser desejáveis):
+//   - headRefName / baseRefName — disponíveis só em `gh pr view`.
+//   - author.avatarUrl — author retorna {id, is_bot, login, type, url} apenas.
+var searchPRsAllowedFields = []string{
+	"assignees", "author", "authorAssociation", "body", "closedAt",
+	"commentsCount", "createdAt", "id", "isDraft", "isLocked",
+	"isPullRequest", "labels", "number", "repository", "state",
+	"title", "updatedAt", "url",
+}
+
 func (c *ghClient) ListReviewRequested(ctx context.Context) ([]PRSummary, error) {
 	args := []string{
 		"search", "prs",
 		"--review-requested=@me",
 		"--state=open",
-		"--json", "number,title,url,repository,author,isDraft,headRefName,updatedAt",
+		"--json", searchPRsJSONFields,
 		"--limit", "100",
 	}
 	stdout, stderr, err := c.runGH(ctx, args...)
@@ -137,8 +158,6 @@ func (c *ghClient) ListReviewRequested(ctx context.Context) ([]PRSummary, error)
 			Title:     r.Title,
 			URL:       r.URL,
 			Author:    r.Author.Login,
-			AvatarURL: r.Author.AvatarURL,
-			Branch:    r.HeadRefName,
 			IsDraft:   r.IsDraft,
 			UpdatedAt: r.UpdatedAt,
 		})
@@ -149,7 +168,7 @@ func (c *ghClient) ListReviewRequested(ctx context.Context) ([]PRSummary, error)
 func (c *ghClient) GetPRDetails(ctx context.Context, url string) (*PRDetails, error) {
 	stdout, stderr, err := c.runGH(ctx,
 		"pr", "view", url,
-		"--json", "additions,deletions,state,mergedAt,isDraft,latestReviews",
+		"--json", "additions,deletions,state,mergedAt,isDraft,headRefName,author,latestReviews",
 	)
 	if err != nil {
 		return nil, classify(stderr, err)
@@ -166,6 +185,8 @@ func (c *ghClient) GetPRDetails(ctx context.Context, url string) (*PRDetails, er
 		MergedAt:    raw.MergedAt,
 		IsDraft:     raw.IsDraft,
 		ReviewState: reviewStateFor(login, raw.LatestReviews),
+		Branch:      raw.HeadRefName,
+		AvatarURL:   raw.Author.AvatarURL,
 	}, nil
 }
 

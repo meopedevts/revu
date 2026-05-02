@@ -124,6 +124,8 @@ func TestSQLite_RefreshPRStatus(t *testing.T) {
 	merged := time.Date(2026, 4, 24, 10, 0, 0, 0, time.UTC)
 	err := s.RefreshPRStatus(context.Background(), pr.ID, github.PRDetails{
 		Additions: 10, Deletions: 5, State: "CLOSED", MergedAt: &merged, IsDraft: false,
+		Branch:    "feat/foo",
+		AvatarURL: "https://avatars.githubusercontent.com/u/1?v=4",
 	})
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
@@ -131,6 +133,24 @@ func TestSQLite_RefreshPRStatus(t *testing.T) {
 	got := s.GetAll(context.Background())[0]
 	if got.Additions != 10 || got.Deletions != 5 || got.State != "MERGED" {
 		t.Fatalf("status not applied: %+v", got)
+	}
+	if got.Branch != "feat/foo" {
+		t.Fatalf("branch not applied: %q", got.Branch)
+	}
+	if got.AvatarURL != "https://avatars.githubusercontent.com/u/1?v=4" {
+		t.Fatalf("avatar not applied: %q", got.AvatarURL)
+	}
+
+	// REV-54: enrich parcial (sem Branch/AvatarURL) preserva valores anteriores
+	// — sobrescrita silenciosa derruba o card.
+	if err := s.RefreshPRStatus(context.Background(), pr.ID, github.PRDetails{
+		Additions: 11, Deletions: 6, State: "CLOSED", IsDraft: false,
+	}); err != nil {
+		t.Fatalf("partial refresh err: %v", err)
+	}
+	got = s.GetAll(context.Background())[0]
+	if got.Branch != "feat/foo" || got.AvatarURL != "https://avatars.githubusercontent.com/u/1?v=4" {
+		t.Fatalf("partial refresh wiped branch/avatar: %+v", got)
 	}
 
 	if err := s.RefreshPRStatus(context.Background(), "nope", github.PRDetails{}); !errors.Is(err, ErrNotFound) {

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 )
@@ -149,23 +150,20 @@ func TestListReviewRequested_Happy(t *testing.T) {
 		Title:     "feat: add foo",
 		URL:       "https://github.com/octocat/hello-world/pull/142",
 		Author:    "alice",
-		AvatarURL: "https://avatars.githubusercontent.com/u/1?v=4",
-		Branch:    "feat/foo",
 		IsDraft:   false,
 		UpdatedAt: time.Date(2026, 4, 23, 14, 30, 0, 0, time.UTC),
 	}
 	if !reflect.DeepEqual(got[0], want0) {
 		t.Fatalf("pr[0] mismatch:\nwant %+v\ngot  %+v", want0, got[0])
 	}
-	if got[1].ID != "acme/widgets#7" || !got[1].IsDraft || got[1].Branch != "chore/bump" ||
-		got[1].AvatarURL != "https://avatars.githubusercontent.com/u/2?v=4" {
+	if got[1].ID != "acme/widgets#7" || !got[1].IsDraft {
 		t.Fatalf("pr[1] mismatch: %+v", got[1])
 	}
 	wantArgs := []string{
 		"search", "prs",
 		"--review-requested=@me",
 		"--state=open",
-		"--json", "number,title,url,repository,author,isDraft,headRefName,updatedAt",
+		"--json", "number,title,url,repository,author,isDraft,updatedAt",
 		"--limit", "100",
 	}
 	if !reflect.DeepEqual(fe.gotArgs, wantArgs) {
@@ -227,11 +225,13 @@ func TestGetPRDetails_Happy(t *testing.T) {
 		MergedAt:    nil,
 		IsDraft:     false,
 		ReviewState: "APPROVED",
+		Branch:      "feat/foo",
+		AvatarURL:   "https://avatars.githubusercontent.com/u/9?v=4",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("want %+v, got %+v", want, got)
 	}
-	wantPRView := []string{"pr", "view", url, "--json", "additions,deletions,state,mergedAt,isDraft,latestReviews"}
+	wantPRView := []string{"pr", "view", url, "--json", "additions,deletions,state,mergedAt,isDraft,headRefName,author,latestReviews"}
 	if len(fe.calls) < 1 || !reflect.DeepEqual(fe.calls[0].args, wantPRView) {
 		t.Fatalf("pr view call mismatch:\nwant %v\ngot calls %+v", wantPRView, fe.calls)
 	}
@@ -583,5 +583,28 @@ func TestMergePR_InvalidatesCache(t *testing.T) {
 	}
 	if views != 2 {
 		t.Fatalf("cache invalidation failed: want 2 pr view calls, got %d", views)
+	}
+}
+
+// TestSearchPRsJSONFields_Subset trava regressão silenciosa: `gh search prs`
+// aceita uma lista fixa de campos via `--json` (ver searchPRsAllowedFields).
+// Se alguém adicionar um campo novo a searchPRsJSONFields que o gh não
+// aceita, o poll inteiro quebra em runtime ("Unknown JSON field"). Este
+// teste falha em compile time da suite (rápido) ao invés de runtime do
+// daemon (que só dispara após instalação).
+func TestSearchPRsJSONFields_Subset(t *testing.T) {
+	allowed := make(map[string]struct{}, len(searchPRsAllowedFields))
+	for _, f := range searchPRsAllowedFields {
+		allowed[f] = struct{}{}
+	}
+	for field := range strings.SplitSeq(searchPRsJSONFields, ",") {
+		field = strings.TrimSpace(field)
+		if _, ok := allowed[field]; !ok {
+			t.Errorf("--json field %q não está em searchPRsAllowedFields; "+
+				"gh search prs vai abortar com Unknown JSON field. "+
+				"Mover esse dado pra GetPRDetails (gh pr view) ou confirmar "+
+				"que o gh suporta agora e adicionar à lista canônica.",
+				field)
+		}
 	}
 }

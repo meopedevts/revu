@@ -358,10 +358,10 @@ func insertNewPolled(
 		IsDraft:       pr.IsDraft,
 		ReviewPending: true,
 		ReviewState:   "PENDING",
-		Branch:        pr.Branch,
-		AvatarURL:     pr.AvatarURL,
-		FirstSeenAt:   now,
-		LastSeenAt:    now,
+		// Branch e AvatarURL ficam vazios na inserção — populados via
+		// RefreshPRStatus (gh pr view) no próximo enrich tick.
+		FirstSeenAt: now,
+		LastSeenAt:  now,
 	}
 	if _, err := tx.ExecContext(ctx, qInsertPR,
 		rec.ID, rec.Number, rec.Repo, rec.Title, rec.Author, rec.URL,
@@ -390,7 +390,6 @@ func updateExistingPolled(
 ) (PRRecord, bool, error) {
 	if _, err := tx.ExecContext(ctx, qUpdatePRMutable,
 		pr.Title, pr.Author, pr.URL, pr.Repo, boolToInt(pr.IsDraft),
-		pr.Branch, pr.AvatarURL,
 		formatTime(now), pr.ID,
 	); err != nil {
 		return PRRecord{}, false, err
@@ -518,8 +517,18 @@ func (s *sqliteStore) RefreshPRStatus(ctx context.Context, id string, details gi
 	if details.ReviewState != "" {
 		rec.ReviewState = details.ReviewState
 	}
+	// Branch e AvatarURL: só sobrescreve quando o enrich trouxe valor não
+	// vazio. Evita zerar dado bom em chamadas legacy (ex.: testes que enviam
+	// PRDetails parcial) ou em respostas degradadas do gh.
+	if details.Branch != "" {
+		rec.Branch = details.Branch
+	}
+	if details.AvatarURL != "" {
+		rec.AvatarURL = details.AvatarURL
+	}
 	if _, err := db.ExecContext(ctx, qUpdatePRStatus,
-		rec.Additions, rec.Deletions, boolToInt(rec.IsDraft), rec.State, rec.ReviewState, rec.ID,
+		rec.Additions, rec.Deletions, boolToInt(rec.IsDraft), rec.State, rec.ReviewState,
+		rec.Branch, rec.AvatarURL, rec.ID,
 	); err != nil {
 		return fmt.Errorf("update status: %w", err)
 	}

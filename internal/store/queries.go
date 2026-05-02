@@ -47,11 +47,10 @@ const (
 	// dropped out (review_pending was 0), reset review_state to PENDING: GitHub
 	// only surfaces a PR under review-requested when a fresh review is
 	// expected, so whatever state lingered from the previous round is stale.
-	// REV-54: branch + avatar_url também são mutáveis (rebase muda headRef,
-	// avatar do GH pode rotacionar).
+	// REV-54: branch e avatar_url ficam fora porque `gh search prs` não os
+	// expõe — atualização desses campos vive em qUpdatePRStatus (enrich path).
 	qUpdatePRMutable = `UPDATE prs
 		SET title = ?, author = ?, url = ?, repo = ?, is_draft = ?,
-			branch = ?, avatar_url = ?,
 			review_pending = 1,
 			review_state = CASE WHEN review_pending = 0 THEN 'PENDING' ELSE review_state END,
 			last_seen_at = ?,
@@ -69,8 +68,13 @@ const (
 	qBackfillNotifiedAt = `UPDATE prs SET last_notified_at = first_seen_at
 		WHERE last_notified_at IS NULL OR last_notified_at = ''`
 
+	// qUpdatePRStatus carrega o resultado do enrich (gh pr view). REV-54:
+	// branch (headRefName) + avatar_url (author.avatarUrl) só aparecem aqui
+	// porque o search não os expõe; toda PR recém-inserida fica com strings
+	// vazias até o próximo enrich tick e o frontend trata "" como ausente.
 	qUpdatePRStatus = `UPDATE prs
-		SET additions = ?, deletions = ?, is_draft = ?, state = ?, review_state = ?
+		SET additions = ?, deletions = ?, is_draft = ?, state = ?, review_state = ?,
+			branch = ?, avatar_url = ?
 		WHERE id = ?`
 
 	// qDeleteRetention drops non-OPEN history older than the cutoff. state=''

@@ -7,11 +7,13 @@
       "nameWithOwner": "octocat/hello-world"
     },
     "author": {
+      "id": "MDQ6VXNlcjE=",
+      "is_bot": false,
       "login": "alice",
-      "avatarUrl": "https://avatars.githubusercontent.com/u/1?v=4"
+      "type": "User",
+      "url": "https://github.com/alice"
     },
     "isDraft": false,
-    "headRefName": "feat/foo",
     "updatedAt": "2026-04-23T14:30:00Z"
   },
   {
@@ -22,11 +24,13 @@
       "nameWithOwner": "acme/widgets"
     },
     "author": {
+      "id": "MDQ6VXNlcjI=",
+      "is_bot": false,
       "login": "bob",
-      "avatarUrl": "https://avatars.githubusercontent.com/u/2?v=4"
+      "type": "User",
+      "url": "https://github.com/bob"
     },
     "isDraft": true,
-    "headRefName": "chore/bump",
     "updatedAt": "2026-04-22T09:15:00Z"
   }
 ]

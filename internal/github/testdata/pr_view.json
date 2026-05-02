@@ -4,6 +4,11 @@
   "state": "OPEN",
   "mergedAt": null,
   "isDraft": false,
+  "headRefName": "feat/foo",
+  "author": {
+    "login": "carol",
+    "avatarUrl": "https://avatars.githubusercontent.com/u/9?v=4"
+  },
   "latestReviews": [
     {"author": {"login": "bob"}, "state": "COMMENTED"},
     {"author": {"login": "alice"}, "state": "APPROVED"}
