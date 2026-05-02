@@ -1,5 +1,7 @@
 # build artifacts
 build/bin/
+dist/
+node_modules/
 frontend/dist/
 frontend/node_modules/
 frontend/package.json.md5
