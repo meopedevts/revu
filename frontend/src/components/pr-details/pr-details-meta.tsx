@@ -14,7 +14,7 @@ export function PRDetailsMeta({ details }: PRDetailsMetaProps) {
   const updated = useRelativeTime(details.updatedAt, { prefix: "atualizado " })
 
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs leading-snug text-muted-foreground">
       <span>@{details.author}</span>
       <span aria-hidden="true">·</span>
       <span className="inline-flex items-center gap-1">

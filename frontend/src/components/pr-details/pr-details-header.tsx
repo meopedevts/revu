@@ -72,7 +72,9 @@ export function PRDetailsHeader({
           <span className="font-mono text-sm text-muted-foreground">
             #{details.number}
           </span>
-          <h1 className="truncate text-base font-medium">{details.title}</h1>
+          <h1 className="truncate text-lg leading-tight font-semibold tracking-tight">
+            {details.title}
+          </h1>
         </div>
         <div className="flex shrink-0 items-center gap-1">
           <StatusBadge status={prState} />

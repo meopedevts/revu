@@ -58,12 +58,12 @@ export function PRCard({ pr, onOpen }: PRCardProps) {
           <ReviewBadge state={review} />
         </CardAction>
       </CardHeader>
-      <CardContent className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+      <CardContent className="flex items-center justify-between gap-2 text-xs leading-snug text-muted-foreground">
         <div className="flex items-center gap-2">
-          <span className="font-mono text-emerald-600 dark:text-emerald-400">
+          <span className="font-mono font-medium text-emerald-600 dark:text-emerald-400">
             +{pr.additions}
           </span>
-          <span className="font-mono text-rose-600 dark:text-rose-400">
+          <span className="font-mono font-medium text-rose-600 dark:text-rose-400">
             −{pr.deletions}
           </span>
         </div>
