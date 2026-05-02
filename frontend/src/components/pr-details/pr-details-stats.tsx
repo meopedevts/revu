@@ -12,12 +12,12 @@ export function PRDetailsStats({
   reviewCount,
 }: PRDetailsStatsProps) {
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs leading-snug text-muted-foreground">
       <span>
-        <span className="font-mono text-emerald-600 dark:text-emerald-400">
+        <span className="font-mono font-medium text-emerald-600 dark:text-emerald-400">
           +{additions}
         </span>{" "}
-        <span className="font-mono text-rose-600 dark:text-rose-400">
+        <span className="font-mono font-medium text-rose-600 dark:text-rose-400">
           −{deletions}
         </span>
       </span>
