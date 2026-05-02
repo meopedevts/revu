@@ -20,6 +20,8 @@ function makePR(overrides: Partial<PRRecord> = {}): PRRecord {
     deletions: 3,
     reviewPending: true,
     reviewState: "PENDING",
+    branch: "feat/fix-bug",
+    avatarUrl: "https://avatars.githubusercontent.com/u/1?v=4",
     firstSeenAt: "2026-04-30T11:55:00Z",
     lastSeenAt: "2026-04-30T11:55:00Z",
     ...overrides,
@@ -118,5 +120,42 @@ describe("PRCard", () => {
   it("renderiza badge APPROVED quando reviewState=APPROVED", () => {
     render(<PRCard pr={makePR({ reviewState: "APPROVED" })} onOpen={vi.fn()} />)
     expect(screen.getByText("aprovado")).toBeInTheDocument()
+  })
+
+  it("renderiza avatar do autor com alt=author quando avatarUrl está setado", () => {
+    render(<PRCard pr={makePR()} onOpen={vi.fn()} />)
+    const img = screen.getByAltText("alice")
+    expect(img.tagName).toBe("IMG")
+    expect(img.getAttribute("src")).toBe(
+      "https://avatars.githubusercontent.com/u/1?v=4"
+    )
+  })
+
+  it("renderiza fallback UserRound quando avatarUrl é vazio", () => {
+    render(<PRCard pr={makePR({ avatarUrl: "" })} onOpen={vi.fn()} />)
+    expect(screen.queryByAltText("alice")).toBeNull()
+    expect(screen.getByLabelText("alice")).toBeInTheDocument()
+  })
+
+  it("renderiza branch name dentro de span font-mono", () => {
+    render(<PRCard pr={makePR()} onOpen={vi.fn()} />)
+    const branch = screen.getByText("feat/fix-bug")
+    expect(branch).toBeInTheDocument()
+    expect(branch.className).toMatch(/font-mono/)
+  })
+
+  it("não renderiza branch quando string vazia", () => {
+    render(<PRCard pr={makePR({ branch: "" })} onOpen={vi.fn()} />)
+    expect(screen.queryByText(/feat\//)).toBeNull()
+  })
+
+  it("renderiza dot novo quando isNew=true", () => {
+    render(<PRCard pr={makePR()} onOpen={vi.fn()} isNew />)
+    expect(screen.getByLabelText("novo")).toBeInTheDocument()
+  })
+
+  it("NÃO renderiza dot novo quando isNew=false (default)", () => {
+    render(<PRCard pr={makePR()} onOpen={vi.fn()} />)
+    expect(screen.queryByLabelText("novo")).toBeNull()
   })
 })

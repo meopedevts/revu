@@ -20,6 +20,8 @@ export interface PRRecord {
   deletions: number
   reviewPending: boolean
   reviewState: string
+  branch: string
+  avatarUrl: string
   firstSeenAt: string
   lastSeenAt: string
   lastNotifiedAt?: string

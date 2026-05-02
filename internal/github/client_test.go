@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 )
@@ -224,11 +225,13 @@ func TestGetPRDetails_Happy(t *testing.T) {
 		MergedAt:    nil,
 		IsDraft:     false,
 		ReviewState: "APPROVED",
+		Branch:      "feat/foo",
+		AvatarURL:   "https://avatars.githubusercontent.com/u/9?v=4",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("want %+v, got %+v", want, got)
 	}
-	wantPRView := []string{"pr", "view", url, "--json", "additions,deletions,state,mergedAt,isDraft,latestReviews"}
+	wantPRView := []string{"pr", "view", url, "--json", "additions,deletions,state,mergedAt,isDraft,headRefName,author,latestReviews"}
 	if len(fe.calls) < 1 || !reflect.DeepEqual(fe.calls[0].args, wantPRView) {
 		t.Fatalf("pr view call mismatch:\nwant %v\ngot calls %+v", wantPRView, fe.calls)
 	}
@@ -580,5 +583,28 @@ func TestMergePR_InvalidatesCache(t *testing.T) {
 	}
 	if views != 2 {
 		t.Fatalf("cache invalidation failed: want 2 pr view calls, got %d", views)
+	}
+}
+
+// TestSearchPRsJSONFields_Subset trava regressão silenciosa: `gh search prs`
+// aceita uma lista fixa de campos via `--json` (ver searchPRsAllowedFields).
+// Se alguém adicionar um campo novo a searchPRsJSONFields que o gh não
+// aceita, o poll inteiro quebra em runtime ("Unknown JSON field"). Este
+// teste falha em compile time da suite (rápido) ao invés de runtime do
+// daemon (que só dispara após instalação).
+func TestSearchPRsJSONFields_Subset(t *testing.T) {
+	allowed := make(map[string]struct{}, len(searchPRsAllowedFields))
+	for _, f := range searchPRsAllowedFields {
+		allowed[f] = struct{}{}
+	}
+	for field := range strings.SplitSeq(searchPRsJSONFields, ",") {
+		field = strings.TrimSpace(field)
+		if _, ok := allowed[field]; !ok {
+			t.Errorf("--json field %q não está em searchPRsAllowedFields; "+
+				"gh search prs vai abortar com Unknown JSON field. "+
+				"Mover esse dado pra GetPRDetails (gh pr view) ou confirmar "+
+				"que o gh suporta agora e adicionar à lista canônica.",
+				field)
+		}
 	}
 }

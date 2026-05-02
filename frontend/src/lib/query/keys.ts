@@ -9,6 +9,9 @@ export const queryKeys = {
   poll: {
     meta: ["poll", "meta"] as const,
   },
+  tray: {
+    acknowledgedAt: ["tray", "acknowledgedAt"] as const,
+  },
   profiles: {
     all: ["profiles"] as const,
     list: ["profiles", "list"] as const,

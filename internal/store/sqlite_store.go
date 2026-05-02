@@ -358,13 +358,16 @@ func insertNewPolled(
 		IsDraft:       pr.IsDraft,
 		ReviewPending: true,
 		ReviewState:   "PENDING",
-		FirstSeenAt:   now,
-		LastSeenAt:    now,
+		// Branch e AvatarURL ficam vazios na inserção — populados via
+		// RefreshPRStatus (gh pr view) no próximo enrich tick.
+		FirstSeenAt: now,
+		LastSeenAt:  now,
 	}
 	if _, err := tx.ExecContext(ctx, qInsertPR,
 		rec.ID, rec.Number, rec.Repo, rec.Title, rec.Author, rec.URL,
 		rec.State, boolToInt(rec.IsDraft), rec.Additions, rec.Deletions,
 		boolToInt(rec.ReviewPending), rec.ReviewState,
+		rec.Branch, rec.AvatarURL,
 		formatTime(rec.FirstSeenAt),
 		formatTime(rec.LastSeenAt), formatTimePtr(rec.LastNotifiedAt),
 		profID,
@@ -514,8 +517,18 @@ func (s *sqliteStore) RefreshPRStatus(ctx context.Context, id string, details gi
 	if details.ReviewState != "" {
 		rec.ReviewState = details.ReviewState
 	}
+	// Branch e AvatarURL: só sobrescreve quando o enrich trouxe valor não
+	// vazio. Evita zerar dado bom em chamadas legacy (ex.: testes que enviam
+	// PRDetails parcial) ou em respostas degradadas do gh.
+	if details.Branch != "" {
+		rec.Branch = details.Branch
+	}
+	if details.AvatarURL != "" {
+		rec.AvatarURL = details.AvatarURL
+	}
 	if _, err := db.ExecContext(ctx, qUpdatePRStatus,
-		rec.Additions, rec.Deletions, boolToInt(rec.IsDraft), rec.State, rec.ReviewState, rec.ID,
+		rec.Additions, rec.Deletions, boolToInt(rec.IsDraft), rec.State, rec.ReviewState,
+		rec.Branch, rec.AvatarURL, rec.ID,
 	); err != nil {
 		return fmt.Errorf("update status: %w", err)
 	}
@@ -608,7 +621,8 @@ func scanRow(row interface {
 	err := row.Scan(
 		&rec.ID, &rec.Number, &rec.Repo, &rec.Title, &rec.Author, &rec.URL,
 		&rec.State, &isDraft, &rec.Additions, &rec.Deletions,
-		&pend, &rec.ReviewState, &firstSeen, &lastSeen, &lastNotifiedRaw,
+		&pend, &rec.ReviewState, &rec.Branch, &rec.AvatarURL,
+		&firstSeen, &lastSeen, &lastNotifiedRaw,
 	)
 	if err != nil {
 		return PRRecord{}, err

@@ -36,6 +36,8 @@ export function toPRRecord(w: PRRecordWire): PRRecord {
     deletions: w.deletions,
     reviewPending: w.review_pending,
     reviewState: w.review_state,
+    branch: w.branch,
+    avatarUrl: w.avatar_url,
     firstSeenAt: w.first_seen_at,
     lastSeenAt: w.last_seen_at,
     lastNotifiedAt: w.last_notified_at,

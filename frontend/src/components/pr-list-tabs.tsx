@@ -1,6 +1,7 @@
 import { EmptyState } from "@/components/empty-state"
 import { PRCard } from "@/components/pr-card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useTrayAcknowledgedAt } from "@/hooks/use-prs"
 import type { PRRecord } from "@/lib/types"
 
 interface PRListTabsProps {
@@ -9,7 +10,16 @@ interface PRListTabsProps {
   onOpenPR: (prID: string) => void
 }
 
+// isNewSince devolve true quando firstSeenAt é posterior ao último ack do
+// tray. Antes do primeiro ack (acked=null), nada é "novo" — semântica de
+// "clean slate" no boot inicial.
+function isNewSince(firstSeenAt: string, acked: Date | null): boolean {
+  if (!acked) return false
+  return new Date(firstSeenAt).getTime() > acked.getTime()
+}
+
 export function PRListTabs({ pending, history, onOpenPR }: PRListTabsProps) {
+  const acked = useTrayAcknowledgedAt()
   return (
     <Tabs
       defaultValue="pending"
@@ -33,7 +43,12 @@ export function PRListTabs({ pending, history, onOpenPR }: PRListTabsProps) {
         ) : (
           <div className="flex flex-col gap-2">
             {pending.map((pr) => (
-              <PRCard key={pr.id} pr={pr} onOpen={onOpenPR} />
+              <PRCard
+                key={pr.id}
+                pr={pr}
+                onOpen={onOpenPR}
+                isNew={isNewSince(pr.firstSeenAt, acked)}
+              />
             ))}
           </div>
         )}
@@ -45,7 +60,12 @@ export function PRListTabs({ pending, history, onOpenPR }: PRListTabsProps) {
         ) : (
           <div className="flex flex-col gap-2">
             {history.map((pr) => (
-              <PRCard key={pr.id} pr={pr} onOpen={onOpenPR} />
+              <PRCard
+                key={pr.id}
+                pr={pr}
+                onOpen={onOpenPR}
+                isNew={isNewSince(pr.firstSeenAt, acked)}
+              />
             ))}
           </div>
         )}

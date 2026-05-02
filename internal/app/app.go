@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"os/exec"
 	"sync"
+	"time"
 
 	wruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 
@@ -146,6 +147,30 @@ func (a *App) ListPendingPRs() []store.PRRecord {
 // ListHistoryPRs returns PRs with review_pending=false, most-recent first.
 func (a *App) ListHistoryPRs() []store.PRRecord {
 	return a.store.GetHistory(a.callCtx())
+}
+
+// AcknowledgeTray persiste o ack do estado attention do tray. Chamado pelo
+// frontend quando a janela monta (REV-54) — garante que abrir via window
+// manager / atalho de teclado limpe o "novo desde última visualização"
+// mesmo quando o caminho não passa por ShowWindow (que já dispara ack via
+// onWindowShown). Erros propagam pra o frontend porque ack falhado deixa o
+// dot eternamente aceso.
+func (a *App) AcknowledgeTray() error {
+	return a.store.Acknowledge(a.callCtx(), time.Now().UTC())
+}
+
+// GetTrayAcknowledgedAt devolve o timestamp do último ack como ISO-8601 ou
+// string vazia se nunca acked. Frontend compara com firstSeenAt do PR pra
+// decidir se renderiza o dot "novo".
+func (a *App) GetTrayAcknowledgedAt() (string, error) {
+	t, ok, err := a.store.AcknowledgedAt(a.callCtx())
+	if err != nil {
+		return "", fmt.Errorf("get tray acknowledged at: %w", err)
+	}
+	if !ok {
+		return "", nil
+	}
+	return t.UTC().Format(time.RFC3339Nano), nil
 }
 
 // OpenPRInBrowser hands the URL off to xdg-open. Errors are logged, not
