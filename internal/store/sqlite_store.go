@@ -522,6 +522,35 @@ func (s *sqliteStore) RefreshPRStatus(ctx context.Context, id string, details gi
 	return nil
 }
 
+// Acknowledge persiste o ack de attention do tray (REV-51). Chamado quando
+// a janela Wails é apresentada — qualquer PR cujo last_seen_at seja anterior
+// a `when` deixa de contar como attention. Erros do driver propagam pra UI
+// porque ack falhado significa que o badge nunca apaga.
+func (s *sqliteStore) Acknowledge(ctx context.Context, when time.Time) error {
+	if err := s.setMetaString(ctx, metaTrayAcknowledgedAt, formatTime(when.UTC())); err != nil {
+		return fmt.Errorf("acknowledge tray: %w", err)
+	}
+	return nil
+}
+
+// AcknowledgedAt devolve o último ack. Retorna (zero, false, nil) antes do
+// primeiro ack — caller (deriveTrayState) interpreta como "tudo é
+// attention". Erro só pra falhas reais do driver / parse.
+func (s *sqliteStore) AcknowledgedAt(ctx context.Context) (time.Time, bool, error) {
+	raw, ok, err := s.getMetaString(ctx, metaTrayAcknowledgedAt)
+	if err != nil {
+		return time.Time{}, false, fmt.Errorf("read %s: %w", metaTrayAcknowledgedAt, err)
+	}
+	if !ok || raw == "" {
+		return time.Time{}, false, nil
+	}
+	t, err := parseTime(raw)
+	if err != nil {
+		return time.Time{}, false, fmt.Errorf("parse %s: %w", metaTrayAcknowledgedAt, err)
+	}
+	return t, true, nil
+}
+
 // MarkNotified persists the timestamp of the most recent notification
 // dispatch for id. The poller calls this after Notify succeeds so the next
 // poll can throttle re-requests landing inside the cooldown window.

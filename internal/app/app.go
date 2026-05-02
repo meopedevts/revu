@@ -32,7 +32,11 @@ type App struct {
 	profiles  *profiles.Service
 	gh        github.Client
 	onRefresh func()
-	log       *slog.Logger
+	// onWindowShown é disparado quando a janela é apresentada via
+	// ShowWindow/ShowSettings (REV-51). Usado pra limpar o badge attention
+	// do tray + persistir ack no store.
+	onWindowShown func()
+	log           *slog.Logger
 
 	mu  sync.RWMutex
 	ctx context.Context
@@ -94,6 +98,26 @@ func (a *App) SetOnRefresh(fn func()) {
 	a.mu.Unlock()
 }
 
+// SetOnWindowShown registra o callback disparado quando a janela é
+// apresentada via ShowWindow/ShowSettings*. Wired pelo run.go após o tray
+// existir — chamada típica limpa attention + ack no store.
+func (a *App) SetOnWindowShown(fn func()) {
+	a.mu.Lock()
+	a.onWindowShown = fn
+	a.mu.Unlock()
+}
+
+// fireWindowShown invoca o callback registrado, se houver. Helper privado
+// pra evitar duplicar lock + nil-check em cada caller.
+func (a *App) fireWindowShown() {
+	a.mu.RLock()
+	fn := a.onWindowShown
+	a.mu.RUnlock()
+	if fn != nil {
+		fn()
+	}
+}
+
 // OnStartup is the Wails lifecycle hook fired when the runtime is ready.
 // Store the ctx so later methods can call wruntime.WindowShow / Hide.
 func (a *App) OnStartup(ctx context.Context) {
@@ -153,13 +177,15 @@ func (a *App) RefreshNow() {
 }
 
 // ShowWindow reveals the window (used by the tray "Abrir" item and after
-// launch from autostart when user wants to inspect the list).
+// launch from autostart when user wants to inspect the list). Dispara
+// onWindowShown (REV-51) pra limpar attention + ack no store.
 func (a *App) ShowWindow() {
 	ctx := a.getCtx()
 	if ctx == nil {
 		return
 	}
 	wruntime.WindowShow(ctx)
+	a.fireWindowShown()
 }
 
 // HideWindow hides the window without terminating the process — used by the
@@ -188,7 +214,8 @@ func (a *App) ShowSettings() {
 }
 
 // ShowSettingsSection é como ShowSettings mas indica a seção alvo
-// (ex.: "accounts","sync"). Section vazia → frontend usa default.
+// (ex.: "accounts","sync"). Section vazia → frontend usa default. Dispara
+// onWindowShown (REV-51) pra limpar attention + ack.
 func (a *App) ShowSettingsSection(section string) {
 	ctx := a.getCtx()
 	if ctx == nil {
@@ -199,6 +226,7 @@ func (a *App) ShowSettingsSection(section string) {
 		Target:  "settings",
 		Section: section,
 	})
+	a.fireWindowShown()
 }
 
 // GetConfig returns the current runtime configuration. Falls back to the

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="revu tray icon — error">
+  <title>revu tray — error</title>
+  <!-- Glyph mono. Badge vermelho (status REV-48) bottom-right: falha de sync (auth expirada / rate limit). -->
+  <text x="32" y="46"
+        text-anchor="middle"
+        font-family="Inter, 'Inter Variable', system-ui, sans-serif"
+        font-weight="600"
+        font-size="44"
+        fill="#FFFFFF"
+        letter-spacing="-2">r</text>
+  <circle cx="50" cy="50" r="12" fill="#FFFFFF"/>
+  <circle cx="50" cy="50" r="10" fill="#CF3826"/>
+</svg>

@@ -263,13 +263,40 @@ tasks:
       - go build -trimpath -tags desktop,production,webkit2_41 -ldflags "{{.LDFLAGS}}" -o {{.BUILD_DIR}}/{{.BINARY}} {{.PKG}}
 
   icons:
-    desc: Resize PNGs-fonte da tray/notifier/janela pra 256px (8-bit RGBA — GTK/webkit2gtk quebram em 16-bit)
+    desc: Renderiza SVGs-fonte da tray (4 estados × 5 tamanhos) em PNG 8-bit RGBA — GTK/webkit2gtk quebram em 16-bit. REV-51.
     cmds:
-      - magick assets/icons/tray-idle.png    -resize 256x256 -depth 8 -define png:color-type=6 PNG32:assets/icons/tray-idle-256.png
-      - magick assets/icons/tray-pending.png -resize 256x256 -depth 8 -define png:color-type=6 PNG32:assets/icons/tray-pending-256.png
+      - for: { var: STATES, split: " " }
+        cmd: |
+          for sz in 22 24 44 48 256; do
+            magick -background none assets/brand/tray/{{.ITEM}}.svg \
+              -resize ${sz}x${sz} -depth 8 -define png:color-type=6 \
+              PNG32:assets/icons/tray-{{.ITEM}}-${sz}.png
+          done
+    vars:
+      STATES: idle pending attention error
     sources:
-      - assets/icons/tray-idle.png
-      - assets/icons/tray-pending.png
+      - assets/brand/tray/idle.svg
+      - assets/brand/tray/pending.svg
+      - assets/brand/tray/attention.svg
+      - assets/brand/tray/error.svg
     generates:
+      - assets/icons/tray-idle-22.png
+      - assets/icons/tray-idle-24.png
+      - assets/icons/tray-idle-44.png
+      - assets/icons/tray-idle-48.png
       - assets/icons/tray-idle-256.png
+      - assets/icons/tray-pending-22.png
+      - assets/icons/tray-pending-24.png
+      - assets/icons/tray-pending-44.png
+      - assets/icons/tray-pending-48.png
       - assets/icons/tray-pending-256.png
+      - assets/icons/tray-attention-22.png
+      - assets/icons/tray-attention-24.png
+      - assets/icons/tray-attention-44.png
+      - assets/icons/tray-attention-48.png
+      - assets/icons/tray-attention-256.png
+      - assets/icons/tray-error-22.png
+      - assets/icons/tray-error-24.png
+      - assets/icons/tray-error-44.png
+      - assets/icons/tray-error-48.png
+      - assets/icons/tray-error-256.png

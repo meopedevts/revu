@@ -13,15 +13,52 @@ import (
 	"github.com/meopedevts/revu/assets"
 )
 
-// State is the visual tray mode; the icon byte-buffer is picked from assets
-// by state (SPEC REV-10): idle when everything's healthy but no pending PR,
-// pending when at least one review is waiting.
+// State is the visual tray mode (REV-51). The icon byte-buffer is picked
+// from assets by state. Higher numeric values win over lower ones in the
+// internal derivation (Error > Attention > Pending > Idle), but callers
+// don't pick State directly — they use SetPending/SetAttention/SetError
+// granular setters and the tray composes the displayed State.
 type State int
 
 const (
+	// StateIdle indica ausência de PRs pendentes, erro ou attention.
 	StateIdle State = iota
+	// StatePending indica ≥1 PR aguardando review.
 	StatePending
+	// StateAttention indica re-request ou PR novo desde o último ack do user.
+	StateAttention
+	// StateError indica falha de sync (gh auth expirado, rate limit etc).
+	StateError
 )
+
+// String renderiza o estado pra logs / depuração.
+func (s State) String() string {
+	switch s {
+	case StatePending:
+		return "pending"
+	case StateAttention:
+		return "attention"
+	case StateError:
+		return "error"
+	default:
+		return "idle"
+	}
+}
+
+// deriveState aplica a prioridade visual error > attention > pending > idle.
+// Pure function pra ser facilmente testada sem o restante do tray.
+func deriveState(pending, attention, hasError bool) State {
+	switch {
+	case hasError:
+		return StateError
+	case attention:
+		return StateAttention
+	case pending:
+		return StatePending
+	default:
+		return StateIdle
+	}
+}
 
 // ProfileItem is the minimal shape the tray needs to render the "Trocar
 // conta" submenu without importing the profiles package. Populated by the
@@ -51,9 +88,17 @@ type Tray struct {
 	listPrfs    ProfileLister
 	log         *slog.Logger
 
-	mu      sync.Mutex
-	ready   bool
+	mu sync.Mutex
+	// ready vira true quando systray.Run dispara onReady — antes disso os
+	// setters só atualizam estado interno, sem chamar SetIcon.
+	ready bool
+	// current é o estado renderizado por último; usado pra deduplicar
+	// SetIcon quando os flags abaixo recomputam o mesmo State.
 	current State
+	// flags base — combinados via deriveState pra produzir current.
+	pending   bool
+	attention bool
+	hasError  bool
 
 	// buildCh signals onReady's loop goroutine to rebuild the menu. Capacity
 	// 1 + non-blocking send: bursts are coalesced.
@@ -127,20 +172,46 @@ func (t *Tray) SetOnRefresh(fn func()) {
 	t.mu.Unlock()
 }
 
-// SetState swaps the tray icon. Safe to call from any goroutine and from
-// before Start — the state is applied when onReady fires. Repeated calls
-// with the same state are no-ops (avoids gratuitous SNI churn).
-func (t *Tray) SetState(s State) {
+// State devolve o estado renderizado por último — útil em testes / para
+// snapshot de logs. Inclui combinação dos três flags via deriveState.
+func (t *Tray) State() State {
 	t.mu.Lock()
-	if t.current == s && t.ready {
-		t.mu.Unlock()
-		return
-	}
-	t.current = s
+	defer t.mu.Unlock()
+	return t.current
+}
+
+// SetPending marca presença de PRs aguardando review. Idempotente.
+func (t *Tray) SetPending(p bool) {
+	t.applyFlag(func() { t.pending = p })
+}
+
+// SetAttention marca re-request ou PR novo desde o último ack. Idempotente.
+// Limpe via SetAttention(false) quando a janela for apresentada.
+func (t *Tray) SetAttention(a bool) {
+	t.applyFlag(func() { t.attention = a })
+}
+
+// SetError marca falha de sync (auth expirada, rate limit, network).
+// Persiste até a próxima chamada SetError(false) — tipicamente disparada
+// quando o próximo poll completa sem erro. Idempotente.
+func (t *Tray) SetError(e bool) {
+	t.applyFlag(func() { t.hasError = e })
+}
+
+// applyFlag muta um flag sob lock, recomputa o State derivado, e dispara
+// SetIcon FORA do lock — segurar mu durante systray.SetIcon arrisca
+// deadlock se a backend fizer callbacks pra cá. Repetições com o mesmo
+// estado derivado viram no-op.
+func (t *Tray) applyFlag(mutate func()) {
+	t.mu.Lock()
+	mutate()
+	next := deriveState(t.pending, t.attention, t.hasError)
+	changed := next != t.current
+	t.current = next
 	ready := t.ready
 	t.mu.Unlock()
-	if ready {
-		systray.SetIcon(iconFor(s))
+	if ready && changed {
+		systray.SetIcon(iconFor(next))
 	}
 }
 
@@ -158,6 +229,10 @@ func iconFor(s State) []byte {
 	switch s {
 	case StatePending:
 		return assets.TrayPending
+	case StateAttention:
+		return assets.TrayAttention
+	case StateError:
+		return assets.TrayError
 	default:
 		return assets.TrayIdle
 	}
