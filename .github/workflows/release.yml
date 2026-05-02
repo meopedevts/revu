@@ -1,21 +1,31 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - "v*"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (não cria tag/release, só calcula próximo bump)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
   release:
-    name: Build + Publish release
+    name: semantic-release
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: true
 
       - name: System deps
         run: |
@@ -31,77 +41,37 @@ jobs:
           cache: true
 
       - uses: pnpm/action-setup@v4
-        with:
-          version: "10"
 
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: pnpm
-          cache-dependency-path: frontend/pnpm-lock.yaml
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            frontend/pnpm-lock.yaml
 
       - uses: arduino/setup-task@v2
         with:
           version: 3.x
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Install root deps (semantic-release)
+        run: pnpm install --frozen-lockfile
+
       - name: Install frontend deps
         working-directory: frontend
         run: pnpm install --frozen-lockfile --ignore-scripts
 
-      - name: Build release binary
-        run: task release
-
-      - name: Package artifact
-        id: package
+      - name: Run semantic-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GIT_AUTHOR_NAME: "github-actions[bot]"
+          GIT_AUTHOR_EMAIL: "41898282+github-actions[bot]@users.noreply.github.com"
+          GIT_COMMITTER_NAME: "github-actions[bot]"
+          GIT_COMMITTER_EMAIL: "41898282+github-actions[bot]@users.noreply.github.com"
         run: |
-          set -euo pipefail
-          VERSION="${GITHUB_REF_NAME}"
-          STAGE="revu-${VERSION}-linux-amd64"
-          mkdir -p "dist/${STAGE}"
-          cp build/bin/revu "dist/${STAGE}/"
-          cp README.md "dist/${STAGE}/"
-          if [ -f LICENSE ]; then
-            cp LICENSE "dist/${STAGE}/"
-          fi
-          tar -C dist -czf "dist/${STAGE}.tar.gz" "${STAGE}"
-          (cd dist && sha256sum "${STAGE}.tar.gz" > "${STAGE}.tar.gz.sha256")
-          echo "stage=${STAGE}" >> "$GITHUB_OUTPUT"
-
-      - name: Generate changelog
-        id: changelog
-        run: |
-          set -euo pipefail
-          PREV_TAG="$(git describe --tags --abbrev=0 "${GITHUB_REF_NAME}^" 2>/dev/null || true)"
-          if [ -n "$PREV_TAG" ]; then
-            RANGE="${PREV_TAG}..${GITHUB_REF_NAME}"
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            pnpm exec semantic-release --dry-run
           else
-            RANGE="${GITHUB_REF_NAME}"
+            pnpm exec semantic-release
           fi
-          {
-            echo "changelog<<EOF"
-            git log --pretty=format:"- %s (%h)" "$RANGE"
-            echo
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Create GitHub release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            dist/*.tar.gz
-            dist/*.tar.gz.sha256
-          body: |
-            ## Changelog
-
-            ${{ steps.changelog.outputs.changelog }}
-
-            ## Install
-
-            ```bash
-            curl -L -o revu.tar.gz https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/${{ steps.package.outputs.stage }}.tar.gz
-            tar -xzf revu.tar.gz
-            install -Dm755 ${{ steps.package.outputs.stage }}/revu ~/.local/bin/revu
-            ```
-          generate_release_notes: false
-          fail_on_unmatched_files: true

@@ -1,0 +1,42 @@
+{
+  "branches": ["main"],
+  "tagFormat": "v${version}",
+  "plugins": [
+    "@semantic-release/commit-analyzer",
+    "@semantic-release/release-notes-generator",
+    [
+      "@semantic-release/changelog",
+      {
+        "changelogFile": "CHANGELOG.md"
+      }
+    ],
+    [
+      "@semantic-release/exec",
+      {
+        "prepareCmd": "task release VERSION=v${nextRelease.version} && bash scripts/package-release.sh ${nextRelease.version}"
+      }
+    ],
+    [
+      "@semantic-release/git",
+      {
+        "assets": ["CHANGELOG.md"],
+        "message": "chore(release): v${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
+      }
+    ],
+    [
+      "@semantic-release/github",
+      {
+        "assets": [
+          {
+            "path": "dist/revu-v*-linux-amd64.tar.gz",
+            "label": "revu ${nextRelease.gitTag} — Linux amd64 (tar.gz)"
+          },
+          {
+            "path": "dist/revu-v*-linux-amd64.tar.gz.sha256",
+            "label": "SHA256"
+          }
+        ]
+      }
+    ]
+  ]
+}
