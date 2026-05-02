@@ -13,10 +13,10 @@ import { Switch } from "@/components/ui/switch"
 export function NotificationsSection() {
   const form = useSettingsFormContext()
   return (
-    <div className="flex flex-col gap-4">
-      <header className="flex flex-col gap-0.5">
-        <h2 className="text-sm font-semibold">Notificações</h2>
-        <p className="text-xs text-muted-foreground">
+    <div className="flex flex-col gap-6">
+      <header className="flex flex-col">
+        <h2 className="text-sm font-semibold text-foreground">Notificações</h2>
+        <p className="mt-0.5 text-xs text-muted-foreground">
           Alertas via D-Bus quando um review novo aparece.
         </p>
       </header>
@@ -25,7 +25,7 @@ export function NotificationsSection() {
         control={form.control}
         name="notificationsEnabled"
         render={({ field }) => (
-          <FormItem className="flex flex-row items-center justify-between gap-4">
+          <FormItem className="flex flex-row items-center justify-between gap-4 rounded-md border p-4">
             <div className="space-y-0.5">
               <FormLabel>Habilitar notificações</FormLabel>
               <FormDescription>
@@ -39,49 +39,51 @@ export function NotificationsSection() {
         )}
       />
 
-      <FormField
-        control={form.control}
-        name="notificationTimeoutSeconds"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Timeout da notificação (s)</FormLabel>
-            <FormControl>
-              <Input
-                type="number"
-                min={1}
-                max={30}
-                {...field}
-                onChange={(e) => field.onChange(e.target.valueAsNumber || 0)}
-              />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
+      <div className="flex flex-col gap-5 rounded-md border p-4">
+        <FormField
+          control={form.control}
+          name="notificationTimeoutSeconds"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Timeout da notificação (s)</FormLabel>
+              <FormControl>
+                <Input
+                  type="number"
+                  min={1}
+                  max={30}
+                  {...field}
+                  onChange={(e) => field.onChange(e.target.valueAsNumber || 0)}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
-      <FormField
-        control={form.control}
-        name="notificationCooldownMinutes"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Cooldown de re-notificação (min)</FormLabel>
-            <FormDescription>
-              Janela mínima entre notificações repetidas do mesmo PR. 0 desativa
-              o throttle (cada re-request notifica).
-            </FormDescription>
-            <FormControl>
-              <Input
-                type="number"
-                min={0}
-                max={10080}
-                {...field}
-                onChange={(e) => field.onChange(e.target.valueAsNumber || 0)}
-              />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
+        <FormField
+          control={form.control}
+          name="notificationCooldownMinutes"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Cooldown de re-notificação (min)</FormLabel>
+              <FormDescription>
+                Janela mínima entre notificações repetidas do mesmo PR. 0
+                desativa o throttle (cada re-request notifica).
+              </FormDescription>
+              <FormControl>
+                <Input
+                  type="number"
+                  min={0}
+                  max={10080}
+                  {...field}
+                  onChange={(e) => field.onChange(e.target.valueAsNumber || 0)}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      </div>
     </div>
   )
 }

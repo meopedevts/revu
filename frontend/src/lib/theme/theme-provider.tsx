@@ -10,9 +10,11 @@ import {
 import { toast } from "sonner"
 
 import { getTheme, setTheme as setThemeRemote } from "@/bridge"
+import { VALID_THEMES } from "@/generated/constants"
 import type { Theme } from "@/lib/types"
 
 const STORAGE_KEY = "revu:theme"
+const DARK_QUERY = "(prefers-color-scheme: dark)"
 
 interface ThemeContextValue {
   theme: Theme
@@ -21,20 +23,30 @@ interface ThemeContextValue {
 
 const ThemeContext = createContext<ThemeContextValue | null>(null)
 
+function isTheme(value: string | null): value is Theme {
+  return value !== null && (VALID_THEMES as readonly string[]).includes(value)
+}
+
 function readCache(): Theme {
   if (typeof window === "undefined") return "light"
   try {
-    return window.localStorage.getItem(STORAGE_KEY) === "dark"
-      ? "dark"
-      : "light"
+    const stored = window.localStorage.getItem(STORAGE_KEY)
+    return isTheme(stored) ? stored : "light"
   } catch {
     return "light"
   }
 }
 
+function resolveTheme(theme: Theme): "light" | "dark" {
+  if (theme !== "auto") return theme
+  if (typeof window === "undefined" || !window.matchMedia) return "light"
+  return window.matchMedia(DARK_QUERY).matches ? "dark" : "light"
+}
+
 function applyTheme(theme: Theme): void {
+  const resolved = resolveTheme(theme)
   const root = document.documentElement
-  if (theme === "dark") {
+  if (resolved === "dark") {
     root.classList.add("dark")
   } else {
     root.classList.remove("dark")
@@ -51,12 +63,16 @@ interface ThemeProviderProps {
 }
 
 export function ThemeProvider({ children }: ThemeProviderProps) {
-  const [theme, setThemeState] = useState<Theme>(() => readCache())
+  const [theme, setThemeState] = useState<Theme>(() => {
+    const cached = readCache()
+    if (typeof document !== "undefined") {
+      applyTheme(cached)
+    }
+    return cached
+  })
   const reconciledRef = useRef(false)
 
   // Reconcile cache with config.json (source of truth). Runs once on mount.
-  // If the backend says "dark" but cache said "light" (or user edited
-  // config.json by hand), this corrects the UI without a reload.
   useEffect(() => {
     if (reconciledRef.current) return
     reconciledRef.current = true
@@ -71,6 +87,18 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
         // Bridge unavailable (smoke build) — cache wins.
       }
     })()
+  }, [theme])
+
+  // In "auto" mode, react to OS preference changes at runtime without rerender.
+  useEffect(() => {
+    if (theme !== "auto") return
+    if (typeof window === "undefined" || !window.matchMedia) return
+    const mq = window.matchMedia(DARK_QUERY)
+    const onChange = (): void => {
+      applyTheme("auto")
+    }
+    mq.addEventListener("change", onChange)
+    return () => mq.removeEventListener("change", onChange)
   }, [theme])
 
   const setTheme = useCallback(

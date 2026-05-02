@@ -323,7 +323,7 @@ func validateStrict(c *Config) error {
 		})
 	}
 	if !slices.Contains(b.ValidThemes, c.Theme) {
-		fe = append(fe, FieldError{Field: "theme", Msg: "deve ser light ou dark"})
+		fe = append(fe, FieldError{Field: "theme", Msg: "deve ser light, dark ou auto"})
 	}
 	if len(fe) > 0 {
 		return &ValidationError{Errors: fe}
@@ -357,7 +357,7 @@ func validate(c *Config) {
 	if c.Window.Height < 240 {
 		c.Window.Height = d.Window.Height
 	}
-	if c.Theme != "light" && c.Theme != "dark" {
+	if !slices.Contains(Limits().ValidThemes, c.Theme) {
 		c.Theme = d.Theme
 	}
 }

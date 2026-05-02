@@ -48,10 +48,10 @@ export function HistorySection() {
   }, [])
 
   return (
-    <div className="flex flex-col gap-4">
-      <header className="flex flex-col gap-0.5">
-        <h2 className="text-sm font-semibold">Histórico</h2>
-        <p className="text-xs text-muted-foreground">
+    <div className="flex flex-col gap-6">
+      <header className="flex flex-col">
+        <h2 className="text-sm font-semibold text-foreground">Histórico</h2>
+        <p className="mt-0.5 text-xs text-muted-foreground">
           PRs não-OPEN são descartados após este prazo.
         </p>
       </header>
@@ -60,7 +60,7 @@ export function HistorySection() {
         control={form.control}
         name="historyRetentionDays"
         render={({ field }) => (
-          <FormItem>
+          <FormItem className="rounded-md border p-4">
             <FormLabel>Retenção (dias)</FormLabel>
             <FormControl>
               <Input
