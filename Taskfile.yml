@@ -273,3 +273,9 @@ tasks:
     generates:
       - assets/icons/tray-idle-256.png
       - assets/icons/tray-pending-256.png
+
+  brand:svgo:
+    desc: Otimiza SVGs do brand (assets/brand + frontend/public/icon.svg) via svgo
+    cmds:
+      - cd frontend && pnpm exec svgo --config ../svgo.config.mjs -f ../assets/brand
+      - cd frontend && pnpm exec svgo --config ../svgo.config.mjs public/icon.svg
