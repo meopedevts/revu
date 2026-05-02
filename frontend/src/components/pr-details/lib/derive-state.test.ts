@@ -184,28 +184,37 @@ describe("mergeBlockedReason", () => {
     expect(mergeBlockedReason(makeDetails(over))).toBe(expected)
   })
 
-  it.each(["FAILURE", "TIMED_OUT", "CANCELLED", "ERROR"])(
-    "retorna 'algum check falhou' quando há check com conclusion=%s",
-    (c) => {
+  it.each([
+    "FAILURE",
+    "TIMED_OUT",
+    "CANCELLED",
+    "ERROR",
+    "failure",
+    "error",
+    "Timed_Out",
+  ])("retorna 'algum check falhou' quando há check com conclusion=%s", (c) => {
+    expect(mergeBlockedReason(makeDetails({ statusChecks: [check(c)] }))).toBe(
+      "algum check falhou"
+    )
+  })
+
+  it.each(["IN_PROGRESS", "QUEUED", "in_progress", "Queued"])(
+    "retorna 'checks ainda rodando — aguarde' quando há check status=%s",
+    (s) => {
       expect(
-        mergeBlockedReason(makeDetails({ statusChecks: [check(c)] }))
-      ).toBe("algum check falhou")
+        mergeBlockedReason(makeDetails({ statusChecks: [check("", s)] }))
+      ).toBe("checks ainda rodando — aguarde")
     }
   )
 
-  it("retorna 'checks ainda rodando — aguarde' quando há check IN_PROGRESS", () => {
-    expect(
-      mergeBlockedReason(
-        makeDetails({ statusChecks: [check("", "IN_PROGRESS")] })
-      )
-    ).toBe("checks ainda rodando — aguarde")
-  })
-
-  it("retorna 'checks ainda rodando — aguarde' quando há check conclusion=PENDING", () => {
-    expect(
-      mergeBlockedReason(makeDetails({ statusChecks: [check("PENDING")] }))
-    ).toBe("checks ainda rodando — aguarde")
-  })
+  it.each(["PENDING", "pending", ""])(
+    "retorna 'checks ainda rodando — aguarde' quando há check conclusion=%s",
+    (c) => {
+      expect(
+        mergeBlockedReason(makeDetails({ statusChecks: [check(c)] }))
+      ).toBe("checks ainda rodando — aguarde")
+    }
+  )
 
   it("failed tem precedência sobre running quando ambos coexistem", () => {
     expect(

@@ -62,14 +62,12 @@ export function mergeBlockedReason(
     return "conflitos — resolva pelo GitHub"
   if (details.mergeable === "UNKNOWN")
     return "GitHub ainda está checando se pode merge"
-  let hasFailed = false
   let hasRunning = false
   for (const c of details.statusChecks) {
     const cat = classifyCheck(c)
-    if (cat === "failed") hasFailed = true
-    else if (cat === "running") hasRunning = true
+    if (cat === "failed") return "algum check falhou"
+    if (cat === "running") hasRunning = true
   }
-  if (hasFailed) return "algum check falhou"
   if (hasRunning) return "checks ainda rodando — aguarde"
   return null
 }
