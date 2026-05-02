@@ -77,11 +77,11 @@ export function AccountsSection() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-6">
       <header className="flex items-center justify-between gap-2">
-        <div className="flex flex-col gap-0.5">
-          <h2 className="text-sm font-semibold">Contas</h2>
-          <p className="text-xs text-muted-foreground">
+        <div className="flex flex-col">
+          <h2 className="text-sm font-semibold text-foreground">Contas</h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">
             Gerencie as credenciais GitHub usadas pelo revu.
           </p>
         </div>
@@ -101,7 +101,11 @@ export function AccountsSection() {
       ) : (
         <div className="flex flex-col gap-2">
           {profiles.map((p) => (
-            <Card key={p.id} size="sm">
+            <Card
+              key={p.id}
+              size="sm"
+              className="ring-1 ring-foreground/10 transition-[box-shadow,border-color] duration-150 hover:shadow-sm hover:ring-primary/40"
+            >
               <CardHeader className="flex items-start gap-2">
                 <div className="flex flex-1 flex-col gap-0.5">
                   <CardTitle className="flex items-center gap-2">

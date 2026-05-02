@@ -31,6 +31,6 @@ func Limits() Bounds {
 		HistoryRetentionDays:        Bound{Min: 1, Max: 365},
 		WindowWidth:                 Bound{Min: 240, Max: 3840},
 		WindowHeight:                Bound{Min: 240, Max: 2160},
-		ValidThemes:                 []string{"light", "dark"},
+		ValidThemes:                 []string{"light", "dark", "auto"},
 	}
 }

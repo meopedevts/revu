@@ -31,7 +31,7 @@ export const CONFIG_BOUNDS = {
   windowHeight: { min: 240, max: 2160 },
 } as const
 
-export const VALID_THEMES = ["light", "dark"] as const
+export const VALID_THEMES = ["light", "dark", "auto"] as const
 export type Theme = (typeof VALID_THEMES)[number]
 
 export const DETAILS_DIFF_LIMIT = 500

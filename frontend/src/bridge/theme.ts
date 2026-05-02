@@ -1,3 +1,4 @@
+import { VALID_THEMES } from "@/generated/constants"
 import type { Theme } from "@/lib/types"
 
 import { requireBridge } from "./client"
@@ -9,7 +10,9 @@ export interface ThemeBridge {
 
 export async function getTheme(): Promise<Theme> {
   const raw = await requireBridge("GetTheme")()
-  return raw === "dark" ? "dark" : "light"
+  return (VALID_THEMES as readonly string[]).includes(raw)
+    ? (raw as Theme)
+    : "light"
 }
 
 export const setTheme = (theme: Theme): Promise<void> =>

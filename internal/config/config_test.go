@@ -90,6 +90,23 @@ func TestValidate_CoercesInsaneValues(t *testing.T) {
 	}
 }
 
+func TestUpdate_AcceptsAutoTheme(t *testing.T) {
+	path := tempPath(t)
+	m, err := Load(path)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	c := m.Current()
+	c.Theme = "auto"
+
+	if err := m.Update(c); err != nil {
+		t.Fatalf("expected auto theme to validate, got: %v", err)
+	}
+	if got := m.Current(); got.Theme != "auto" {
+		t.Fatalf("theme not persisted: %q", got.Theme)
+	}
+}
+
 func TestUpdate_RejectsUnsupportedTheme(t *testing.T) {
 	path := tempPath(t)
 	m, err := Load(path)
