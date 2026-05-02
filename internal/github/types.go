@@ -14,6 +14,8 @@ type PRSummary struct {
 	Title     string    `json:"title"`
 	URL       string    `json:"url"`
 	Author    string    `json:"author"`
+	AvatarURL string    `json:"avatarUrl"`
+	Branch    string    `json:"branch"`
 	IsDraft   bool      `json:"isDraft"`
 	UpdatedAt time.Time `json:"updatedAt"`
 }
@@ -146,7 +148,8 @@ type rawPRFullView struct {
 }
 
 type rawLogin struct {
-	Login string `json:"login"`
+	Login     string `json:"login"`
+	AvatarURL string `json:"avatarUrl"`
 }
 
 type rawLabel struct {
@@ -188,7 +191,8 @@ var (
 )
 
 // rawSearchPR mirrors the nested JSON from `gh search prs` so we can decode
-// the wire shape before flattening into PRSummary.
+// the wire shape before flattening into PRSummary. REV-54 adiciona avatarUrl
+// e headRefName pra alimentar o card redesenhado.
 type rawSearchPR struct {
 	Number     int    `json:"number"`
 	Title      string `json:"title"`
@@ -197,8 +201,10 @@ type rawSearchPR struct {
 		NameWithOwner string `json:"nameWithOwner"`
 	} `json:"repository"`
 	Author struct {
-		Login string `json:"login"`
+		Login     string `json:"login"`
+		AvatarURL string `json:"avatarUrl"`
 	} `json:"author"`
-	IsDraft   bool      `json:"isDraft"`
-	UpdatedAt time.Time `json:"updatedAt"`
+	IsDraft     bool      `json:"isDraft"`
+	HeadRefName string    `json:"headRefName"`
+	UpdatedAt   time.Time `json:"updatedAt"`
 }

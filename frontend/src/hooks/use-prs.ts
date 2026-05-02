@@ -1,6 +1,11 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 
-import { listHistoryPRs, listPendingPRs } from "@/bridge"
+import {
+  acknowledgeTray,
+  getTrayAcknowledgedAt,
+  listHistoryPRs,
+  listPendingPRs,
+} from "@/bridge"
 import { POLL_SAFETY_INTERVAL_MS } from "@/generated/constants"
 import { queryKeys } from "@/lib/query/keys"
 import type { PRRecord } from "@/lib/types"
@@ -34,6 +39,33 @@ export function usePollMeta(): PollMeta {
     gcTime: Infinity,
   })
   return data ?? { at: null, err: null }
+}
+
+// useTrayAcknowledgedAt resolve o instante do último ack do tray. Backend
+// devolve "" antes do primeiro ack — convertemos pra null. Comparado com
+// pr.firstSeenAt no card pra decidir o dot "novo desde última visualização".
+export function useTrayAcknowledgedAt(): Date | null {
+  const { data } = useQuery<Date | null>({
+    queryKey: queryKeys.tray.acknowledgedAt,
+    queryFn: async () => {
+      const iso = await getTrayAcknowledgedAt()
+      return iso ? new Date(iso) : null
+    },
+    staleTime: Infinity,
+  })
+  return data ?? null
+}
+
+// useAcknowledgeTray dispara o ack persistido (REV-54). Disparado on-mount
+// pela view principal pra que abrir a janela limpe o "novo". Invalida a query
+// do ack pra re-render imediato dos cards perdendo o dot.
+export function useAcknowledgeTray() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => acknowledgeTray(),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: queryKeys.tray.acknowledgedAt }),
+  })
 }
 
 interface UsePRsResult {

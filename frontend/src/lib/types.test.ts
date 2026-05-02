@@ -16,6 +16,8 @@ function makePR(overrides: Partial<PRRecord> = {}): PRRecord {
     deletions: 0,
     reviewPending: false,
     reviewState: "PENDING",
+    branch: "main",
+    avatarUrl: "",
     firstSeenAt: "2026-01-01T00:00:00Z",
     lastSeenAt: "2026-01-01T00:00:00Z",
     ...overrides,

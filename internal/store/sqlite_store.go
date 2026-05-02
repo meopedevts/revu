@@ -358,6 +358,8 @@ func insertNewPolled(
 		IsDraft:       pr.IsDraft,
 		ReviewPending: true,
 		ReviewState:   "PENDING",
+		Branch:        pr.Branch,
+		AvatarURL:     pr.AvatarURL,
 		FirstSeenAt:   now,
 		LastSeenAt:    now,
 	}
@@ -365,6 +367,7 @@ func insertNewPolled(
 		rec.ID, rec.Number, rec.Repo, rec.Title, rec.Author, rec.URL,
 		rec.State, boolToInt(rec.IsDraft), rec.Additions, rec.Deletions,
 		boolToInt(rec.ReviewPending), rec.ReviewState,
+		rec.Branch, rec.AvatarURL,
 		formatTime(rec.FirstSeenAt),
 		formatTime(rec.LastSeenAt), formatTimePtr(rec.LastNotifiedAt),
 		profID,
@@ -387,6 +390,7 @@ func updateExistingPolled(
 ) (PRRecord, bool, error) {
 	if _, err := tx.ExecContext(ctx, qUpdatePRMutable,
 		pr.Title, pr.Author, pr.URL, pr.Repo, boolToInt(pr.IsDraft),
+		pr.Branch, pr.AvatarURL,
 		formatTime(now), pr.ID,
 	); err != nil {
 		return PRRecord{}, false, err
@@ -608,7 +612,8 @@ func scanRow(row interface {
 	err := row.Scan(
 		&rec.ID, &rec.Number, &rec.Repo, &rec.Title, &rec.Author, &rec.URL,
 		&rec.State, &isDraft, &rec.Additions, &rec.Deletions,
-		&pend, &rec.ReviewState, &firstSeen, &lastSeen, &lastNotifiedRaw,
+		&pend, &rec.ReviewState, &rec.Branch, &rec.AvatarURL,
+		&firstSeen, &lastSeen, &lastNotifiedRaw,
 	)
 	if err != nil {
 		return PRRecord{}, err

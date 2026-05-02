@@ -117,7 +117,7 @@ func (c *ghClient) ListReviewRequested(ctx context.Context) ([]PRSummary, error)
 		"search", "prs",
 		"--review-requested=@me",
 		"--state=open",
-		"--json", "number,title,url,repository,author,isDraft,updatedAt",
+		"--json", "number,title,url,repository,author,isDraft,headRefName,updatedAt",
 		"--limit", "100",
 	}
 	stdout, stderr, err := c.runGH(ctx, args...)
@@ -137,6 +137,8 @@ func (c *ghClient) ListReviewRequested(ctx context.Context) ([]PRSummary, error)
 			Title:     r.Title,
 			URL:       r.URL,
 			Author:    r.Author.Login,
+			AvatarURL: r.Author.AvatarURL,
+			Branch:    r.HeadRefName,
 			IsDraft:   r.IsDraft,
 			UpdatedAt: r.UpdatedAt,
 		})

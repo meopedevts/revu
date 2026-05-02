@@ -1,11 +1,11 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router"
-import { useCallback } from "react"
+import { useCallback, useEffect } from "react"
 
 import { refreshNow } from "@/bridge"
 import { MainHeader } from "@/components/main-header"
 import { PRListTabs } from "@/components/pr-list-tabs"
 import type { SettingsSection } from "@/components/settings/settings-sidebar"
-import { usePRs } from "@/hooks/use-prs"
+import { useAcknowledgeTray, usePRs } from "@/hooks/use-prs"
 
 export const Route = createFileRoute("/")({
   component: MainView,
@@ -15,6 +15,17 @@ function MainView() {
   const navigate = useNavigate()
   const { pending, history, lastPollAt, lastPollErr, loading, reload } =
     usePRs()
+  const ackTray = useAcknowledgeTray()
+
+  // REV-54: ack on mount limpa o estado "novo desde última visualização"
+  // sempre que o user abre a janela. Mutate é fire-and-forget — falha de
+  // bridge não trava a render. mutate() é estável (referência do react-query).
+  useEffect(() => {
+    ackTray.mutate()
+    // mount-only: ackTray.mutate é estável e re-rodar no efeito
+    // sobrescreveria timestamps válidos.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleRefresh = useCallback(() => {
     // refreshNow() can throw synchronously (BridgeUnavailableError) before

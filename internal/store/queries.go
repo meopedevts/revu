@@ -6,13 +6,13 @@ package store
 
 const (
 	qSelectPRByID = `SELECT id, number, repo, title, author, url, state, is_draft,
-		additions, deletions, review_pending, review_state, first_seen_at, last_seen_at,
-		last_notified_at
+		additions, deletions, review_pending, review_state, branch, avatar_url,
+		first_seen_at, last_seen_at, last_notified_at
 		FROM prs WHERE id = ?`
 
 	qSelectPRsAll = `SELECT id, number, repo, title, author, url, state, is_draft,
-		additions, deletions, review_pending, review_state, first_seen_at, last_seen_at,
-		last_notified_at
+		additions, deletions, review_pending, review_state, branch, avatar_url,
+		first_seen_at, last_seen_at, last_notified_at
 		FROM prs ORDER BY last_seen_at DESC, id ASC`
 
 	// qSelectPRsPending / qSelectPRsHistory encode the REV-16 rule (refined):
@@ -22,24 +22,24 @@ const (
 	// merging before I got to it. review_state is still persisted so the
 	// badge communicates what happened, but it no longer gates the tab.
 	qSelectPRsPending = `SELECT id, number, repo, title, author, url, state, is_draft,
-		additions, deletions, review_pending, review_state, first_seen_at, last_seen_at,
-		last_notified_at
+		additions, deletions, review_pending, review_state, branch, avatar_url,
+		first_seen_at, last_seen_at, last_notified_at
 		FROM prs
 		WHERE state NOT IN ('MERGED', 'CLOSED')
 		ORDER BY last_seen_at DESC, id ASC`
 
 	qSelectPRsHistory = `SELECT id, number, repo, title, author, url, state, is_draft,
-		additions, deletions, review_pending, review_state, first_seen_at, last_seen_at,
-		last_notified_at
+		additions, deletions, review_pending, review_state, branch, avatar_url,
+		first_seen_at, last_seen_at, last_notified_at
 		FROM prs
 		WHERE state IN ('MERGED', 'CLOSED')
 		ORDER BY last_seen_at DESC, id ASC`
 
 	qInsertPR = `INSERT INTO prs (
 		id, number, repo, title, author, url, state, is_draft,
-		additions, deletions, review_pending, review_state, first_seen_at, last_seen_at,
-		last_notified_at, profile_id
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		additions, deletions, review_pending, review_state, branch, avatar_url,
+		first_seen_at, last_seen_at, last_notified_at, profile_id
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 	// qUpdatePRMutable rewrites the fields that may legitimately change
 	// between polls. first_seen_at is intentionally absent — it stays frozen
@@ -47,8 +47,11 @@ const (
 	// dropped out (review_pending was 0), reset review_state to PENDING: GitHub
 	// only surfaces a PR under review-requested when a fresh review is
 	// expected, so whatever state lingered from the previous round is stale.
+	// REV-54: branch + avatar_url também são mutáveis (rebase muda headRef,
+	// avatar do GH pode rotacionar).
 	qUpdatePRMutable = `UPDATE prs
 		SET title = ?, author = ?, url = ?, repo = ?, is_draft = ?,
+			branch = ?, avatar_url = ?,
 			review_pending = 1,
 			review_state = CASE WHEN review_pending = 0 THEN 'PENDING' ELSE review_state END,
 			last_seen_at = ?,

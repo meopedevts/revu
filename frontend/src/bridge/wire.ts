@@ -29,6 +29,8 @@ export interface PRRecordWire {
   deletions: number
   review_pending: boolean
   review_state: string
+  branch: string
+  avatar_url: string
   first_seen_at: string
   last_seen_at: string
   last_notified_at?: string

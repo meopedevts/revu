@@ -149,20 +149,23 @@ func TestListReviewRequested_Happy(t *testing.T) {
 		Title:     "feat: add foo",
 		URL:       "https://github.com/octocat/hello-world/pull/142",
 		Author:    "alice",
+		AvatarURL: "https://avatars.githubusercontent.com/u/1?v=4",
+		Branch:    "feat/foo",
 		IsDraft:   false,
 		UpdatedAt: time.Date(2026, 4, 23, 14, 30, 0, 0, time.UTC),
 	}
 	if !reflect.DeepEqual(got[0], want0) {
 		t.Fatalf("pr[0] mismatch:\nwant %+v\ngot  %+v", want0, got[0])
 	}
-	if got[1].ID != "acme/widgets#7" || !got[1].IsDraft {
+	if got[1].ID != "acme/widgets#7" || !got[1].IsDraft || got[1].Branch != "chore/bump" ||
+		got[1].AvatarURL != "https://avatars.githubusercontent.com/u/2?v=4" {
 		t.Fatalf("pr[1] mismatch: %+v", got[1])
 	}
 	wantArgs := []string{
 		"search", "prs",
 		"--review-requested=@me",
 		"--state=open",
-		"--json", "number,title,url,repository,author,isDraft,updatedAt",
+		"--json", "number,title,url,repository,author,isDraft,headRefName,updatedAt",
 		"--limit", "100",
 	}
 	if !reflect.DeepEqual(fe.gotArgs, wantArgs) {

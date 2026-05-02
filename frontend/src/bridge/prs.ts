@@ -12,6 +12,8 @@ export interface PRsBridge {
   MergePR(prID: string, method: MergeMethod): Promise<void>
   RefreshNow(): Promise<void>
   OpenPRInBrowser(url: string): Promise<void>
+  AcknowledgeTray(): Promise<void>
+  GetTrayAcknowledgedAt(): Promise<string>
 }
 
 export async function listPendingPRs(): Promise<PRRecord[]> {
@@ -35,3 +37,11 @@ export const refreshNow = (): Promise<void> => requireBridge("RefreshNow")()
 
 export const openPRInBrowser = (url: string): Promise<void> =>
   requireBridge("OpenPRInBrowser")(url)
+
+export const acknowledgeTray = (): Promise<void> =>
+  requireBridge("AcknowledgeTray")()
+
+// getTrayAcknowledgedAt resolves an ISO-8601 string or "" when never acked.
+// Frontend converts to Date | null at the hook layer.
+export const getTrayAcknowledgedAt = (): Promise<string> =>
+  requireBridge("GetTrayAcknowledgedAt")()
