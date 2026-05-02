@@ -16,8 +16,42 @@ env:
   GOLANGCI_LINT_VERSION: "v2.11.0"
 
 jobs:
+  frontend-build:
+    name: Build frontend (dist artifact)
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install deps
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Build (vite)
+        run: pnpm build
+
+      - name: Upload dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+          if-no-files-found: error
+          retention-days: 1
+
   lint-go:
     name: Lint Go
+    needs: frontend-build
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -31,6 +65,12 @@ jobs:
         with:
           version: 3.x
           repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Restore frontend dist
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
 
       - name: Install golangci-lint
         run: |
@@ -80,6 +120,7 @@ jobs:
 
   test:
     name: Test (race)
+    needs: frontend-build
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -96,6 +137,12 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
+
+      - name: Restore frontend dist
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
 
       - name: go vet
         run: go vet ./...
@@ -105,6 +152,7 @@ jobs:
 
   build:
     name: Build (smoke)
+    needs: frontend-build
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -122,30 +170,27 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache: true
 
-      - uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: pnpm
-          cache-dependency-path: frontend/pnpm-lock.yaml
-
       - uses: arduino/setup-task@v2
         with:
           version: 3.x
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install frontend deps
-        working-directory: frontend
-        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Restore frontend dist
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
 
-      - name: task build
-        run: task build
+      - name: task build (skip frontend rebuild)
+        run: |
+          mkdir -p build/bin
+          go build -trimpath -tags desktop,production,webkit2_41 \
+            -ldflags "-s -w -X main.version=$(git describe --tags --always --dirty 2>/dev/null || echo dev) -X main.commit=$(git rev-parse --short HEAD) -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            -o build/bin/revu ./cmd/revu
 
   govulncheck:
     name: govulncheck
+    needs: frontend-build
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -154,6 +199,12 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
+
+      - name: Restore frontend dist
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
 
       - name: Install govulncheck
         run: go install golang.org/x/vuln/cmd/govulncheck@latest
