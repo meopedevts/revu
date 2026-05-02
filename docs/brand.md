@@ -235,8 +235,16 @@ JetBrains Mono escolhido sobre Geist Mono por:
 
 ### Decisão final
 
-> **Pendente.** Comparar 3 concepts num PR review e marcar 1 como
-> oficial antes de fechar REV-48.
+**`r-monogram` aprovado** (REV-50). Bicolor estável independente de
+contexto, legível em 16×16 (favicon), forma simples reproduz bem em
+raster e vetor. Os outros concepts (`r-eye`, `r-check`) ficam em
+`assets/brand/concepts/` como referência histórica.
+
+Logo final em `assets/brand/`:
+
+- `logo.svg` — monocromático (`currentColor`), pra inline em UI.
+- `logo-color.svg` — bicolor full color (Iris + foreground).
+- `wordmark.svg` — logo + texto "revu" em Inter 600.
 
 ## 6. Versão
 
