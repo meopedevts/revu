@@ -58,6 +58,18 @@ tasks:
     cmds:
       - pnpm install
 
+  install:frontend:ci:
+    desc: Instala deps frontend com --frozen-lockfile (não muta lockfile — pra check/CI)
+    dir: frontend
+    cmds:
+      - pnpm install --frozen-lockfile
+    sources:
+      - pnpm-lock.yaml
+      - package.json
+    generates:
+      - node_modules/.modules.yaml
+    method: checksum
+
   gen:
     desc: Gera frontend/src/generated/constants.ts a partir das constantes Go (config.Defaults/Limits + uilimits)
     cmds:
@@ -76,6 +88,12 @@ tasks:
     dir: frontend
     cmds:
       - pnpm lint
+    sources:
+      - "src/**/*.{ts,tsx,js,jsx}"
+      - eslint.config.js
+      - tsconfig*.json
+      - package.json
+    method: checksum
 
   lint:frontend:fix:
     desc: ESLint flat com autofix
@@ -89,23 +107,54 @@ tasks:
     cmds:
       - pnpm format
 
+  format:check:frontend:
+    desc: Prettier --check no frontend (não muta — pra check/CI)
+    dir: frontend
+    cmds:
+      - pnpm format:check
+    sources:
+      - "**/*.{ts,tsx,js,jsx,json,css,html,md}"
+      - prettier.config.js
+      - .prettierignore
+    method: checksum
+
   typecheck:frontend:
     desc: tsc --noEmit no frontend
     dir: frontend
     cmds:
       - pnpm typecheck
+    sources:
+      - "src/**/*.{ts,tsx}"
+      - tsconfig*.json
+      - package.json
+    method: checksum
 
   test:frontend:
     desc: Vitest run no frontend (REV-37)
     dir: frontend
     cmds:
       - pnpm test:run
+    sources:
+      - "src/**/*.{ts,tsx}"
+      - vitest.config.ts
+      - tsconfig*.json
+      - package.json
+    method: checksum
 
   test:frontend:cov:
     desc: Vitest com cobertura — threshold lines ≥60% (REV-37)
     dir: frontend
     cmds:
       - pnpm test:cov
+
+  check:frontend:
+    desc: Gate frontend completo (install:ci + lint + format:check + typecheck + test) — REV-41
+    deps: [install:frontend:ci]
+    cmds:
+      - task: lint:frontend
+      - task: format:check:frontend
+      - task: typecheck:frontend
+      - task: test:frontend
 
   dev:
     desc: Hot-reload com wails dev (frontend + backend)
@@ -141,11 +190,12 @@ tasks:
       - golangci-lint fmt ./...
 
   check:
-    desc: Verificação completa após mudança de código — fmt+lint, vet, test
+    desc: Verificação completa após mudança de código — Go (fmt+lint+vet+test) + frontend gate (REV-41)
     cmds:
       - task: lint
       - go vet ./...
       - go test -race ./...
+      - task: check:frontend
 
   mutate:
     desc: Mutation testing scoped (store + profiles + poller). Lento — manual ou nightly.
