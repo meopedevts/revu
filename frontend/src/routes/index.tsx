@@ -68,7 +68,13 @@ function MainView() {
         onRefresh={handleRefresh}
         onOpenSettings={openSettings}
       />
-      <PRListTabs pending={pending} history={history} onOpenPR={openPR} />
+      <PRListTabs
+        pending={pending}
+        history={history}
+        onOpenPR={openPR}
+        lastPollErr={lastPollErr}
+        onRetry={handleRefresh}
+      />
     </div>
   )
 }

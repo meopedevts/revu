@@ -2,6 +2,7 @@ import { MoreHorizontal, Plus } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 
+import { EmptyState } from "@/components/empty-state"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -93,7 +94,10 @@ export function AccountsSection() {
       {loading ? (
         <p className="text-xs text-muted-foreground">Carregando…</p>
       ) : profiles.length === 0 ? (
-        <p className="text-xs text-muted-foreground">Nenhuma conta ainda.</p>
+        <EmptyState
+          variant="no-accounts"
+          onAddAccount={() => setAddOpen(true)}
+        />
       ) : (
         <div className="flex flex-col gap-2">
           {profiles.map((p) => (
