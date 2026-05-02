@@ -1,5 +1,6 @@
 import { Bell, Clock, Palette, RefreshCw, User } from "lucide-react"
 
+import { Logo } from "@/components/logo"
 import type { Profile } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
@@ -47,6 +48,10 @@ export function SettingsSidebar({
       aria-label="Seções das configurações"
       className="flex w-40 flex-col gap-0.5 border-r bg-muted/30 p-2"
     >
+      <div className="mb-1 flex items-center gap-1.5 px-2 py-1.5">
+        <Logo className="size-4 text-primary" decorative />
+        <span className="font-heading text-xs font-semibold">revu</span>
+      </div>
       {ITEMS.map((item) => {
         const Icon = item.icon
         const isActive = active === item.id
@@ -57,7 +62,7 @@ export function SettingsSidebar({
             onClick={() => onSelect(item.id)}
             className={cn(
               "flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs font-medium",
-              "transition-colors",
+              "transition-colors duration-150",
               isActive
                 ? "bg-primary/10 text-primary"
                 : "text-muted-foreground hover:bg-muted hover:text-foreground"

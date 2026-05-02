@@ -1,5 +1,6 @@
 import { AlertCircle, RefreshCw, Settings } from "lucide-react"
 
+import { Logo } from "@/components/logo"
 import { MainHeaderProfileBadge } from "@/components/main-header-profile-badge"
 import type { SettingsSection } from "@/components/settings/settings-sidebar"
 import { Button } from "@/components/ui/button"
@@ -33,7 +34,10 @@ export function MainHeader({
     <header className="flex items-start justify-between gap-2">
       <div className="min-w-0">
         <div className="flex items-center gap-2">
-          <div className="font-heading text-base font-medium">revu</div>
+          <div className="flex items-center gap-1.5">
+            <Logo className="size-5 text-primary" decorative />
+            <span className="font-heading text-base font-medium">revu</span>
+          </div>
           <MainHeaderProfileBadge
             onOpenAccounts={() => onOpenSettings("accounts")}
           />
