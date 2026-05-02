@@ -22,12 +22,8 @@ export function PRDetailsFiles({ files }: PRDetailsFilesProps) {
         >
           <span className="truncate font-mono">{f.path}</span>
           <span className="flex shrink-0 items-center gap-2 font-mono font-medium">
-            <span className="text-emerald-600 dark:text-emerald-400">
-              +{f.additions}
-            </span>
-            <span className="text-rose-600 dark:text-rose-400">
-              −{f.deletions}
-            </span>
+            <span className="text-diff-added">+{f.additions}</span>
+            <span className="text-diff-removed">−{f.deletions}</span>
           </span>
         </li>
       ))}

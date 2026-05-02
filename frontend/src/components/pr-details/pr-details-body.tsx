@@ -35,21 +35,27 @@ export function PRDetailsBody({ body }: PRDetailsBodyProps) {
               )
             }
             return (
-              <SyntaxHighlighter
-                language={match?.[1] ?? "text"}
-                style={oneDark}
-                PreTag="div"
-                customStyle={{
-                  margin: 0,
-                  fontSize: "0.8rem",
-                  borderRadius: "0.5rem",
-                }}
-              >
-                {(typeof children === "string" ? children : "").replace(
-                  /\n$/,
-                  ""
-                )}
-              </SyntaxHighlighter>
+              <div className="overflow-hidden rounded-md border border-border">
+                <SyntaxHighlighter
+                  language={match?.[1] ?? "text"}
+                  style={oneDark}
+                  PreTag="div"
+                  customStyle={{
+                    margin: 0,
+                    fontSize: "0.8rem",
+                    borderRadius: 0,
+                    fontFamily: "var(--font-mono)",
+                  }}
+                  codeTagProps={{
+                    style: { fontFamily: "var(--font-mono)" },
+                  }}
+                >
+                  {(typeof children === "string" ? children : "").replace(
+                    /\n$/,
+                    ""
+                  )}
+                </SyntaxHighlighter>
+              </div>
             )
           },
           a(props) {

@@ -59,6 +59,12 @@
   --color-review-changes-foreground: var(--review-changes-foreground);
   --color-review-commented: var(--review-commented);
   --color-review-commented-foreground: var(--review-commented-foreground);
+  --color-diff-added: var(--diff-added);
+  --color-diff-added-bg: var(--diff-added-bg);
+  --color-diff-added-line: var(--diff-added-line);
+  --color-diff-removed: var(--diff-removed);
+  --color-diff-removed-bg: var(--diff-removed-bg);
+  --color-diff-removed-line: var(--diff-removed-line);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -126,6 +132,16 @@
   --review-changes-foreground: oklch(0.21 0.006 286);
   --review-commented: oklch(0.68 0.12 240);
   --review-commented-foreground: oklch(0.21 0.006 286);
+  /* Diff lines (REV-56) — hue 145/27 alinhado a status-open/closed mas
+     com chroma reduzido pra não competir com badges. -line tonaliza
+     gutter/contexto, -bg tonaliza background da linha alterada,
+     -fg dá contraste do número/sinal. AA verificado vs --background. */
+  --diff-added: oklch(0.5 0.15 145);
+  --diff-added-bg: oklch(0.95 0.04 145);
+  --diff-added-line: oklch(0.88 0.06 145);
+  --diff-removed: oklch(0.5 0.18 27);
+  --diff-removed-bg: oklch(0.96 0.03 27);
+  --diff-removed-line: oklch(0.88 0.06 27);
 }
 
 .dark {
@@ -176,6 +192,12 @@
   --review-changes-foreground: oklch(0.21 0.006 286);
   --review-commented: oklch(0.65 0.12 240);
   --review-commented-foreground: oklch(0.21 0.006 286);
+  --diff-added: oklch(0.78 0.14 145);
+  --diff-added-bg: oklch(0.3 0.06 145);
+  --diff-added-line: oklch(0.36 0.08 145);
+  --diff-removed: oklch(0.78 0.16 27);
+  --diff-removed-bg: oklch(0.3 0.08 27);
+  --diff-removed-line: oklch(0.36 0.1 27);
 }
 
 @layer base {

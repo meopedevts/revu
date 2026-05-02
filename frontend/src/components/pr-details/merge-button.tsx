@@ -6,7 +6,6 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { cn } from "@/lib/utils"
 
 interface MergeButtonProps {
   label: string
@@ -34,7 +33,6 @@ export function MergeButton({
       variant={primary ? "default" : "outline"}
       disabled={disabled}
       onClick={() => onClick(method)}
-      className={cn(primary ? "bg-status-merged text-white" : "")}
     >
       {merging ? (
         <Loader2 className="animate-spin" data-icon="inline-start" />
