@@ -12,7 +12,7 @@ require (
 	github.com/spf13/viper v1.21.0
 	github.com/wailsapp/wails/v2 v2.12.0
 	github.com/zalando/go-keyring v0.2.8
-	modernc.org/sqlite v1.49.1
+	modernc.org/sqlite v1.50.0
 )
 
 require (
